@@ -234,8 +234,9 @@
     width: 70px; height: 70px; border-radius: 50%; background: var(--primary);
     color: white; font-size: 26px; font-weight: 800; display: flex;
     align-items: center; justify-content: center; margin: 0 auto 10px;
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Poppins', sans-serif; overflow: hidden;
   }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; }
   .profile-head .pname { font-size: 17px; font-weight: 700; color: var(--dark); }
   .profile-head .pmeta { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; font-weight: 600; }
 
@@ -475,14 +476,57 @@
             <div style="font-size:18px;font-weight:800;color:var(--dark);font-family:'Poppins',sans-serif;">Vítejte, <span id="teacherHomeName"></span></div>
             <div style="font-size:13px;color:var(--text-muted);margin-top:6px;">Jste přihlášená jako učitel – nesbíráte body, máte přístup do Administrace.</div>
           </div>
-          <button class="btn-primary" onclick="showScreen('admin')">Přejít na Administraci</button>
+          <button class="btn-primary" onclick="openQuizCreate()">+ Vytvořit kvíz</button>
+          <button class="btn-primary" style="margin-top:10px;background:var(--dark);" onclick="showScreen('set-points')">Nastavit body</button>
+          <button class="btn-primary" style="margin-top:10px;background:var(--dark);" onclick="showScreen('admin')">Přejít na Administraci (docházka)</button>
         </div>
       </div>
 
       <!-- KVIZY LIST -->
       <div class="screen hidden" id="screen-quizzes">
-        <h2 class="section-title">Kvízy pro váš ročník</h2>
-        <div id="quizListFull"></div>
+        <div id="studentQuizzesContent">
+          <h2 class="section-title">Kvízy pro váš ročník</h2>
+          <div id="quizListFull"></div>
+        </div>
+        <div id="teacherQuizzesContent" class="hidden">
+          <button class="btn-primary" onclick="openQuizCreate()">+ Vytvořit nový kvíz</button>
+          <h2 class="section-title">Vaše kvízy</h2>
+          <div id="quizListAdmin"></div>
+        </div>
+      </div>
+
+      <!-- VYTVOŘENÍ KVÍZU (jen mistrová) -->
+      <div class="screen hidden" id="screen-quiz-create">
+        <span class="back-link" onclick="showScreen('quizzes')">&larr; Zpět na kvízy</span>
+        <h2 class="section-title">Nový kvíz</h2>
+        <div class="field">
+          <label>Název kvízu</label>
+          <input type="text" id="qcTitle" placeholder="např. Hygienické minimum">
+        </div>
+        <div class="field">
+          <label>Ročník</label>
+          <select id="qcRocnik">
+            <option value="1">1. ročník</option>
+            <option value="2">2. ročník</option>
+            <option value="3">3. ročník</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Body za splnění</label>
+          <input type="number" id="qcPoints" min="0" value="5">
+        </div>
+        <h2 class="section-title">Otázky</h2>
+        <div id="qcQuestions"></div>
+        <button class="btn-secondary" onclick="addQuizQuestion()">+ Přidat otázku</button>
+        <button class="btn-primary" style="margin-top:14px;" id="qcSaveBtn" onclick="saveQuizDraft()">Uložit kvíz</button>
+        <div id="qcError"></div>
+      </div>
+
+      <!-- NASTAVENÍ BODŮ (jen mistrová) -->
+      <div class="screen hidden" id="screen-set-points">
+        <span class="back-link" onclick="showScreen('home')">&larr; Zpět domů</span>
+        <h2 class="section-title">Nastavit body studentům</h2>
+        <div id="spStudentList"></div>
       </div>
 
       <!-- QUIZ TAKING -->
@@ -503,23 +547,39 @@
 
       <!-- LEADERBOARD -->
       <div class="screen hidden" id="screen-leaderboard">
-        <div class="lb-tabs">
-          <div class="lb-tab active" id="lbTabAll" onclick="setLbFilter('all')">Celá škola</div>
-          <div class="lb-tab" id="lbTabMine" onclick="setLbFilter('mine')">Můj ročník</div>
+        <div id="studentLeaderboardContent">
+          <div class="lb-tabs">
+            <div class="lb-tab active" id="lbTabAll" onclick="setLbFilter('all')">Celá škola</div>
+            <div class="lb-tab" id="lbTabMine" onclick="setLbFilter('mine')">Můj ročník</div>
+          </div>
+          <h2 class="section-title">Nejlepší</h2>
+          <div id="lbTop3"></div>
+          <h2 class="section-title">Tvoje umístění</h2>
+          <div id="lbMyPosition"></div>
+          <p class="lb-note">Jména a pořadí ostatních studentů mimo první 3 místa se nezobrazují – vidíš jen svoje vlastní umístění.</p>
         </div>
-        <h2 class="section-title">Nejlepší</h2>
-        <div id="lbTop3"></div>
-        <h2 class="section-title">Tvoje umístění</h2>
-        <div id="lbMyPosition"></div>
-        <p class="lb-note">Jména a pořadí ostatních studentů mimo první 3 místa se nezobrazují – vidíš jen svoje vlastní umístění.</p>
+        <div id="teacherLeaderboardContent" class="hidden">
+          <div class="lb-tabs">
+            <div class="lb-tab active" id="lbATabOverall" onclick="setLbAdminFilter('overall')">Celkově</div>
+            <div class="lb-tab" id="lbATabR1" onclick="setLbAdminFilter('1')">1. ročník</div>
+            <div class="lb-tab" id="lbATabR2" onclick="setLbAdminFilter('2')">2. ročník</div>
+            <div class="lb-tab" id="lbATabR3" onclick="setLbAdminFilter('3')">3. ročník</div>
+          </div>
+          <div id="lbAdminList"></div>
+        </div>
       </div>
 
       <!-- PROFILE -->
       <div class="screen hidden" id="screen-profile">
         <div class="profile-head">
-          <div class="avatar" id="profileInitials">TN</div>
-          <div class="pname" id="profileName">—</div>
+          <div class="avatar" id="profileAvatar">
+            <span id="profileInitials">TN</span>
+          </div>
+          <input type="file" id="avatarFileInput" accept="image/*" style="display:none;" onchange="handleAvatarSelected(event)">
+          <button class="btn-secondary" style="width:auto;padding:4px 10px;font-size:12px;" onclick="document.getElementById('avatarFileInput').click()">Změnit profilovku</button>
+          <div class="pname" id="profileName" style="margin-top:10px;">—</div>
           <div class="pmeta" id="profileMeta">—</div>
+          <div id="avatarError"></div>
         </div>
         <div id="profilePointsSection">
           <h2 class="section-title">Body celkem</h2>
@@ -853,7 +913,7 @@ async function completeLogin() {
   await loadQuizzes();
   renderHome();
   renderProfile();
-  showScreen(user.role === "mistrova" ? "admin" : "home");
+  showScreen("home");
 }
 
 sb.auth.onAuthStateChange((event, sess) => {
@@ -886,6 +946,8 @@ function showScreen(name) {
     quizzes: ["Kvízy", "Vyber si kvíz"],
     "quiz-take": ["Kvíz", "Vyplň odpovědi"],
     "quiz-result": ["Výsledek", "Kvíz dokončen"],
+    "quiz-create": ["Nový kvíz", "Vytvořit kvíz"],
+    "set-points": ["Body", "Nastavit body studentům"],
     leaderboard: ["Žebříček", "Jak si vedeš"],
     profile: ["Profil", "Tvoje statistiky"],
     admin: ["Administrace", "Zápis docházky"],
@@ -898,6 +960,7 @@ function showScreen(name) {
   if (name === "profile") renderProfile();
   if (name === "home") renderHome();
   if (name === "quizzes") renderQuizList();
+  if (name === "set-points") loadSetPoints();
   if (name === "admin") loadAdminData();
 }
 
@@ -940,6 +1003,16 @@ function renderHome() {
 
 function renderQuizList() {
   if (!user) return;
+
+  if (user.role === "mistrova") {
+    document.getElementById("studentQuizzesContent").classList.add("hidden");
+    document.getElementById("teacherQuizzesContent").classList.remove("hidden");
+    loadQuizzesAdmin();
+    return;
+  }
+  document.getElementById("studentQuizzesContent").classList.remove("hidden");
+  document.getElementById("teacherQuizzesContent").classList.add("hidden");
+
   const list = document.getElementById("quizListFull");
   list.innerHTML = "";
   if (quizzes.length === 0) {
@@ -949,11 +1022,201 @@ function renderQuizList() {
     const div = document.createElement("div");
     div.className = "list-item";
     div.innerHTML =
-      '<div><div class="name">' + q.title + '</div><div class="meta">' + q.questions.length + " otázky · " + q.points + " bodů</div></div>" +
+      '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + q.questions.length + " otázky · " + q.points + " bodů</div></div>" +
       (q.done ? '<span class="done-tag">Splněno</span>' : '<span class="badge-pts">Otevřít</span>');
     div.onclick = () => openQuiz(q.id);
     list.appendChild(div);
   });
+}
+
+// ---------- KVÍZY: ADMINISTRACE (jen mistrová) ----------
+async function loadQuizzesAdmin() {
+  const { data, error } = await sb.rpc("get_quizzes_admin");
+  const list = document.getElementById("quizListAdmin");
+  list.innerHTML = "";
+  if (error) {
+    list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst kvízy: " + esc(error.message) + "</div>";
+    return;
+  }
+  if (!data || data.length === 0) {
+    list.innerHTML = "<div class='empty-note'>Zatím jste nevytvořila žádný kvíz.</div>";
+    return;
+  }
+  data.forEach((q) => {
+    const div = document.createElement("div");
+    div.className = "list-item";
+    div.innerHTML =
+      '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + q.rocnik + ". ročník · " + q.question_count + " otázky · " + q.points + " b.</div></div>" +
+      '<span class="badge-pts">' + q.completed_count + "/" + q.total_students + "</span>";
+    list.appendChild(div);
+  });
+}
+
+// ---------- VYTVOŘENÍ KVÍZU (jen mistrová) ----------
+let quizDraft = [];
+
+function openQuizCreate() {
+  document.getElementById("qcTitle").value = "";
+  document.getElementById("qcRocnik").value = "1";
+  document.getElementById("qcPoints").value = "5";
+  document.getElementById("qcError").innerHTML = "";
+  quizDraft = [{ q: "", options: ["", ""], correct: 0 }];
+  renderQuizDraft();
+  showScreen("quiz-create");
+}
+
+function addQuizQuestion() {
+  quizDraft.push({ q: "", options: ["", ""], correct: 0 });
+  renderQuizDraft();
+}
+
+function removeQuizQuestion(qi) {
+  quizDraft.splice(qi, 1);
+  renderQuizDraft();
+}
+
+function addQuizOption(qi) {
+  quizDraft[qi].options.push("");
+  renderQuizDraft();
+}
+
+function removeQuizOption(qi, oi) {
+  quizDraft[qi].options.splice(oi, 1);
+  if (quizDraft[qi].correct >= quizDraft[qi].options.length) {
+    quizDraft[qi].correct = 0;
+  }
+  renderQuizDraft();
+}
+
+function updateQuizQuestionText(qi, value) {
+  quizDraft[qi].q = value;
+}
+
+function updateQuizOptionText(qi, oi, value) {
+  quizDraft[qi].options[oi] = value;
+}
+
+function updateQuizCorrect(qi, oi) {
+  quizDraft[qi].correct = oi;
+}
+
+function renderQuizDraft() {
+  const container = document.getElementById("qcQuestions");
+  container.innerHTML = "";
+  quizDraft.forEach((q, qi) => {
+    const box = document.createElement("div");
+    box.className = "quiz-question";
+
+    const qLabel = document.createElement("p");
+    qLabel.className = "q";
+    qLabel.textContent = (qi + 1) + ". otázka";
+    box.appendChild(qLabel);
+
+    const qInput = document.createElement("input");
+    qInput.type = "text";
+    qInput.placeholder = "Text otázky";
+    qInput.value = q.q;
+    qInput.style.cssText = "width:100%;padding:10px 12px;border-radius:10px;border:1px solid #E5E0D6;font-size:13.5px;margin-bottom:10px;font-family:inherit;";
+    qInput.oninput = (e) => updateQuizQuestionText(qi, e.target.value);
+    box.appendChild(qInput);
+
+    q.options.forEach((opt, oi) => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:8px;";
+
+      const radio = document.createElement("input");
+      radio.type = "radio";
+      radio.name = "qc-correct-" + qi;
+      radio.checked = q.correct === oi;
+      radio.title = "Správná odpověď";
+      radio.onclick = () => updateQuizCorrect(qi, oi);
+      row.appendChild(radio);
+
+      const optInput = document.createElement("input");
+      optInput.type = "text";
+      optInput.placeholder = "Možnost " + (oi + 1);
+      optInput.value = opt;
+      optInput.style.cssText = "flex:1;padding:9px 10px;border-radius:10px;border:1px solid #E5E0D6;font-size:13px;font-family:inherit;";
+      optInput.oninput = (e) => updateQuizOptionText(qi, oi, e.target.value);
+      row.appendChild(optInput);
+
+      if (q.options.length > 2) {
+        const rmBtn = document.createElement("button");
+        rmBtn.textContent = "✕";
+        rmBtn.style.cssText = "background:none;color:var(--text-muted);font-size:14px;padding:4px 8px;";
+        rmBtn.onclick = () => removeQuizOption(qi, oi);
+        row.appendChild(rmBtn);
+      }
+      box.appendChild(row);
+    });
+
+    const addOptBtn = document.createElement("button");
+    addOptBtn.className = "btn-secondary";
+    addOptBtn.style.cssText = "width:auto;font-size:12px;padding:6px 10px;";
+    addOptBtn.textContent = "+ Přidat možnost";
+    addOptBtn.onclick = () => addQuizOption(qi);
+    box.appendChild(addOptBtn);
+
+    if (quizDraft.length > 1) {
+      const rmQBtn = document.createElement("button");
+      rmQBtn.className = "btn-secondary";
+      rmQBtn.style.cssText = "width:auto;font-size:12px;padding:6px 10px;color:var(--red);float:right;";
+      rmQBtn.textContent = "Odebrat otázku";
+      rmQBtn.onclick = () => removeQuizQuestion(qi);
+      box.appendChild(rmQBtn);
+    }
+
+    container.appendChild(box);
+  });
+}
+
+async function saveQuizDraft() {
+  const errorEl = document.getElementById("qcError");
+  errorEl.innerHTML = "";
+  const title = document.getElementById("qcTitle").value.trim();
+  const rocnik = parseInt(document.getElementById("qcRocnik").value, 10);
+  const points = parseInt(document.getElementById("qcPoints").value, 10);
+
+  if (!title) {
+    errorEl.innerHTML = "<div class='error-note'>Zadejte prosím název kvízu.</div>";
+    return;
+  }
+  if (isNaN(points) || points < 0) {
+    errorEl.innerHTML = "<div class='error-note'>Zadejte platný počet bodů.</div>";
+    return;
+  }
+  for (const q of quizDraft) {
+    if (!q.q.trim()) {
+      errorEl.innerHTML = "<div class='error-note'>Vyplňte prosím text u všech otázek.</div>";
+      return;
+    }
+    if (q.options.some((o) => !o.trim())) {
+      errorEl.innerHTML = "<div class='error-note'>Vyplňte prosím všechny možnosti odpovědí.</div>";
+      return;
+    }
+  }
+
+  const btn = document.getElementById("qcSaveBtn");
+  btn.disabled = true;
+  btn.textContent = "Ukládám...";
+
+  const payload = quizDraft.map((q) => ({ q: q.q.trim(), options: q.options.map((o) => o.trim()), correct: q.correct }));
+  const { error } = await sb.rpc("create_quiz", {
+    p_title: title,
+    p_rocnik: rocnik,
+    p_points: points,
+    p_questions: payload,
+  });
+
+  btn.disabled = false;
+  btn.textContent = "Uložit kvíz";
+
+  if (error) {
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se uložit kvíz: " + esc(error.message) + "</div>";
+    return;
+  }
+
+  showScreen("quizzes");
 }
 
 function openQuiz(id) {
@@ -1023,8 +1286,57 @@ function setLbFilter(f) {
   renderLeaderboard();
 }
 
+let lbAdminFilter = "overall";
+
+function setLbAdminFilter(f) {
+  lbAdminFilter = f;
+  document.getElementById("lbATabOverall").classList.toggle("active", f === "overall");
+  document.getElementById("lbATabR1").classList.toggle("active", f === "1");
+  document.getElementById("lbATabR2").classList.toggle("active", f === "2");
+  document.getElementById("lbATabR3").classList.toggle("active", f === "3");
+  renderLeaderboardAdmin();
+}
+
+async function renderLeaderboardAdmin() {
+  const { data, error } = await sb.rpc("get_leaderboard_admin");
+  const list = document.getElementById("lbAdminList");
+  list.innerHTML = "";
+  if (error) {
+    list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst žebříček: " + esc(error.message) + "</div>";
+    return;
+  }
+  let rows = data || [];
+  if (lbAdminFilter !== "overall") {
+    rows = rows.filter((r) => String(r.rocnik) === lbAdminFilter);
+  }
+  if (rows.length === 0) {
+    list.innerHTML = "<div class='empty-note'>Zatím tu nejsou žádní studenti s body.</div>";
+    return;
+  }
+  rows.forEach((r) => {
+    const rank = lbAdminFilter === "overall" ? r.rank_overall : r.rank_in_rocnik;
+    const div = document.createElement("div");
+    div.className = "lb-row";
+    div.innerHTML =
+      "<div class='lb-rank'>#" + rank + "</div>" +
+      "<div><div class='lb-name'>" + esc(r.name) + "</div><div class='lb-sub'>" + esc(r.rocnik) + ". ročník</div></div>" +
+      "<div class='lb-points' style='margin-left:auto;'>" + r.points + " b.</div>";
+    list.appendChild(div);
+  });
+}
+
 async function renderLeaderboard() {
   if (!user) return;
+
+  if (user.role === "mistrova") {
+    document.getElementById("studentLeaderboardContent").classList.add("hidden");
+    document.getElementById("teacherLeaderboardContent").classList.remove("hidden");
+    renderLeaderboardAdmin();
+    return;
+  }
+  document.getElementById("studentLeaderboardContent").classList.remove("hidden");
+  document.getElementById("teacherLeaderboardContent").classList.add("hidden");
+
   const { data, error } = await sb.rpc("get_leaderboard", { p_scope: lbFilter });
   const top3El = document.getElementById("lbTop3");
   const myPosEl = document.getElementById("lbMyPosition");
@@ -1077,7 +1389,12 @@ async function loadRank() {
 // ---------- PROFIL ----------
 async function renderProfile() {
   if (!user) return;
-  document.getElementById("profileInitials").textContent = initials(user.name);
+  const avatarEl = document.getElementById("profileAvatar");
+  if (user.avatar_url) {
+    avatarEl.innerHTML = "<img src='" + esc(user.avatar_url) + "' alt=''>";
+  } else {
+    avatarEl.innerHTML = "<span id='profileInitials'>" + esc(initials(user.name)) + "</span>";
+  }
   document.getElementById("profileName").textContent = user.name;
 
   const pointsSection = document.getElementById("profilePointsSection");
@@ -1097,6 +1414,123 @@ async function renderProfile() {
 
   const { data } = await sb.from("attendance").select("day").eq("present", true);
   document.getElementById("profileAttendance").textContent = (data ? data.length : 0) + " dní";
+}
+
+// ---------- NASTAVENÍ BODŮ (jen mistrová) ----------
+async function loadSetPoints() {
+  const { data: students, error } = await sb.from("profiles").select("id,name,rocnik,points").eq("role", "student").order("rocnik").order("name");
+  const list = document.getElementById("spStudentList");
+  list.innerHTML = "";
+  if (error) {
+    list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst studenty: " + esc(error.message) + "</div>";
+    return;
+  }
+  if (!students || students.length === 0) {
+    list.innerHTML = "<div class='empty-note'>Zatím se nezaregistroval žádný student.</div>";
+    return;
+  }
+  students.forEach((s) => {
+    const row = document.createElement("div");
+    row.className = "admin-row";
+
+    const nameDiv = document.createElement("div");
+    nameDiv.style.flex = "1";
+    nameDiv.innerHTML = "<div class='aname'>" + esc(s.name) + "</div><div class='arocnik'>" + esc(s.rocnik) + ". ročník</div>";
+    row.appendChild(nameDiv);
+
+    const input = document.createElement("input");
+    input.type = "number";
+    input.min = "0";
+    input.value = s.points;
+    input.style.cssText = "width:70px;padding:8px;border-radius:8px;border:1px solid #E5E0D6;font-size:13px;text-align:center;font-family:inherit;";
+    row.appendChild(input);
+
+    const saveBtn = document.createElement("button");
+    saveBtn.className = "toggle-btn";
+    saveBtn.textContent = "Uložit";
+    saveBtn.onclick = () => saveStudentPoints(s.id, input, saveBtn);
+    row.appendChild(saveBtn);
+
+    list.appendChild(row);
+  });
+}
+
+async function saveStudentPoints(studentId, input, btn) {
+  const value = parseInt(input.value, 10);
+  if (isNaN(value) || value < 0) {
+    alert("Zadejte platný počet bodů (0 nebo více).");
+    return;
+  }
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.textContent = "...";
+  const { error } = await sb.rpc("set_student_points", { p_student_id: studentId, p_points: value });
+  btn.disabled = false;
+  if (error) {
+    btn.textContent = originalText;
+    alert("Nepodařilo se uložit body: " + error.message);
+    return;
+  }
+  btn.textContent = "Uloženo";
+  setTimeout(() => { btn.textContent = originalText; }, 1200);
+}
+
+// ---------- PROFILOVÁ FOTKA ----------
+async function handleAvatarSelected(event) {
+  const file = event.target.files && event.target.files[0];
+  event.target.value = "";
+  if (!file || !user) return;
+  const errorEl = document.getElementById("avatarError");
+  errorEl.innerHTML = "";
+
+  try {
+    const blob = await resizeImageToBlob(file, 400, 0.82);
+    const path = user.id;
+    const { error: uploadError } = await sb.storage.from("avatars").upload(path, blob, {
+      upsert: true,
+      contentType: "image/jpeg",
+    });
+    if (uploadError) {
+      errorEl.innerHTML = "<div class='error-note'>Nepodařilo se nahrát fotku: " + esc(uploadError.message) + "</div>";
+      return;
+    }
+    const { data: pub } = sb.storage.from("avatars").getPublicUrl(path);
+    const url = pub.publicUrl + "?t=" + Date.now();
+    const { error: updateError } = await sb.from("profiles").update({ avatar_url: url }).eq("id", user.id);
+    if (updateError) {
+      errorEl.innerHTML = "<div class='error-note'>Fotka se nahrála, ale nepodařilo se uložit do profilu: " + esc(updateError.message) + "</div>";
+      return;
+    }
+    user.avatar_url = url;
+    renderProfile();
+  } catch (e) {
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se zpracovat obrázek.</div>";
+  }
+}
+
+function resizeImageToBlob(file, maxDim, quality) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = () => {
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if (w > h && w > maxDim) { h = Math.round(h * (maxDim / w)); w = maxDim; }
+        else if (h > maxDim) { w = Math.round(w * (maxDim / h)); h = maxDim; }
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob); else reject(new Error("canvas toBlob failed"));
+        }, "image/jpeg", quality);
+      };
+      img.onerror = reject;
+      img.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 // ---------- ADMINISTRACE (jen mistrová) ----------
