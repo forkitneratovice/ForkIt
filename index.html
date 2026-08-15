@@ -916,6 +916,25 @@ async function completeLogin() {
   showScreen("home");
 }
 
+// Pozná, jestli v telefonu vůbec může být uložené přihlášení (Supabase si
+// ho ukládá do localStorage). Pokud tam nic není (typicky hned po
+// odhlášení), víme jistě, že přihlašovací formulář zůstane – zobrazíme ho
+// tedy hned při startu, aby ho Safari stihla nabídnout přes Face ID/Touch ID.
+// Když tam naopak něco je, počkáme na ověření session, ať appku rovnou
+// otevřeme bez zbytečného bliknutí přihlašovacího formuláře.
+function hasPersistedSupabaseSession() {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("sb-") && k.endsWith("-auth-token")) return true;
+    }
+  } catch (e) {}
+  return false;
+}
+if (!hasPersistedSupabaseSession()) {
+  showScreen("login");
+}
+
 sb.auth.onAuthStateChange((event, sess) => {
   session = sess;
   if (sess) {
