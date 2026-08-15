@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>ForkIt</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#FF4B2B">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ForkIt">
+<link rel="icon" href="icon-192.png">
+
+<!-- Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700;800&family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
+
+<!-- Supabase client -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+
+<style>
+  :root {
+    --primary: #FF4B2B;       /* sytá oranžovo-červená */
+    --primary-dark: #C93A1E;
+    --dark: #1C1C1E;          /* tmavě grafitová / černá */
+    --dark-2: #2A2A2E;
+    --lime: #C6FF3D;          /* limetková zelená – akcent */
+    --mustard: #FFC93C;       /* hořčicová žlutá – akcent */
+    --bg: #F6F5F2;
+    --card: #FFFFFF;
+    --text: #1C1C1E;
+    --text-muted: #7A756D;
+    --green: #2E9E4F;
+    --red: #D6483A;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: 'Montserrat', sans-serif;
+    background: var(--dark);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+  }
+  h1, h2, .brand, .login-logo, .points-card .num, .my-position-card .rank-num, .result-box .score {
+    font-family: 'Poppins', sans-serif;
+  }
+
+  /* ---------- App shell (mobile-first) ---------- */
+  .app-shell {
+    width: 100%;
+    max-width: 480px;
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 0 50px rgba(0,0,0,0.25);
+  }
+  .sidebar { display: none; }
+  .main { flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+  .topbar {
+    background: var(--dark);
+    color: white;
+    padding: 18px 18px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .topbar .title { font-size: 18px; font-weight: 800; letter-spacing: 0.3px; font-family: 'Poppins', sans-serif; }
+  .topbar .sub { font-size: 12px; opacity: 0.75; }
+  .screen {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 16px 100px;
+  }
+  .hidden { display: none !important; }
+
+  /* Buttons */
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+  }
+  .btn-primary {
+    background: var(--primary);
+    color: white;
+    padding: 13px 16px;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 700;
+    width: 100%;
+  }
+  .btn-primary:active { background: var(--primary-dark); }
+  .btn-primary:disabled { opacity: 0.6; }
+  .btn-secondary {
+    background: transparent;
+    color: var(--primary);
+    padding: 10px 16px;
+    font-size: 14px;
+    font-weight: 700;
+    width: 100%;
+    text-decoration: underline;
+  }
+
+  /* Logo (fork = checkmark) */
+  .fork-logo { color: white; display: block; }
+  .login-logo {
+    width: 76px; height: 76px; border-radius: 22px;
+    background: var(--primary);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 16px;
+  }
+  .login-logo .fork-logo { width: 40px; height: 40px; }
+
+  /* Login screen */
+  .login-box { padding-top: 36px; text-align: center; max-width: 360px; margin: 0 auto; }
+  .login-box h1 { color: var(--dark); margin: 0 0 4px; font-size: 26px; }
+  .login-box p.tag { color: var(--text-muted); font-size: 13px; margin: 0 0 28px; font-weight: 600; }
+  .field { text-align: left; margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 5px; font-weight: 700; }
+  .field input, .field select {
+    width: 100%; padding: 11px 12px; border-radius: 10px;
+    border: 1px solid #E0DCD3; font-size: 14px; background: white;
+    font-family: inherit;
+  }
+  .demo-note {
+    background: var(--dark); color: #fff;
+    font-size: 12px; padding: 12px 13px; border-radius: 10px; margin-top: 18px; text-align: left;
+    line-height: 1.5;
+  }
+  .demo-note b { color: var(--lime); }
+  .error-note {
+    background: #f6e3e1; color: var(--red);
+    font-size: 12.5px; padding: 10px 12px; border-radius: 8px; margin-top: 12px; text-align: left; font-weight: 600;
+  }
+  .sent-icon { font-size: 40px; margin-bottom: 10px; }
+
+  /* Dashboard */
+  .card {
+    background: var(--card); border-radius: 16px; padding: 16px;
+    margin-bottom: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+  }
+  .points-card {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: white; text-align: center; padding: 24px 16px;
+  }
+  .points-card .num { font-size: 42px; font-weight: 800; line-height: 1; }
+  .points-card .label { font-size: 12px; opacity: 0.9; margin-top: 4px; font-weight: 600; }
+  .points-card .rank { font-size: 13px; margin-top: 10px; opacity: 0.95; font-weight: 600; }
+  h2.section-title { font-size: 13px; color: var(--text-muted); margin: 20px 0 10px; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; font-family: 'Montserrat', sans-serif; }
+  .list-item {
+    background: var(--card); border-radius: 14px; padding: 13px 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px; box-shadow: 0 1px 5px rgba(0,0,0,0.06);
+  }
+  .list-item .name { font-size: 14px; font-weight: 700; color: var(--dark); }
+  .list-item .meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .badge-pts {
+    background: var(--mustard); color: var(--dark);
+    font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 20px;
+    white-space: nowrap;
+  }
+  .done-tag {
+    background: var(--lime); color: var(--dark);
+    font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 20px;
+  }
+  .empty-note { font-size: 13px; color: var(--text-muted); padding: 6px 2px; }
+
+  /* Quiz */
+  .quiz-question { background: var(--card); border-radius: 14px; padding: 15px; margin-bottom: 12px; }
+  .quiz-question p.q { font-weight: 700; font-size: 14px; margin: 0 0 10px; color: var(--dark); }
+  .quiz-option {
+    display: block; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid #E5E0D6; margin-bottom: 8px; font-size: 13.5px;
+    cursor: pointer; background: #fff; font-weight: 600;
+  }
+  .quiz-option.selected { border-color: var(--primary); background: #FFEDE8; }
+  .quiz-option.correct { border-color: var(--green); background: #e3efe5; }
+  .quiz-option.incorrect { border-color: var(--red); background: #f6e3e1; }
+  .quiz-option input { margin-right: 8px; }
+  .result-box {
+    text-align: center; padding: 26px 16px; background: var(--card); border-radius: 16px;
+  }
+  .result-box .score { font-size: 36px; font-weight: 800; color: var(--primary); }
+  .result-box .msg { font-size: 13px; color: var(--text-muted); margin: 8px 0 20px; font-weight: 600; }
+
+  /* Leaderboard */
+  .lb-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .lb-tab {
+    flex: 1; padding: 9px; text-align: center; border-radius: 20px;
+    background: var(--card); font-size: 12.5px; font-weight: 700; color: var(--text-muted);
+    border: 1px solid #E5E0D6;
+  }
+  .lb-tab.active { background: var(--dark); color: white; border-color: var(--dark); }
+  .lb-row {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--card); border-radius: 14px; padding: 11px 13px; margin-bottom: 8px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.06);
+  }
+  .lb-row.me { border: 2px solid var(--primary); }
+  .lb-rank { font-weight: 800; color: var(--dark); width: 22px; font-size: 14px; }
+  .lb-name { flex: 1; font-size: 13.5px; font-weight: 700; color: var(--dark); }
+  .lb-sub { font-size: 11px; color: var(--text-muted); }
+  .lb-points { font-size: 13px; font-weight: 800; color: var(--dark); }
+  .medal {
+    width: 28px; height: 28px; border-radius: 50%; color: white; font-size: 12px;
+    font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .medal-1 { background: #C9A227; }
+  .medal-2 { background: #9AA0A6; }
+  .medal-3 { background: #B0703A; }
+  .my-position-card {
+    background: var(--dark);
+    color: white; border-radius: 16px; padding: 22px 16px; text-align: center;
+  }
+  .my-position-card .rank-num { font-size: 34px; font-weight: 800; line-height: 1; color: var(--lime); }
+  .my-position-card .sub1 { font-size: 12px; opacity: 0.9; margin-top: 4px; font-weight: 600; }
+  .my-position-card .sub2 { font-size: 12px; margin-top: 10px; color: var(--mustard); font-weight: 700; }
+  .lb-note {
+    font-size: 12px; color: var(--text-muted); margin-top: 12px; line-height: 1.5;
+  }
+
+  /* Profile */
+  .profile-head { text-align: center; padding: 10px 0 20px; }
+  .avatar {
+    width: 70px; height: 70px; border-radius: 50%; background: var(--primary);
+    color: white; font-size: 26px; font-weight: 800; display: flex;
+    align-items: center; justify-content: center; margin: 0 auto 10px;
+    font-family: 'Poppins', sans-serif;
+  }
+  .profile-head .pname { font-size: 17px; font-weight: 700; color: var(--dark); }
+  .profile-head .pmeta { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; font-weight: 600; }
+
+  /* Admin (mistrová) */
+  .admin-row {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--card); border-radius: 14px; padding: 11px 13px; margin-bottom: 8px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.06);
+  }
+  .admin-row .aname { flex: 1; font-size: 13.5px; font-weight: 700; color: var(--dark); }
+  .admin-row .arocnik { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+  .toggle-btn {
+    padding: 7px 12px; border-radius: 20px; font-size: 12px; font-weight: 700;
+    border: 1px solid #E5E0D6; background: #fff; color: var(--text-muted);
+  }
+  .toggle-btn.present.active { background: var(--green); border-color: var(--green); color: #fff; }
+  .toggle-btn.absent.active { background: var(--red); border-color: var(--red); color: #fff; }
+
+  /* Bottom nav (mobile) */
+  .bottomnav {
+    position: fixed; bottom: 10px; left: 10px; right: 10px; max-width: 460px; margin: 0 auto;
+    background: var(--dark); border-radius: 20px; display: flex;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3); padding: 8px 4px; z-index: 10;
+  }
+  .nav-item {
+    flex: 1; text-align: center; padding: 7px 2px; border-radius: 14px;
+    font-size: 10.5px; font-weight: 700; color: #a7a5a2; background: none;
+  }
+  .bottomnav .nav-item.active { color: var(--dark); background: var(--lime); }
+  .nav-icon { display: block; margin-bottom: 2px; }
+  .nav-icon svg { width: 18px; height: 18px; }
+  .app-wrap { position: relative; flex: 1; display: flex; flex-direction: column; }
+  .back-link { font-size: 13px; color: var(--primary); font-weight: 700; margin-bottom: 14px; display: inline-block; }
+
+  /* ---------- Desktop layout ---------- */
+  @media (min-width: 900px) {
+    body { padding: 40px 24px; align-items: flex-start; min-height: auto; }
+    .app-shell {
+      max-width: 1080px; min-height: 680px; border-radius: 26px; overflow: hidden;
+      flex-direction: row; box-shadow: 0 28px 80px rgba(0,0,0,0.4);
+    }
+    .sidebar {
+      display: flex; flex-direction: column; width: 230px; flex-shrink: 0;
+      background: var(--dark); color: white; padding: 26px 18px;
+    }
+    .sidebar-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 34px; padding: 0 6px; }
+    .sidebar-brand .fork-logo { width: 30px; height: 30px; }
+    .sidebar-brand .brand { font-size: 20px; font-weight: 800; color: white; }
+    .sidebar .nav-item {
+      display: flex; align-items: center; gap: 12px; text-align: left; padding: 12px 14px;
+      border-radius: 12px; font-size: 13.5px; margin-bottom: 6px; color: #b9b6b1;
+    }
+    .sidebar .nav-item .nav-icon { margin-bottom: 0; }
+    .sidebar .nav-item.active { background: var(--primary); color: white; }
+    .sidebar-spacer { flex: 1; }
+    .sidebar-footer { border-top: 1px solid #3a3a3d; padding-top: 14px; }
+    .sidebar-footer .btn-secondary { color: #d9d6d1; text-decoration: none; font-size: 12.5px; text-align: left; }
+
+    .main { min-height: 680px; }
+    .bottomnav { display: none !important; }
+    .screen { padding: 34px 46px 46px; max-width: 720px; }
+    .topbar { padding: 26px 46px 22px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app-shell" id="appShell">
+
+  <!-- SIDEBAR (desktop only) -->
+  <nav class="sidebar hidden" id="sidebar">
+    <div class="sidebar-brand">
+      <svg class="fork-logo" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <line x1="70" y1="10" x2="70" y2="38" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>
+        <line x1="85" y1="10" x2="85" y2="38" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>
+        <line x1="100" y1="10" x2="100" y2="38" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>
+        <path d="M70 38 C70 52 85 50 85 64" stroke="currentColor" stroke-width="9" fill="none" stroke-linecap="round"/>
+        <path d="M85 64 L44 108 L16 78" stroke="currentColor" stroke-width="11" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span class="brand">ForkIt</span>
+    </div>
+    <button class="nav-item active" data-nav="home" onclick="showScreen('home')">
+      <span class="nav-icon">&#8962;</span>Domů
+    </button>
+    <button class="nav-item" data-nav="quizzes" onclick="showScreen('quizzes')">
+      <span class="nav-icon">&#9998;</span>Kvízy
+    </button>
+    <button class="nav-item" data-nav="leaderboard" onclick="showScreen('leaderboard')">
+      <span class="nav-icon">&#127942;</span>Žebříček
+    </button>
+    <button class="nav-item" data-nav="profile" onclick="showScreen('profile')">
+      <span class="nav-icon">&#9787;</span>Profil
+    </button>
+    <button class="nav-item hidden" data-nav="admin" onclick="showScreen('admin')">
+      <span class="nav-icon">&#128203;</span>Administrace
+    </button>
+    <div class="sidebar-spacer"></div>
+    <div class="sidebar-footer">
+      <button class="btn-secondary" onclick="logoutUser()">Odhlásit se</button>
+    </div>
+  </nav>
+
+  <div class="main">
+    <div class="topbar" id="topbar">
+      <div>
+        <div class="title" id="topbarTitle">ForkIt</div>
+        <div class="sub" id="topbarSub">Přihlášení</div>
+      </div>
+    </div>
+
+    <div class="app-wrap">
+
+      <!-- NAČÍTÁNÍ (dokud appka nezjistí, jestli jste už přihlášená) -->
+      <div class="screen" id="screen-loading">
+        <div class="login-box">
+          <div class="login-logo">
+            <svg class="fork-logo" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <line x1="70" y1="10" x2="70" y2="38" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>
+              <line x1="85" y1="10" x2="85" y2="38" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>
+              <line x1="100" y1="10" x2="100" y2="38" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>
+              <path d="M70 38 C70 52 85 50 85 64" stroke="currentColor" stroke-width="9" fill="none" stroke-linecap="round"/>
+              <path d="M85 64 L44 108 L16 78" stroke="currentColor" stroke-width="11" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h1>ForkIt</h1>
+        </div>
+      </div>
+
+      <!-- LOGIN / REGISTRACE -->
+      <div class="screen hidden" id="screen-login">
+        <div class="login-box">
+          <div class="login-logo">
+            <svg class="fork-logo" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <line x1="70" y1="10" x2="70" y2="38" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>
+              <line x1="85" y1="10" x2="85" y2="38" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>
+              <line x1="100" y1="10" x2="100" y2="38" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>
+              <path d="M70 38 C70 52 85 50 85 64" stroke="currentColor" stroke-width="9" fill="none" stroke-linecap="round"/>
+              <path d="M85 64 L44 108 L16 78" stroke="currentColor" stroke-width="11" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h1>ForkIt</h1>
+          <p class="tag">Sbírej body. Plň výzvy. Buď v tom nejlepší.</p>
+
+          <div class="lb-tabs" id="authTabs">
+            <div class="lb-tab active" id="authTabLogin" onclick="setAuthMode('login')">Přihlásit se</div>
+            <div class="lb-tab" id="authTabRegister" onclick="setAuthMode('register')">Registrace</div>
+          </div>
+
+          <!-- PŘIHLÁŠENÍ (e-mail + heslo) -->
+          <div id="loginPasswordState">
+            <form id="loginFormEl" onsubmit="return handleLoginSubmit(event)">
+              <div class="field">
+                <label>E-mail</label>
+                <input type="email" id="loginEmail" name="email" autocomplete="username" placeholder="jmeno@skola.cz">
+              </div>
+              <div class="field">
+                <label>Heslo</label>
+                <input type="password" id="loginPassword" name="password" autocomplete="current-password" placeholder="Vaše heslo">
+              </div>
+              <button class="btn-primary" type="submit" id="loginPasswordBtn">Přihlásit se</button>
+              <div id="loginPasswordError"></div>
+            </form>
+            <button class="btn-secondary" style="margin-top:8px;" onclick="requestPasswordReset()">Zapomenuté heslo?</button>
+          </div>
+
+          <!-- REGISTRACE -->
+          <div id="registerFormState" class="hidden">
+            <div class="field">
+              <label>Jméno</label>
+              <input type="text" id="regJmeno" placeholder="např. Tomáš">
+            </div>
+            <div class="field">
+              <label>Příjmení</label>
+              <input type="text" id="regPrijmeni" placeholder="např. Novák">
+            </div>
+            <div class="field">
+              <label>Ročník</label>
+              <select id="regRocnik">
+                <option value="1">1. ročník</option>
+                <option value="2">2. ročník</option>
+                <option value="3">3. ročník</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>E-mail</label>
+              <input type="email" id="regEmail" placeholder="jmeno@skola.cz">
+            </div>
+            <button class="btn-primary" id="registerBtn" onclick="registerAccount()">Zaregistrovat se</button>
+            <div id="registerError"></div>
+            <div class="demo-note"><b>Jak to funguje:</b> po registraci vám přijde e-mail s ověřovacím odkazem. Po kliknutí si v appce rovnou nastavíte heslo – příště se už jen přihlásíte e-mailem a heslem.</div>
+          </div>
+
+          <!-- ČEKÁNÍ NA E-MAIL (registrace i obnova hesla) -->
+          <div id="authSentState" class="hidden">
+            <div class="sent-icon">&#9993;</div>
+            <p style="font-weight:700;color:var(--dark);">Zkontrolujte svůj e-mail</p>
+            <p class="tag" style="margin-bottom:16px;" id="authSentMsg"></p>
+            <button class="btn-secondary" onclick="setAuthMode('login')">Zpět na přihlášení</button>
+          </div>
+
+          <!-- NASTAVENÍ HESLA (po kliknutí na odkaz z e-mailu) -->
+          <div id="setPasswordState" class="hidden">
+            <p style="font-weight:700;color:var(--dark);">Vítejte!</p>
+            <p class="tag" style="margin-bottom:16px;">E-mail je ověřený. Nastavte si prosím heslo pro příští přihlášení.</p>
+            <form id="setPasswordFormEl" onsubmit="return handleSavePasswordSubmit(event)">
+              <input type="email" id="newPasswordEmail" name="email" autocomplete="username" value="" style="display:none;" aria-hidden="true" tabindex="-1">
+              <div class="field">
+                <label>Nové heslo</label>
+                <input type="password" id="newPassword" name="new-password" autocomplete="new-password" placeholder="alespoň 6 znaků">
+              </div>
+              <div class="field">
+                <label>Heslo znovu</label>
+                <input type="password" id="newPassword2" name="new-password-confirm" autocomplete="new-password" placeholder="zopakujte heslo">
+              </div>
+              <button class="btn-primary" type="submit" id="savePasswordBtn">Uložit heslo</button>
+              <div id="setPasswordError"></div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- DASHBOARD -->
+      <div class="screen hidden" id="screen-home">
+        <div id="studentHomeContent">
+          <div class="card points-card">
+            <div class="num" id="homePoints">0</div>
+            <div class="label">celkem bodů</div>
+            <div class="rank" id="homeRank">Pozice v žebříčku: —</div>
+          </div>
+
+          <h2 class="section-title">Aktivní kvízy</h2>
+          <div id="homeQuizList"></div>
+        </div>
+
+        <div id="teacherHomeContent" class="hidden">
+          <div class="card" style="text-align:center;">
+            <div style="font-size:18px;font-weight:800;color:var(--dark);font-family:'Poppins',sans-serif;">Vítejte, <span id="teacherHomeName"></span></div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:6px;">Jste přihlášená jako učitel – nesbíráte body, máte přístup do Administrace.</div>
+          </div>
+          <button class="btn-primary" onclick="showScreen('admin')">Přejít na Administraci</button>
+        </div>
+      </div>
+
+      <!-- KVIZY LIST -->
+      <div class="screen hidden" id="screen-quizzes">
+        <h2 class="section-title">Kvízy pro váš ročník</h2>
+        <div id="quizListFull"></div>
+      </div>
+
+      <!-- QUIZ TAKING -->
+      <div class="screen hidden" id="screen-quiz-take">
+        <span class="back-link" onclick="showScreen('quizzes')">&larr; Zpět na kvízy</span>
+        <div id="quizQuestions"></div>
+        <button class="btn-primary" id="submitQuizBtn" onclick="submitQuiz()">Odeslat odpovědi</button>
+      </div>
+
+      <!-- QUIZ RESULT -->
+      <div class="screen hidden" id="screen-quiz-result">
+        <div class="result-box">
+          <div class="score" id="quizScoreText">0 / 0</div>
+          <div class="msg" id="quizScoreMsg"></div>
+          <button class="btn-primary" onclick="showScreen('quizzes')">Zpět na kvízy</button>
+        </div>
+      </div>
+
+      <!-- LEADERBOARD -->
+      <div class="screen hidden" id="screen-leaderboard">
+        <div class="lb-tabs">
+          <div class="lb-tab active" id="lbTabAll" onclick="setLbFilter('all')">Celá škola</div>
+          <div class="lb-tab" id="lbTabMine" onclick="setLbFilter('mine')">Můj ročník</div>
+        </div>
+        <h2 class="section-title">Nejlepší</h2>
+        <div id="lbTop3"></div>
+        <h2 class="section-title">Tvoje umístění</h2>
+        <div id="lbMyPosition"></div>
+        <p class="lb-note">Jména a pořadí ostatních studentů mimo první 3 místa se nezobrazují – vidíš jen svoje vlastní umístění.</p>
+      </div>
+
+      <!-- PROFILE -->
+      <div class="screen hidden" id="screen-profile">
+        <div class="profile-head">
+          <div class="avatar" id="profileInitials">TN</div>
+          <div class="pname" id="profileName">—</div>
+          <div class="pmeta" id="profileMeta">—</div>
+        </div>
+        <div id="profilePointsSection">
+          <h2 class="section-title">Body celkem</h2>
+          <div class="card" style="text-align:center;">
+            <div style="font-size:26px;font-weight:800;color:var(--primary);font-family:'Poppins',sans-serif;" id="profilePoints">0</div>
+          </div>
+        </div>
+        <div id="profileAttendanceSection">
+          <h2 class="section-title">Docházka</h2>
+          <div class="card" style="text-align:center;">
+            <div style="font-size:20px;font-weight:800;color:var(--dark);font-family:'Poppins',sans-serif;" id="profileAttendance">0 dní</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">dní s docházkou zapsanou mistrovou</div>
+          </div>
+        </div>
+        <h2 class="section-title">Heslo</h2>
+        <button class="btn-secondary" id="changePasswordToggleBtn" onclick="toggleChangePassword()">Změnit heslo</button>
+        <div id="changePasswordForm" class="hidden">
+          <form id="changePasswordFormEl" onsubmit="return handleChangePasswordSubmit(event)">
+            <input type="email" id="changePasswordEmail" name="email" autocomplete="username" value="" style="display:none;" aria-hidden="true" tabindex="-1">
+            <div class="field">
+              <label>Nové heslo</label>
+              <input type="password" id="cpNewPassword" name="new-password" autocomplete="new-password" placeholder="alespoň 6 znaků">
+            </div>
+            <div class="field">
+              <label>Nové heslo znovu</label>
+              <input type="password" id="cpNewPassword2" name="new-password-confirm" autocomplete="new-password" placeholder="zopakujte heslo">
+            </div>
+            <button class="btn-primary" type="submit" id="cpSaveBtn">Uložit nové heslo</button>
+            <div id="cpError"></div>
+          </form>
+        </div>
+
+        <button class="btn-secondary" style="margin-top:12px;" onclick="logoutUser()">Odhlásit se</button>
+      </div>
+
+      <!-- ADMIN (jen mistrová) -->
+      <div class="screen hidden" id="screen-admin">
+        <h2 class="section-title">Docházka – zápis</h2>
+        <div class="field">
+          <label>Datum</label>
+          <input type="date" id="adminDate" onchange="loadAdminData()">
+        </div>
+        <div id="adminStudentList"></div>
+      </div>
+
+      <!-- BOTTOM NAV (mobile) -->
+      <div class="bottomnav hidden" id="bottomnav">
+        <button class="nav-item active" data-nav="home" onclick="showScreen('home')">
+          <span class="nav-icon">&#8962;</span>Domů
+        </button>
+        <button class="nav-item" data-nav="quizzes" onclick="showScreen('quizzes')">
+          <span class="nav-icon">&#9998;</span>Kvízy
+        </button>
+        <button class="nav-item" data-nav="leaderboard" onclick="showScreen('leaderboard')">
+          <span class="nav-icon">&#127942;</span>Žebříček
+        </button>
+        <button class="nav-item" data-nav="profile" onclick="showScreen('profile')">
+          <span class="nav-icon">&#9787;</span>Profil
+        </button>
+        <button class="nav-item hidden" data-nav="admin" onclick="showScreen('admin')">
+          <span class="nav-icon">&#128203;</span>Admin
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- SUPABASE ----------
+const SUPABASE_URL = "https://ufuhtrlmhoaoswoqmmub.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVmdWh0cmxtaG9hb3N3b3FtbXViIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY4MTgwNzYsImV4cCI6MjEwMjM5NDA3Nn0.4Gdbijb_mA1GPOBGwq2lm_tP6HpgY7f6Nq5U77Jdxhg";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Zachytit hned na startu, jestli appku otevřel odkaz "zapomenuté heslo"
+// (Supabase do URL po kliknutí přidá type=recovery) – spolehlivější než
+// čekat na konkrétní pojmenování auth události, protože to se podle
+// verze/situace lišilo.
+const isRecoveryLink = /type=recovery/.test(window.location.hash) || /type=recovery/.test(window.location.search);
+
+// ---------- STAV ----------
+let session = null;
+let user = null;        // profil z tabulky "profiles"
+let quizzes = [];        // z RPC get_quizzes_for_my_rocnik (bez správných odpovědí)
+let currentQuiz = null;
+let currentAnswers = [];
+let lbFilter = "all";
+
+function initials(name) {
+  return name.split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase();
+}
+
+// Bezpečnostní ochrana: jméno studenta zadává student sám při registraci,
+// takže se nikdy nesmí vložit do stránky nezabezpečené (mohl by do jména
+// napsat spustitelný kód). Tahle funkce ho převede na neškodný text.
+function esc(str) {
+  const div = document.createElement("div");
+  div.textContent = str == null ? "" : String(str);
+  return div.innerHTML;
+}
+
+// ---------- PŘIHLÁŠENÍ / REGISTRACE ----------
+function setAuthMode(mode) {
+  document.getElementById("authTabLogin").classList.toggle("active", mode === "login");
+  document.getElementById("authTabRegister").classList.toggle("active", mode === "register");
+  document.getElementById("loginPasswordState").classList.toggle("hidden", mode !== "login");
+  document.getElementById("registerFormState").classList.toggle("hidden", mode !== "register");
+  document.getElementById("authSentState").classList.add("hidden");
+  document.getElementById("setPasswordState").classList.add("hidden");
+}
+
+function showAuthSent(message) {
+  document.getElementById("loginPasswordState").classList.add("hidden");
+  document.getElementById("registerFormState").classList.add("hidden");
+  document.getElementById("setPasswordState").classList.add("hidden");
+  document.getElementById("authSentState").classList.remove("hidden");
+  document.getElementById("authSentMsg").textContent = message;
+}
+
+function handleLoginSubmit(e) {
+  e.preventDefault();
+  loginWithPassword();
+  return false;
+}
+
+async function loginWithPassword() {
+  const email = document.getElementById("loginEmail").value.trim();
+  const password = document.getElementById("loginPassword").value;
+  const errorEl = document.getElementById("loginPasswordError");
+  errorEl.innerHTML = "";
+  if (!email || !password) {
+    errorEl.innerHTML = "<div class='error-note'>Zadejte e-mail i heslo.</div>";
+    return;
+  }
+  const btn = document.getElementById("loginPasswordBtn");
+  btn.disabled = true;
+  btn.textContent = "Přihlašuji...";
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  btn.disabled = false;
+  btn.textContent = "Přihlásit se";
+  if (error) {
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se přihlásit: zkontrolujte e-mail a heslo.</div>";
+  }
+  // úspěch řeší sb.auth.onAuthStateChange -> afterLogin()
+}
+
+async function registerAccount() {
+  const jmeno = document.getElementById("regJmeno").value.trim();
+  const prijmeni = document.getElementById("regPrijmeni").value.trim();
+  const rocnik = parseInt(document.getElementById("regRocnik").value, 10);
+  const email = document.getElementById("regEmail").value.trim();
+  const errorEl = document.getElementById("registerError");
+  errorEl.innerHTML = "";
+
+  if (!jmeno || !prijmeni) {
+    errorEl.innerHTML = "<div class='error-note'>Zadejte prosím jméno i příjmení.</div>";
+    return;
+  }
+  if (!email) {
+    errorEl.innerHTML = "<div class='error-note'>Zadejte prosím e-mail.</div>";
+    return;
+  }
+
+  const btn = document.getElementById("registerBtn");
+  btn.disabled = true;
+  btn.textContent = "Odesílám...";
+
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: {
+      data: { name: jmeno + " " + prijmeni, rocnik },
+      emailRedirectTo: window.location.origin + window.location.pathname,
+    },
+  });
+
+  btn.disabled = false;
+  btn.textContent = "Zaregistrovat se";
+
+  if (error) {
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se odeslat e-mail: " + error.message + "</div>";
+    return;
+  }
+
+  showAuthSent("Potvrďte prosím registraci kliknutím na odkaz v e-mailu. Appka se pak sama otevře a necháme vás nastavit heslo.");
+}
+
+async function requestPasswordReset() {
+  const email = document.getElementById("loginEmail").value.trim();
+  const errorEl = document.getElementById("loginPasswordError");
+  errorEl.innerHTML = "";
+  if (!email) {
+    errorEl.innerHTML = "<div class='error-note'>Nejdřív zadejte svůj e-mail nahoře do pole.</div>";
+    return;
+  }
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + window.location.pathname,
+  });
+  if (error) {
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se odeslat e-mail: " + error.message + "</div>";
+    return;
+  }
+  showAuthSent("Poslali jsme vám odkaz pro obnovení hesla (zkontrolujte i spam). Po kliknutí si rovnou nastavíte nové heslo.");
+}
+
+function handleSavePasswordSubmit(e) {
+  e.preventDefault();
+  savePassword();
+  return false;
+}
+
+async function savePassword() {
+  const pw1 = document.getElementById("newPassword").value;
+  const pw2 = document.getElementById("newPassword2").value;
+  const errorEl = document.getElementById("setPasswordError");
+  errorEl.innerHTML = "";
+  if (!pw1 || pw1.length < 6) {
+    errorEl.innerHTML = "<div class='error-note'>Heslo musí mít alespoň 6 znaků.</div>";
+    return;
+  }
+  if (pw1 !== pw2) {
+    errorEl.innerHTML = "<div class='error-note'>Hesla se neshodují.</div>";
+    return;
+  }
+  const btn = document.getElementById("savePasswordBtn");
+  btn.disabled = true;
+  btn.textContent = "Ukládám...";
+  const { error } = await sb.auth.updateUser({ password: pw1 });
+  if (error) {
+    btn.disabled = false;
+    btn.textContent = "Uložit heslo";
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se uložit heslo: " + error.message + "</div>";
+    return;
+  }
+  await sb.from("profiles").update({ password_set: true }).eq("id", session.user.id);
+  user.password_set = true;
+  btn.disabled = false;
+  btn.textContent = "Uložit heslo";
+  completeLogin();
+}
+
+// ---------- ZMĚNA HESLA (v profilu, pro už přihlášené) ----------
+function toggleChangePassword() {
+  const box = document.getElementById("changePasswordForm");
+  const willShow = box.classList.contains("hidden");
+  box.classList.toggle("hidden");
+  if (willShow && session && session.user) {
+    document.getElementById("changePasswordEmail").value = session.user.email;
+  }
+}
+
+function handleChangePasswordSubmit(e) {
+  e.preventDefault();
+  changePassword();
+  return false;
+}
+
+async function changePassword() {
+  const pw1 = document.getElementById("cpNewPassword").value;
+  const pw2 = document.getElementById("cpNewPassword2").value;
+  const errorEl = document.getElementById("cpError");
+  errorEl.innerHTML = "";
+  if (!pw1 || pw1.length < 6) {
+    errorEl.innerHTML = "<div class='error-note'>Heslo musí mít alespoň 6 znaků.</div>";
+    return;
+  }
+  if (pw1 !== pw2) {
+    errorEl.innerHTML = "<div class='error-note'>Hesla se neshodují.</div>";
+    return;
+  }
+  const btn = document.getElementById("cpSaveBtn");
+  btn.disabled = true;
+  btn.textContent = "Ukládám...";
+  const { error } = await sb.auth.updateUser({ password: pw1 });
+  btn.disabled = false;
+  btn.textContent = "Uložit nové heslo";
+  if (error) {
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se uložit heslo: " + error.message + "</div>";
+    return;
+  }
+  document.getElementById("cpNewPassword").value = "";
+  document.getElementById("cpNewPassword2").value = "";
+  errorEl.innerHTML = "<div class='demo-note'><b>Hotovo:</b> heslo bylo změněno.</div>";
+}
+
+function logoutUser() {
+  sb.auth.signOut();
+  user = null;
+  session = null;
+  document.getElementById("bottomnav").classList.add("hidden");
+  document.getElementById("sidebar").classList.add("hidden");
+  document.querySelectorAll('[data-nav="admin"]').forEach(el => el.classList.add("hidden"));
+  setAuthMode("login");
+  showScreen("login");
+}
+
+async function afterLogin(event) {
+  let profile = null;
+  for (let i = 0; i < 6 && !profile; i++) {
+    const { data } = await sb.from("profiles").select("*").eq("id", session.user.id).maybeSingle();
+    profile = data;
+    if (!profile) await new Promise((r) => setTimeout(r, 600));
+  }
+  if (!profile) {
+    alert("Nepodařilo se načíst profil. Zkuste prosím appku za chvíli znovu otevřít.");
+    return;
+  }
+  user = profile;
+
+  // Po kliknutí na odkaz "zapomenuté heslo" vždy zobrazíme nastavení nového
+  // hesla, i když už dřív heslo nastavené bylo.
+  if (isRecoveryLink || event === "PASSWORD_RECOVERY" || !user.password_set) {
+    showScreen("login");
+    document.getElementById("loginPasswordState").classList.add("hidden");
+    document.getElementById("registerFormState").classList.add("hidden");
+    document.getElementById("authSentState").classList.add("hidden");
+    document.getElementById("setPasswordState").classList.remove("hidden");
+    if (session && session.user) {
+      document.getElementById("newPasswordEmail").value = session.user.email;
+    }
+    return;
+  }
+
+  completeLogin();
+}
+
+async function completeLogin() {
+  document.getElementById("bottomnav").classList.remove("hidden");
+  document.getElementById("sidebar").classList.remove("hidden");
+  document.querySelectorAll('[data-nav="admin"]').forEach((el) => el.classList.toggle("hidden", user.role !== "mistrova"));
+
+  await loadQuizzes();
+  renderHome();
+  renderProfile();
+  showScreen(user.role === "mistrova" ? "admin" : "home");
+}
+
+sb.auth.onAuthStateChange((event, sess) => {
+  session = sess;
+  if (sess) {
+    afterLogin(event);
+  }
+});
+sb.auth.getSession().then(({ data }) => {
+  if (data.session) {
+    session = data.session;
+    afterLogin("INITIAL_SESSION");
+  } else {
+    // Teprve teď víme jistě, že nejste přihlášená – ukázat přihlašovací
+    // formulář (a ne dřív, ať se prohlížeč nepokouší nabízet Face ID
+    // vyplnění hesla do formuláře, který stejně hned zmizí).
+    showScreen("login");
+  }
+});
+
+// ---------- NAVIGACE ----------
+function showScreen(name) {
+  document.querySelectorAll(".screen").forEach((el) => el.classList.add("hidden"));
+  document.getElementById("screen-" + name).classList.remove("hidden");
+  document.querySelectorAll(".nav-item").forEach((el) => el.classList.remove("active"));
+  document.querySelectorAll('.nav-item[data-nav="' + name + '"]').forEach((el) => el.classList.add("active"));
+
+  const titles = {
+    home: ["ForkIt", "Domovská obrazovka"],
+    quizzes: ["Kvízy", "Vyber si kvíz"],
+    "quiz-take": ["Kvíz", "Vyplň odpovědi"],
+    "quiz-result": ["Výsledek", "Kvíz dokončen"],
+    leaderboard: ["Žebříček", "Jak si vedeš"],
+    profile: ["Profil", "Tvoje statistiky"],
+    admin: ["Administrace", "Zápis docházky"],
+  };
+  if (titles[name]) {
+    document.getElementById("topbarTitle").textContent = titles[name][0];
+    document.getElementById("topbarSub").textContent = titles[name][1];
+  }
+  if (name === "leaderboard") renderLeaderboard();
+  if (name === "profile") renderProfile();
+  if (name === "home") renderHome();
+  if (name === "quizzes") renderQuizList();
+  if (name === "admin") loadAdminData();
+}
+
+// ---------- KVÍZY ----------
+async function loadQuizzes() {
+  const { data, error } = await sb.rpc("get_quizzes_for_my_rocnik");
+  quizzes = error ? [] : data || [];
+}
+
+function renderHome() {
+  if (!user) return;
+
+  if (user.role === "mistrova") {
+    document.getElementById("studentHomeContent").classList.add("hidden");
+    document.getElementById("teacherHomeContent").classList.remove("hidden");
+    document.getElementById("teacherHomeName").textContent = user.name;
+    return;
+  }
+  document.getElementById("studentHomeContent").classList.remove("hidden");
+  document.getElementById("teacherHomeContent").classList.add("hidden");
+
+  document.getElementById("homePoints").textContent = user.points;
+  loadRank();
+
+  const list = document.getElementById("homeQuizList");
+  list.innerHTML = "";
+  if (quizzes.length === 0) {
+    list.innerHTML = "<div class='empty-note'>Zatím tu pro váš ročník nejsou žádné kvízy.</div>";
+  }
+  quizzes.forEach((q) => {
+    const div = document.createElement("div");
+    div.className = "list-item";
+    div.innerHTML =
+      '<div><div class="name">' + q.title + '</div><div class="meta">' + q.questions.length + " otázky</div></div>" +
+      (q.done ? '<span class="done-tag">Splněno</span>' : '<span class="badge-pts">+' + q.points + " b.</span>");
+    div.onclick = () => openQuiz(q.id);
+    list.appendChild(div);
+  });
+}
+
+function renderQuizList() {
+  if (!user) return;
+  const list = document.getElementById("quizListFull");
+  list.innerHTML = "";
+  if (quizzes.length === 0) {
+    list.innerHTML = "<div class='empty-note'>Zatím tu pro váš ročník nejsou žádné kvízy.</div>";
+  }
+  quizzes.forEach((q) => {
+    const div = document.createElement("div");
+    div.className = "list-item";
+    div.innerHTML =
+      '<div><div class="name">' + q.title + '</div><div class="meta">' + q.questions.length + " otázky · " + q.points + " bodů</div></div>" +
+      (q.done ? '<span class="done-tag">Splněno</span>' : '<span class="badge-pts">Otevřít</span>');
+    div.onclick = () => openQuiz(q.id);
+    list.appendChild(div);
+  });
+}
+
+function openQuiz(id) {
+  currentQuiz = quizzes.find((q) => q.id === id);
+  currentAnswers = new Array(currentQuiz.questions.length).fill(null);
+  const container = document.getElementById("quizQuestions");
+  container.innerHTML = "<h2 class='section-title'>" + currentQuiz.title + "</h2>";
+  currentQuiz.questions.forEach((q, qi) => {
+    const box = document.createElement("div");
+    box.className = "quiz-question";
+    let optsHtml = "<p class='q'>" + (qi + 1) + ". " + q.q + "</p>";
+    q.options.forEach((opt, oi) => {
+      optsHtml += "<label class='quiz-option' id='opt-" + qi + "-" + oi + "'><input type='radio' name='q" + qi + "' onclick='selectAnswer(" + qi + "," + oi + ")'>" + opt + "</label>";
+    });
+    box.innerHTML = optsHtml;
+    container.appendChild(box);
+  });
+  showScreen("quiz-take");
+}
+
+function selectAnswer(qi, oi) {
+  currentAnswers[qi] = oi;
+  document.querySelectorAll('[id^="opt-' + qi + '-"]').forEach((el) => el.classList.remove("selected"));
+  document.getElementById("opt-" + qi + "-" + oi).classList.add("selected");
+}
+
+async function submitQuiz() {
+  if (currentAnswers.includes(null)) {
+    alert("Odpověz prosím na všechny otázky.");
+    return;
+  }
+  const btn = document.getElementById("submitQuizBtn");
+  btn.disabled = true;
+
+  const { data, error } = await sb.rpc("submit_quiz", {
+    p_quiz_id: currentQuiz.id,
+    p_answers: currentAnswers,
+  });
+
+  btn.disabled = false;
+
+  if (error) {
+    alert("Něco se nepovedlo: " + error.message);
+    return;
+  }
+
+  const result = data[0];
+  document.getElementById("quizScoreText").textContent = result.score + " / " + result.total;
+  document.getElementById("quizScoreMsg").textContent = result.already_done
+    ? "Tento kvíz jsi už jednou splnil/a, body se znovu nepřipisují."
+    : "Správně! Připsáno +" + result.earned_points + " bodů.";
+
+  if (!result.already_done) {
+    user.points += result.earned_points;
+    const q = quizzes.find((qq) => qq.id === currentQuiz.id);
+    if (q) q.done = true;
+  }
+
+  setTimeout(() => showScreen("quiz-result"), 900);
+}
+
+// ---------- ŽEBŘÍČEK ----------
+function setLbFilter(f) {
+  lbFilter = f;
+  document.getElementById("lbTabAll").classList.toggle("active", f === "all");
+  document.getElementById("lbTabMine").classList.toggle("active", f === "mine");
+  renderLeaderboard();
+}
+
+async function renderLeaderboard() {
+  if (!user) return;
+  const { data, error } = await sb.rpc("get_leaderboard", { p_scope: lbFilter });
+  const top3El = document.getElementById("lbTop3");
+  const myPosEl = document.getElementById("lbMyPosition");
+  if (error || !data || !data[0]) {
+    top3El.innerHTML = "";
+    myPosEl.innerHTML = "";
+    return;
+  }
+  const row = data[0];
+  const top3 = row.top3 || [];
+
+  top3El.innerHTML = "";
+  if (top3.length === 0) {
+    top3El.innerHTML = "<div class='empty-note'>Zatím tu nejsou žádní studenti s body.</div>";
+  }
+  top3.forEach((p, i) => {
+    const div = document.createElement("div");
+    div.className = "lb-row" + (p.name === user.name && p.points === user.points ? "" : "");
+    div.innerHTML =
+      "<div class='medal medal-" + (i + 1) + "'>" + (i + 1) + "</div>" +
+      "<div><div class='lb-name'>" + esc(p.name) + "</div><div class='lb-sub'>" + esc(p.rocnik) + ". ročník</div></div>" +
+      "<div class='lb-points' style='margin-left:auto;'>" + p.points + " b.</div>";
+    top3El.appendChild(div);
+  });
+
+  const myRank = row.my_rank;
+  const gap = row.gap_to_next || 0;
+  if (!myRank) {
+    myPosEl.innerHTML = "<div class='my-position-card'><div class='sub1'>Zatím bez umístění – splň první kvíz!</div></div>";
+  } else if (myRank <= 3) {
+    myPosEl.innerHTML = "<div class='my-position-card'><div class='rank-num'>#" + myRank + "</div><div class='sub1'>Jsi v nejlepší trojce, skvělá práce!</div></div>";
+  } else {
+    myPosEl.innerHTML =
+      "<div class='my-position-card'><div class='rank-num'>#" + myRank + "</div>" +
+      "<div class='sub1'>z " + row.my_total + " studentů (" + (lbFilter === "mine" ? "tvůj ročník" : "celá škola") + ")</div>" +
+      (gap > 0 ? "<div class='sub2'>Chybí ti " + gap + " b. na lepší umístění</div>" : "") +
+      "</div>";
+  }
+}
+
+async function loadRank() {
+  const { data, error } = await sb.rpc("get_leaderboard", { p_scope: "all" });
+  if (error || !data || !data[0]) return;
+  const row = data[0];
+  document.getElementById("homeRank").textContent = row.my_rank
+    ? "Pozice v žebříčku: " + row.my_rank + ". z " + row.my_total
+    : "Pozice v žebříčku: —";
+}
+
+// ---------- PROFIL ----------
+async function renderProfile() {
+  if (!user) return;
+  document.getElementById("profileInitials").textContent = initials(user.name);
+  document.getElementById("profileName").textContent = user.name;
+
+  const pointsSection = document.getElementById("profilePointsSection");
+  const attSection = document.getElementById("profileAttendanceSection");
+
+  if (user.role === "mistrova") {
+    document.getElementById("profileMeta").textContent = "Učitel · Kuchař/Číšník";
+    pointsSection.classList.add("hidden");
+    attSection.classList.add("hidden");
+    return;
+  }
+
+  document.getElementById("profileMeta").textContent = user.rocnik + ". ročník · Kuchař/Číšník";
+  pointsSection.classList.remove("hidden");
+  attSection.classList.remove("hidden");
+  document.getElementById("profilePoints").textContent = user.points;
+
+  const { data } = await sb.from("attendance").select("day").eq("present", true);
+  document.getElementById("profileAttendance").textContent = (data ? data.length : 0) + " dní";
+}
+
+// ---------- ADMINISTRACE (jen mistrová) ----------
+async function loadAdminData() {
+  if (!user || user.role !== "mistrova") return;
+  const dateInput = document.getElementById("adminDate");
+  if (!dateInput.value) {
+    dateInput.value = new Date().toISOString().slice(0, 10);
+  }
+  const day = dateInput.value;
+
+  const { data: students } = await sb.from("profiles").select("id,name,rocnik").eq("role", "student").order("name");
+  const { data: attendanceRows } = await sb.from("attendance").select("user_id,present").eq("day", day);
+
+  const attByStudent = {};
+  (attendanceRows || []).forEach((a) => { attByStudent[a.user_id] = a.present; });
+
+  const list = document.getElementById("adminStudentList");
+  list.innerHTML = "";
+  if (!students || students.length === 0) {
+    list.innerHTML = "<div class='empty-note'>Zatím se nezaregistroval žádný student.</div>";
+    return;
+  }
+  students.forEach((s) => {
+    const state = attByStudent[s.id];
+    const row = document.createElement("div");
+    row.className = "admin-row";
+    row.innerHTML =
+      "<div><div class='aname'>" + esc(s.name) + "</div><div class='arocnik'>" + esc(s.rocnik) + ". ročník</div></div>" +
+      "<button class='toggle-btn present" + (state === true ? " active" : "") + "'>Přítomen</button>" +
+      "<button class='toggle-btn absent" + (state === false ? " active" : "") + "'>Nepřítomen</button>";
+    const [presentBtn, absentBtn] = row.querySelectorAll("button");
+    presentBtn.onclick = () => markAttendance(s.id, true);
+    absentBtn.onclick = () => markAttendance(s.id, false);
+    list.appendChild(row);
+  });
+}
+
+async function markAttendance(studentId, present) {
+  const day = document.getElementById("adminDate").value;
+  const { error } = await sb.rpc("mark_attendance", { p_student_id: studentId, p_day: day, p_present: present });
+  if (error) {
+    alert("Nepodařilo se zapsat docházku: " + error.message);
+    return;
+  }
+  loadAdminData();
+}
+
+// ---------- PWA: registrace service workeru ----------
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
+  });
+}
+</script>
+
+</body>
+</html>
