@@ -998,6 +998,22 @@ async function loadQuizzes() {
   quizzes = error ? [] : data || [];
 }
 
+// Vrátí HTML značku (badge) podle stavu pokusů studenta u daného kvízu:
+// ještě nezkoušeno / nejlepší výsledek + lze zkusit znovu / čekání 24 h /
+// vyčerpané 3 pokusy.
+function quizBadge(q) {
+  if (q.attempts_used >= 3) {
+    return "<span class='done-tag'>Nejlepší: " + q.best_points + " b. (vyčerpáno)</span>";
+  }
+  if (!q.can_attempt) {
+    return "<span class='done-tag'>Nejlepší: " + q.best_points + " b. (za 24 h znovu)</span>";
+  }
+  if (q.attempts_used > 0) {
+    return "<span class='badge-pts'>Nejlepší: " + q.best_points + " b. · zkusit znovu</span>";
+  }
+  return "<span class='badge-pts'>+" + q.points + " b.</span>";
+}
+
 function renderHome() {
   if (!user) return;
 
@@ -1022,8 +1038,8 @@ function renderHome() {
     const div = document.createElement("div");
     div.className = "list-item";
     div.innerHTML =
-      '<div><div class="name">' + q.title + '</div><div class="meta">' + q.questions.length + " otázky</div></div>" +
-      (q.done ? '<span class="done-tag">Splněno</span>' : '<span class="badge-pts">+' + q.points + " b.</span>");
+      '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + q.questions.length + " otázky</div></div>" +
+      quizBadge(q);
     div.onclick = () => openQuiz(q.id);
     list.appendChild(div);
   });
@@ -1051,7 +1067,7 @@ function renderQuizList() {
     div.className = "list-item";
     div.innerHTML =
       '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + q.questions.length + " otázky · " + q.points + " bodů</div></div>" +
-      (q.done ? '<span class="done-tag">Splněno</span>' : '<span class="badge-pts">Otevřít</span>');
+      quizBadge(q);
     div.onclick = () => openQuiz(q.id);
     list.appendChild(div);
   });
@@ -1076,6 +1092,12 @@ async function loadQuizzesAdmin() {
     div.innerHTML =
       '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + q.rocnik + ". ročník · " + q.question_count + " otázky · " + q.points + " b.</div></div>" +
       '<span class="badge-pts">' + q.completed_count + "/" + q.total_students + "</span>";
+    const tryBtn = document.createElement("button");
+    tryBtn.className = "toggle-btn";
+    tryBtn.style.marginLeft = "8px";
+    tryBtn.textContent = "Vyzkoušet";
+    tryBtn.onclick = (e) => { e.stopPropagation(); openQuiz(q.id); };
+    div.appendChild(tryBtn);
     list.appendChild(div);
   });
 }
@@ -1248,16 +1270,30 @@ async function saveQuizDraft() {
 }
 
 function openQuiz(id) {
-  currentQuiz = quizzes.find((q) => q.id === id);
+  const q = quizzes.find((qq) => qq.id === id);
+  if (!q) return;
+
+  if (user.role !== "mistrova") {
+    if (q.attempts_used >= 3) {
+      alert("U tohoto kvízu jsi už vyčerpal/a všechny 3 pokusy. Nejlepší výsledek: " + q.best_points + " b.");
+      return;
+    }
+    if (!q.can_attempt) {
+      alert("Tento kvíz můžeš zkusit znovu až za 24 hodin od posledního pokusu.");
+      return;
+    }
+  }
+
+  currentQuiz = q;
   currentAnswers = new Array(currentQuiz.questions.length).fill(null);
   const container = document.getElementById("quizQuestions");
-  container.innerHTML = "<h2 class='section-title'>" + currentQuiz.title + "</h2>";
-  currentQuiz.questions.forEach((q, qi) => {
+  container.innerHTML = "<h2 class='section-title'>" + esc(currentQuiz.title) + "</h2>";
+  currentQuiz.questions.forEach((qq, qi) => {
     const box = document.createElement("div");
     box.className = "quiz-question";
-    let optsHtml = "<p class='q'>" + (qi + 1) + ". " + q.q + "</p>";
-    q.options.forEach((opt, oi) => {
-      optsHtml += "<label class='quiz-option' id='opt-" + qi + "-" + oi + "'><input type='radio' name='q" + qi + "' onclick='selectAnswer(" + qi + "," + oi + ")'>" + opt + "</label>";
+    let optsHtml = "<p class='q'>" + (qi + 1) + ". " + esc(qq.q) + "</p>";
+    qq.options.forEach((opt, oi) => {
+      optsHtml += "<label class='quiz-option' id='opt-" + qi + "-" + oi + "'><input type='radio' name='q" + qi + "' onclick='selectAnswer(" + qi + "," + oi + ")'>" + esc(opt) + "</label>";
     });
     box.innerHTML = optsHtml;
     container.appendChild(box);
@@ -1287,7 +1323,14 @@ async function submitQuiz() {
   btn.disabled = false;
 
   if (error) {
-    alert("Něco se nepovedlo: " + error.message);
+    if (error.message && error.message.includes("MAX_ATTEMPTS")) {
+      alert("U tohoto kvízu jsi už vyčerpal/a všechny 3 pokusy.");
+    } else if (error.message && error.message.includes("COOLDOWN_ACTIVE")) {
+      alert("Tento kvíz můžeš zkusit znovu až za 24 hodin od posledního pokusu.");
+    } else {
+      alert("Něco se nepovedlo: " + error.message);
+    }
+    showScreen("quizzes");
     return;
   }
 
@@ -1295,23 +1338,48 @@ async function submitQuiz() {
   lastCorrectAnswers = result.correct_answers || [];
   document.getElementById("quizScoreText").textContent = result.score + " / " + result.total;
 
-  let msg;
-  if (result.already_done) {
-    msg = "Tento kvíz jsi už jednou splnil/a, body se znovu nepřipisují.";
-  } else if (result.effort_bonus) {
-    msg = "Připsán 1 b. za snahu, příště to bude lepší!";
-  } else if (result.perfect_bonus) {
-    msg = "Všechno správně! Připsáno +" + result.earned_points + " bodů (včetně bonusu za 100 %).";
-  } else {
-    msg = "Připsáno +" + result.earned_points + " bodů.";
-  }
-  document.getElementById("quizScoreMsg").textContent = msg;
+  const q = quizzes.find((qq) => qq.id === currentQuiz.id);
+  const lines = [];
 
-  if (!result.already_done) {
-    user.points += result.earned_points;
-    const q = quizzes.find((qq) => qq.id === currentQuiz.id);
-    if (q) q.done = true;
+  if (result.is_test) {
+    lines.push("Zkušební pokus (mistrová) – nezapočítává se do bodů ani statistik.");
+    if (result.effort_bonus) lines.push("Kdyby to byl student: 1 b. za snahu.");
+    else if (result.perfect_bonus) lines.push("Kdyby to byl student: plný počet + bonus za 100 % = " + result.earned_points + " b.");
+    else lines.push("Kdyby to byl student, dostal by " + result.earned_points + " b. za tento pokus.");
+  } else {
+    if (result.effort_bonus) {
+      lines.push("Tentokrát to nevyšlo, ale dostáváš 1 b. za snahu.");
+    } else if (result.perfect_bonus) {
+      lines.push("Všechno správně! Skvělá práce – navíc bonus za 100 % (" + result.earned_points + " b. za tento pokus).");
+    } else {
+      lines.push(result.earned_points + " b. za tento pokus.");
+    }
+
+    lines.push(
+      result.is_new_best
+        ? "Tvůj nejlepší výsledek u tohoto kvízu je teď " + result.best_points + " b."
+        : "Tvůj nejlepší výsledek u tohoto kvízu zůstává " + result.best_points + " b."
+    );
+
+    if (!result.perfect_bonus) {
+      lines.push(
+        result.attempts_left > 0
+          ? "Kvíz můžeš zkusit znovu za 24 hodin."
+          : "Vyčerpal/a jsi všechny 3 pokusy u tohoto kvízu."
+      );
+    }
+
+    const prevBest = q ? (q.best_points || 0) : 0;
+    user.points += Math.max(0, result.best_points - prevBest);
+    if (q) {
+      q.best_points = result.best_points;
+      q.attempts_used = result.attempts_used;
+      q.attempts_left = result.attempts_left;
+      q.can_attempt = result.attempts_left > 0;
+    }
   }
+
+  document.getElementById("quizScoreMsg").innerHTML = lines.join("<br>");
 
   setTimeout(() => showScreen("quiz-result"), 900);
 }
