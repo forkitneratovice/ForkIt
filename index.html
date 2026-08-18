@@ -563,6 +563,7 @@
 
           <h2 class="section-title">Slovo dne</h2>
           <div id="homeLatestWord"></div>
+          <button class="btn-secondary" onclick="showScreen('slovnik')">Zobrazit slovník</button>
 
           <h2 class="section-title">Nejnovější kvíz</h2>
           <div id="homeLatestQuiz"></div>
@@ -702,6 +703,9 @@
           <button class="btn-primary" onclick="openWordCreate()">+ Přidat slovo dne</button>
         </div>
         <h2 class="section-title">Slovník</h2>
+        <div class="field">
+          <input type="text" id="wordSearchInput" placeholder="Hledat slovo…" oninput="filterSlovnik()">
+        </div>
         <div id="wordList"></div>
       </div>
 
@@ -2212,9 +2216,12 @@ async function openAnnouncementDetail(id, text, createdAt) {
 }
 
 // ---------- SLOVNÍK ----------
+let allWords = [];
+
 async function renderSlovnik() {
   if (!user) return;
   document.getElementById("teacherSlovnikContent").classList.toggle("hidden", user.role !== "mistrova");
+  document.getElementById("wordSearchInput").value = "";
 
   const el = document.getElementById("wordList");
   el.innerHTML = "<div class='empty-note'>Načítám...</div>";
@@ -2223,13 +2230,18 @@ async function renderSlovnik() {
     el.innerHTML = "<div class='empty-note'>Nepodařilo se načíst slovník: " + esc(error.message) + "</div>";
     return;
   }
-  if (!data || data.length === 0) {
+  allWords = data || [];
+  renderWordList(allWords);
+}
+
+function renderWordList(words) {
+  const el = document.getElementById("wordList");
+  if (!words || words.length === 0) {
     el.innerHTML = "<div class='empty-note'>Zatím tu nejsou žádná slova.</div>";
     return;
   }
-
   el.innerHTML = "";
-  data.forEach((w) => {
+  words.forEach((w) => {
     const div = document.createElement("div");
     div.className = "card";
     const html =
@@ -2242,6 +2254,22 @@ async function renderSlovnik() {
     }
     el.appendChild(div);
   });
+}
+
+function filterSlovnik() {
+  const q = document.getElementById("wordSearchInput").value.trim().toLowerCase();
+  if (!q) {
+    renderWordList(allWords);
+    return;
+  }
+  const filtered = allWords.filter(
+    (w) => w.word.toLowerCase().includes(q) || w.definition.toLowerCase().includes(q)
+  );
+  if (filtered.length === 0) {
+    document.getElementById("wordList").innerHTML = "<div class='empty-note'>Žádné slovo neodpovídá hledání.</div>";
+    return;
+  }
+  renderWordList(filtered);
 }
 
 function openWordCreate() {
