@@ -70,6 +70,7 @@
     background: var(--dark);
     color: white;
     padding: 18px 18px 16px;
+    padding-top: calc(18px + env(safe-area-inset-top));
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -336,7 +337,7 @@
     .hamburger-btn { display: none !important; }
     .nav-drawer { display: none !important; }
     .screen { padding: 34px 46px 46px; max-width: 720px; }
-    .topbar { padding: 26px 46px 22px; }
+    .topbar { padding: 26px 46px 22px; padding-top: 26px; }
   }
 </style>
 </head>
