@@ -183,6 +183,19 @@
   .reaction-custom { width: 44px; padding: 5px; border-radius: 8px; border: 1px solid #E5E0D6; font-size: 14px; text-align: center; font-family: inherit; }
   .empty-note { font-size: 13px; color: var(--text-muted); padding: 6px 2px; }
 
+  /* Úspěchy (odznáčky) */
+  .badge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+  .badge-card { background: var(--card); border-radius: 14px; padding: 16px 10px; text-align: center; }
+  .badge-icon {
+    width: 56px; height: 56px; margin: 0 auto 10px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 26px;
+    background: #E4E0D6; filter: grayscale(1); opacity: 0.55; transition: all .2s ease;
+  }
+  .badge-card.earned .badge-icon { background: var(--lime); filter: none; opacity: 1; }
+  .badge-title { font-size: 12.5px; font-weight: 700; color: var(--dark); margin-bottom: 4px; }
+  .badge-desc { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+  .badge-progress { font-size: 11px; color: var(--primary); font-weight: 700; margin-top: 4px; }
+
   /* Quiz */
   .quiz-question { background: var(--card); border-radius: 14px; padding: 15px; margin-bottom: 12px; }
   .quiz-question p.q { font-weight: 700; font-size: 14px; margin: 0 0 10px; color: var(--dark); }
@@ -342,6 +355,9 @@
     <button class="nav-item" data-nav="leaderboard" onclick="showScreen('leaderboard')">
       <span class="nav-icon">&#127942;</span>Žebříček
     </button>
+    <button class="nav-item" data-nav="achievements" id="navAchievementsSidebar" onclick="showScreen('achievements')">
+      <span class="nav-icon">&#127941;</span>Úspěchy
+    </button>
     <button class="nav-item" data-nav="profile" onclick="showScreen('profile')">
       <span class="nav-icon">&#9787;</span>Profil
     </button>
@@ -481,6 +497,10 @@
 
           <h2 class="section-title">Aktuality</h2>
           <div id="homeNewsList"></div>
+          <button class="btn-secondary" onclick="showScreen('announcements')">Zobrazit všechny aktuality</button>
+
+          <h2 class="section-title">Slovo dne</h2>
+          <div id="homeLatestWord"></div>
 
           <h2 class="section-title">Nejnovější kvíz</h2>
           <div id="homeLatestQuiz"></div>
@@ -709,12 +729,18 @@
             <div style="font-size:26px;font-weight:800;color:var(--primary);font-family:'Poppins',sans-serif;" id="profilePoints">0</div>
           </div>
         </div>
-        <div id="profileAttendanceSection">
-          <h2 class="section-title">Docházka</h2>
-          <div class="card" style="text-align:center;">
-            <div style="font-size:20px;font-weight:800;color:var(--dark);font-family:'Poppins',sans-serif;" id="profileAttendance">0 dní</div>
-            <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">dní s docházkou zapsanou mistrovou</div>
+        <div id="profileMessagesSection">
+          <h2 class="section-title">Napsat učiteli</h2>
+          <div class="field">
+            <textarea id="messageToTeacherText" rows="3" style="width:100%;padding:11px 12px;border-radius:10px;border:1px solid #E0DCD3;font-size:14px;font-family:inherit;" placeholder="Napište vzkaz mistrové…"></textarea>
           </div>
+          <button class="btn-primary" onclick="sendMessageToTeacher()">Odeslat</button>
+          <div id="messageToTeacherError"></div>
+          <div id="myMessagesList" style="margin-top:14px;"></div>
+        </div>
+        <div id="profileTeacherMessagesSection">
+          <h2 class="section-title">Zprávy od studentů</h2>
+          <div id="teacherMessagesList"></div>
         </div>
         <h2 class="section-title">Heslo</h2>
         <button class="btn-secondary" id="changePasswordToggleBtn" onclick="toggleChangePassword()">Změnit heslo</button>
@@ -735,6 +761,12 @@
         </div>
 
         <button class="btn-secondary" style="margin-top:12px;" onclick="logoutUser()">Odhlásit se</button>
+      </div>
+
+      <!-- ÚSPĚCHY (odznáčky, jen studenti) -->
+      <div class="screen hidden" id="screen-achievements">
+        <h2 class="section-title">Úspěchy</h2>
+        <div id="achievementsList" class="badge-grid"></div>
       </div>
 
       <!-- ADMIN (jen mistrová) -->
@@ -763,6 +795,9 @@
         </button>
         <button class="nav-item" data-nav="leaderboard" onclick="showScreen('leaderboard')">
           <span class="nav-icon">&#127942;</span>Žebříček
+        </button>
+        <button class="nav-item" data-nav="achievements" id="navAchievementsBottom" onclick="showScreen('achievements')">
+          <span class="nav-icon">&#127941;</span>Úspěchy
         </button>
         <button class="nav-item" data-nav="profile" onclick="showScreen('profile')">
           <span class="nav-icon">&#9787;</span>Profil
@@ -1034,6 +1069,10 @@ async function completeLogin() {
   document.getElementById("bottomnav").classList.remove("hidden");
   document.getElementById("sidebar").classList.remove("hidden");
 
+  const showAchievements = user.role === "student";
+  document.getElementById("navAchievementsSidebar").classList.toggle("hidden", !showAchievements);
+  document.getElementById("navAchievementsBottom").classList.toggle("hidden", !showAchievements);
+
   await loadQuizzes();
   await loadChallenges();
   renderHome();
@@ -1103,6 +1142,7 @@ function showScreen(name) {
     "word-create": ["Nové slovo", "Přidat slovo dne"],
     "word-detail": ["Slovo", "Reakce studentů"],
     leaderboard: ["Žebříček", "Jak si vedeš"],
+    achievements: ["Úspěchy", "Tvoje odznáčky"],
     profile: ["Profil", "Tvoje statistiky"],
     admin: ["Administrace", "Zápis docházky"],
   };
@@ -1120,6 +1160,7 @@ function showScreen(name) {
   if (name === "challenge-approvals") loadChallengesAdmin();
   if (name === "announcements") renderAnnouncementsFull();
   if (name === "slovnik") renderSlovnik();
+  if (name === "achievements") renderAchievements();
   if (name === "admin") loadAdminData();
 }
 
@@ -1163,13 +1204,34 @@ function renderHome() {
   document.getElementById("homePoints").textContent = user.points;
   loadRank();
   renderHomeNews();
+  renderHomeLatestWord();
   renderHomeLatestQuiz();
   renderHomeLatestChallenge();
 }
 
+async function renderHomeLatestWord() {
+  const el = document.getElementById("homeLatestWord");
+  el.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const { data, error } = await sb.from("words").select("id,word,definition").order("created_at", { ascending: false }).limit(1);
+  if (error || !data || data.length === 0) {
+    el.innerHTML = "<div class='empty-note'>Zatím tu není žádné slovo.</div>";
+    return;
+  }
+  const w = data[0];
+  const { data: myReactions } = await sb.from("word_reactions").select("emoji").eq("word_id", w.id).maybeSingle();
+  const div = document.createElement("div");
+  div.className = "card";
+  div.innerHTML =
+    "<div style=\"font-weight:800;font-size:15px;color:var(--dark);font-family:'Poppins',sans-serif;\">" + esc(w.word) + "</div>" +
+    "<div style='font-size:13px;color:var(--text-muted);margin-top:4px;'>" + esc(w.definition) + "</div>" +
+    reactionBarHtml("word", w.id, myReactions ? myReactions.emoji : null, "home-word");
+  el.innerHTML = "";
+  el.appendChild(div);
+}
+
 // Rychlé reakce: palec nahoru / srdíčko / smích + políčko pro jakýkoli
 // vlastní emoji z klávesnice telefonu.
-const QUICK_REACTIONS = ["👍", "❤️", "😆"];
+const QUICK_REACTIONS = ["👍", "❤️", "😆", "😮", "👏"];
 
 function reactionBarHtml(type, id, myReaction, context) {
   let html = "<div class='reaction-bar'>";
@@ -1179,10 +1241,6 @@ function reactionBarHtml(type, id, myReaction, context) {
       "<button type='button' class='reaction-btn" + active + "' onclick='setReaction(\"" + type + "\", " + id + ", \"" + emoji + "\", \"" + context + "\")'>" +
       emoji + "</button>";
   });
-  const customVal = myReaction && !QUICK_REACTIONS.includes(myReaction) ? myReaction : "";
-  html +=
-    "<input type='text' class='reaction-custom' maxlength='8' value=\"" + esc(customVal) + "\" placeholder='+' " +
-    "onchange='setReaction(\"" + type + "\", " + id + ", this.value, \"" + context + "\")'>";
   html += "</div>";
   return html;
 }
@@ -1200,7 +1258,9 @@ async function setReaction(type, id, emoji, context) {
     return;
   }
   if (context === "home-news") renderHomeNews();
+  else if (context === "home-word") renderHomeLatestWord();
   else if (context === "slovnik") renderSlovnik();
+  else if (context === "announcements-list") renderAnnouncementsFull();
 }
 
 async function renderHomeNews() {
@@ -1524,6 +1584,29 @@ async function saveQuizDraft() {
   showScreen("quizzes");
 }
 
+// Vrátí nové pole se zamíchaným pořadím prvků (Fisher–Yates).
+function shuffleArray(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Vrátí text "X h Y min" (nebo jen minuty, pokud je zbývá méně než hodina)
+// popisující, kolik zbývá do okamžiku targetDate.
+function formatTimeRemaining(targetDate) {
+  const diffMs = new Date(targetDate).getTime() - Date.now();
+  if (diffMs <= 0) return "za chvíli";
+  const totalMinutes = Math.ceil(diffMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0 && minutes > 0) return hours + " h " + minutes + " min";
+  if (hours > 0) return hours + " h";
+  return minutes + " min";
+}
+
 function openQuiz(id) {
   const q = quizzes.find((qq) => qq.id === id);
   if (!q) return;
@@ -1534,7 +1617,8 @@ function openQuiz(id) {
       return;
     }
     if (!q.can_attempt) {
-      alert("Tento kvíz můžeš zkusit znovu až za 24 hodin od posledního pokusu.");
+      const remaining = q.next_attempt_at ? formatTimeRemaining(q.next_attempt_at) : "24 hodin";
+      alert("Tento kvíz teď nemůžeš dělat. Další pokus bude možný za: " + remaining + ".");
       return;
     }
   }
@@ -1543,12 +1627,20 @@ function openQuiz(id) {
   currentAnswers = new Array(currentQuiz.questions.length).fill(null);
   const container = document.getElementById("quizQuestions");
   container.innerHTML = "<h2 class='section-title'>" + esc(currentQuiz.title) + "</h2>";
-  currentQuiz.questions.forEach((qq, qi) => {
+
+  // Zamíchání pořadí otázek i odpovědí při každém pokusu. Odpovědi se ale
+  // vždy ukládají do currentAnswers podle PŮVODNÍHO indexu otázky/odpovědi,
+  // aby vyhodnocení na serveru (submit_quiz) a přehled správných odpovědí
+  // (renderQuizReview) fungovaly správně beze změny.
+  const questionOrder = shuffleArray(currentQuiz.questions.map((_, i) => i));
+  questionOrder.forEach((origQi, pos) => {
+    const qq = currentQuiz.questions[origQi];
     const box = document.createElement("div");
     box.className = "quiz-question";
-    let optsHtml = "<p class='q'>" + (qi + 1) + ". " + esc(qq.q) + "</p>";
-    qq.options.forEach((opt, oi) => {
-      optsHtml += "<label class='quiz-option' id='opt-" + qi + "-" + oi + "'><input type='radio' name='q" + qi + "' onclick='selectAnswer(" + qi + "," + oi + ")'>" + esc(opt) + "</label>";
+    const optionOrder = shuffleArray(qq.options.map((_, i) => i));
+    let optsHtml = "<p class='q'>" + (pos + 1) + ". " + esc(qq.q) + "</p>";
+    optionOrder.forEach((origOi) => {
+      optsHtml += "<label class='quiz-option' id='opt-" + origQi + "-" + origOi + "'><input type='radio' name='q" + origQi + "' onclick='selectAnswer(" + origQi + "," + origOi + ")'>" + esc(qq.options[origOi]) + "</label>";
     });
     box.innerHTML = optsHtml;
     container.appendChild(box);
@@ -1971,6 +2063,26 @@ async function renderAnnouncementsFull() {
     el.innerHTML = "<div class='empty-note'>Zatím žádné aktuality.</div>";
     return;
   }
+
+  if (user.role === "student") {
+    const ids = data.map((a) => a.id);
+    const { data: myReactions } = await sb.from("announcement_reactions").select("announcement_id,emoji").in("announcement_id", ids);
+    const reactionMap = {};
+    (myReactions || []).forEach((r) => { reactionMap[r.announcement_id] = r.emoji; });
+
+    el.innerHTML = "";
+    data.forEach((a) => {
+      const div = document.createElement("div");
+      div.className = "news-card";
+      const dateStr = new Date(a.created_at).toLocaleDateString("cs-CZ");
+      div.innerHTML =
+        "<div class='news-text'>" + esc(a.text) + "</div><div class='news-date'>" + dateStr + "</div>" +
+        reactionBarHtml("announcement", a.id, reactionMap[a.id], "announcements-list");
+      el.appendChild(div);
+    });
+    return;
+  }
+
   el.innerHTML = "";
   data.forEach((a) => {
     const div = document.createElement("div");
@@ -2232,22 +2344,156 @@ async function renderProfile() {
   document.getElementById("profileName").textContent = user.name;
 
   const pointsSection = document.getElementById("profilePointsSection");
-  const attSection = document.getElementById("profileAttendanceSection");
+  const myMsgSection = document.getElementById("profileMessagesSection");
+  const teacherMsgSection = document.getElementById("profileTeacherMessagesSection");
 
   if (user.role === "mistrova") {
     document.getElementById("profileMeta").textContent = "Učitel · Kuchař/Číšník";
     pointsSection.classList.add("hidden");
-    attSection.classList.add("hidden");
+    myMsgSection.classList.add("hidden");
+    teacherMsgSection.classList.remove("hidden");
+    loadTeacherMessages();
     return;
   }
 
   document.getElementById("profileMeta").textContent = user.rocnik + ". ročník · Kuchař/Číšník";
   pointsSection.classList.remove("hidden");
-  attSection.classList.remove("hidden");
   document.getElementById("profilePoints").textContent = user.points;
+  myMsgSection.classList.remove("hidden");
+  teacherMsgSection.classList.add("hidden");
+  loadMyMessages();
+}
 
-  const { data } = await sb.from("attendance").select("day").eq("present", true);
-  document.getElementById("profileAttendance").textContent = (data ? data.length : 0) + " dní";
+// ---------- ZPRÁVY UČITELI ----------
+async function sendMessageToTeacher() {
+  const errorEl = document.getElementById("messageToTeacherError");
+  errorEl.innerHTML = "";
+  const textEl = document.getElementById("messageToTeacherText");
+  const text = textEl.value.trim();
+  if (!text) {
+    errorEl.innerHTML = "<div class='error-note'>Napište prosím zprávu.</div>";
+    return;
+  }
+  const { error } = await sb.from("messages").insert({ student_id: user.id, text });
+  if (error) {
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se odeslat: " + esc(error.message) + "</div>";
+    return;
+  }
+  textEl.value = "";
+  loadMyMessages();
+}
+
+async function loadMyMessages() {
+  const list = document.getElementById("myMessagesList");
+  list.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const { data, error } = await sb.from("messages").select("id,text,created_at,is_read").eq("student_id", user.id).order("created_at", { ascending: false });
+  if (error) {
+    list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst zprávy: " + esc(error.message) + "</div>";
+    return;
+  }
+  if (!data || data.length === 0) {
+    list.innerHTML = "<div class='empty-note'>Zatím jste neposlali žádnou zprávu.</div>";
+    return;
+  }
+  list.innerHTML = "";
+  data.forEach((m) => {
+    const div = document.createElement("div");
+    div.className = "list-item";
+    const dateStr = new Date(m.created_at).toLocaleDateString("cs-CZ");
+    const statusText = m.is_read ? "Přečteno" : "Nepřečteno";
+    div.innerHTML = "<div><div class='name'>" + esc(m.text) + "</div><div class='meta'>" + dateStr + " · " + statusText + "</div></div>";
+    list.appendChild(div);
+  });
+}
+
+async function loadTeacherMessages() {
+  const list = document.getElementById("teacherMessagesList");
+  list.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const { data, error } = await sb.from("messages").select("id,student_id,text,created_at,is_read").order("created_at", { ascending: false });
+  if (error) {
+    list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst zprávy: " + esc(error.message) + "</div>";
+    return;
+  }
+  if (!data || data.length === 0) {
+    list.innerHTML = "<div class='empty-note'>Zatím žádné zprávy od studentů.</div>";
+    return;
+  }
+  const studentIds = [...new Set(data.map((m) => m.student_id))];
+  const { data: profilesData } = await sb.from("profiles").select("id,name,rocnik").in("id", studentIds);
+  const nameMap = {};
+  (profilesData || []).forEach((p) => { nameMap[p.id] = p.name + " (" + p.rocnik + ". roč.)"; });
+
+  list.innerHTML = "";
+  data.forEach((m) => {
+    const div = document.createElement("div");
+    div.className = "list-item";
+    const dateStr = new Date(m.created_at).toLocaleDateString("cs-CZ");
+    const studentName = nameMap[m.student_id] || "Neznámý student";
+    const unreadBadge = m.is_read ? "" : " <span style='color:var(--primary);font-weight:700;'>· nové</span>";
+    div.innerHTML = "<div><div class='name'>" + esc(studentName) + unreadBadge + "</div><div class='meta'>" + dateStr + "</div><div style='margin-top:4px;'>" + esc(m.text) + "</div></div>";
+    if (!m.is_read) {
+      div.onclick = async () => {
+        await sb.from("messages").update({ is_read: true }).eq("id", m.id);
+        loadTeacherMessages();
+      };
+      div.style.cursor = "pointer";
+    }
+    list.appendChild(div);
+  });
+}
+
+// ---------- ÚSPĚCHY (odznáčky) ----------
+async function renderAchievements() {
+  const list = document.getElementById("achievementsList");
+  list.innerHTML = "<div class='empty-note'>Načítám...</div>";
+
+  if (user.role !== "student") {
+    list.innerHTML = "<div class='empty-note'>Odznáčky jsou dostupné jen pro studenty.</div>";
+    return;
+  }
+
+  const { data, error } = await sb.rpc("get_my_badges");
+  if (error || !data || !data[0]) {
+    list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst úspěchy.</div>";
+    return;
+  }
+  const b = data[0];
+
+  const badges = [
+    {
+      icon: "&#127942;",
+      title: "10 kvízů na 100 %",
+      desc: "Dokonči 10 kvízů s plným počtem bodů (100 %).",
+      progress: Math.min(b.perfect_quizzes, 10) + " / 10",
+      earned: b.perfect_quizzes >= 10,
+    },
+    {
+      icon: "&#9989;",
+      title: "10 splněných kvízů",
+      desc: "Dokonči celkem 10 různých kvízů.",
+      progress: Math.min(b.completed_quizzes, 10) + " / 10",
+      earned: b.completed_quizzes >= 10,
+    },
+    {
+      icon: "&#128172;",
+      title: "20 reakcí",
+      desc: "Přidej 20 reakcí u aktualit nebo slova dne.",
+      progress: Math.min(b.reactions_count, 20) + " / 20",
+      earned: b.reactions_count >= 20,
+    },
+  ];
+
+  list.innerHTML = "";
+  badges.forEach((bd) => {
+    const div = document.createElement("div");
+    div.className = "badge-card" + (bd.earned ? " earned" : "");
+    div.innerHTML =
+      "<div class='badge-icon'>" + bd.icon + "</div>" +
+      "<div class='badge-title'>" + esc(bd.title) + "</div>" +
+      "<div class='badge-desc'>" + esc(bd.desc) + "</div>" +
+      "<div class='badge-progress'>" + esc(bd.progress) + "</div>";
+    list.appendChild(div);
+  });
 }
 
 // ---------- NASTAVENÍ BODŮ (jen mistrová) ----------
