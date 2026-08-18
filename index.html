@@ -80,7 +80,7 @@
   .topbar-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
   .home-btn {
     background: none; border: none; padding: 8px; display: flex; align-items: center; justify-content: center;
-    width: 36px; height: 36px; flex-shrink: 0; color: white; font-size: 19px; line-height: 1;
+    width: 46px; height: 46px; flex-shrink: 0; color: white; font-size: 25px; line-height: 1;
   }
   .hamburger-btn {
     background: none; border: none; padding: 8px; display: flex; flex-direction: column;
@@ -251,7 +251,10 @@
 
   /* Soutěžící (přehled studentů pro učitele) */
   .comp-filter-row { display: flex; gap: 10px; margin-bottom: 14px; }
-  .comp-filter-row select { flex: 0 0 108px; }
+  .comp-filter-row select, .comp-filter-row input {
+    padding: 14px 14px; font-size: 16px; min-height: 48px;
+  }
+  .comp-filter-row select { flex: 0 0 128px; }
   .comp-filter-row input { flex: 1; }
   .competitor-row { cursor: pointer; }
   .comp-head { text-align: center; margin-bottom: 4px; }
