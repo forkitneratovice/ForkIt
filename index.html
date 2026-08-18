@@ -249,6 +249,36 @@
   .badge-desc { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
   .badge-progress { font-size: 11px; color: var(--primary); font-weight: 700; margin-top: 4px; }
 
+  /* Soutěžící (přehled studentů pro učitele) */
+  .comp-filter-row { display: flex; gap: 10px; margin-bottom: 14px; }
+  .comp-filter-row select { flex: 0 0 108px; }
+  .comp-filter-row input { flex: 1; }
+  .competitor-row { cursor: pointer; }
+  .comp-head { text-align: center; margin-bottom: 4px; }
+  .comp-avatar-lg {
+    width: 88px; height: 88px; border-radius: 50%; object-fit: cover; cursor: zoom-in;
+    margin: 0 auto 12px; background: var(--primary); color: white;
+    font-size: 30px; font-weight: 800; font-family: 'Poppins', sans-serif;
+  }
+  img.comp-avatar-lg { display: block; }
+  span.comp-avatar-lg { display: flex; align-items: center; justify-content: center; }
+  .comp-name { font-size: 18px; font-weight: 800; color: var(--dark); font-family: 'Poppins', sans-serif; }
+  .comp-meta { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+  .comp-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 16px 0; }
+  .comp-stat-card { background: var(--card); border-radius: 12px; padding: 12px 6px; text-align: center; }
+  .comp-stat-num { font-size: 19px; font-weight: 800; color: var(--primary); font-family: 'Poppins', sans-serif; }
+  .comp-stat-label { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+  .comp-quiz-row { background: var(--card); border-radius: 14px; padding: 12px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .comp-quiz-row .name { font-weight: 700; font-size: 13.5px; color: var(--dark); }
+  .comp-quiz-row .sub { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+  .comp-quiz-row .pts { font-size: 14px; font-weight: 800; color: var(--primary); font-family: 'Poppins', sans-serif; white-space: nowrap; }
+  .avatar-lightbox {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 999;
+    display: flex; align-items: center; justify-content: center; cursor: zoom-out;
+  }
+  .avatar-lightbox.hidden { display: none; }
+  .avatar-lightbox img { max-width: 82vw; max-height: 82vh; border-radius: 16px; }
+
   /* Quiz */
   .quiz-question { background: var(--card); border-radius: 14px; padding: 15px; margin-bottom: 12px; }
   .quiz-question p.q { font-weight: 700; font-size: 14px; margin: 0 0 10px; color: var(--dark); }
@@ -433,6 +463,9 @@
     <button class="nav-item" data-nav="leaderboard" onclick="showScreen('leaderboard')">
       <span class="nav-icon">&#127942;</span>Žebříček
     </button>
+    <button class="nav-item hidden" data-nav="competitors" id="navCompetitorsSidebar" onclick="showScreen('competitors')">
+      <span class="nav-icon">&#128101;</span>Soutěžící
+    </button>
     <button class="nav-item" data-nav="achievements" id="navAchievementsSidebar" onclick="showScreen('achievements')">
       <span class="nav-icon">&#127941;</span>Úspěchy
     </button>
@@ -478,6 +511,9 @@
       </button>
       <button class="nav-item" data-nav="leaderboard" onclick="showScreen('leaderboard')">
         <span class="nav-icon">&#127942;</span>Žebříček
+      </button>
+      <button class="nav-item hidden" data-nav="competitors" id="navCompetitorsDrawer" onclick="showScreen('competitors')">
+        <span class="nav-icon">&#128101;</span>Soutěžící
       </button>
       <button class="nav-item" data-nav="achievements" id="navAchievementsDrawer" onclick="showScreen('achievements')">
         <span class="nav-icon">&#127941;</span>Úspěchy
@@ -913,6 +949,60 @@
         <div id="achievementsList" class="badge-grid"></div>
       </div>
 
+      <!-- SOUTĚŽÍCÍ (přehled studentů, jen mistrová) -->
+      <div class="screen hidden" id="screen-competitors">
+        <div class="comp-filter-row">
+          <select id="compRocnikFilter" onchange="filterCompetitors()">
+            <option value="all">Všechny</option>
+            <option value="1">1. ročník</option>
+            <option value="2">2. ročník</option>
+            <option value="3">3. ročník</option>
+          </select>
+          <input type="text" id="compSearchInput" placeholder="Hledat studenta…" oninput="filterCompetitors()">
+        </div>
+        <div id="competitorsList"><div class="empty-note">Načítám...</div></div>
+      </div>
+
+      <!-- DETAIL STUDENTA (jen mistrová) -->
+      <div class="screen hidden" id="screen-competitor-detail">
+        <span class="back-link" onclick="showScreen('competitors')">&larr; Zpět na soutěžící</span>
+        <div class="comp-head">
+          <div id="compDetailAvatar"></div>
+          <div class="comp-name" id="compDetailName">—</div>
+          <div class="comp-meta" id="compDetailMeta">—</div>
+        </div>
+        <div class="comp-stat-grid">
+          <div class="comp-stat-card">
+            <div class="comp-stat-num" id="compDetailPoints">0</div>
+            <div class="comp-stat-label">bodů</div>
+          </div>
+          <div class="comp-stat-card">
+            <div class="comp-stat-num" id="compDetailRankOverall">—</div>
+            <div class="comp-stat-label">pořadí celkem</div>
+          </div>
+          <div class="comp-stat-card">
+            <div class="comp-stat-num" id="compDetailRankRocnik">—</div>
+            <div class="comp-stat-label">pořadí v ročníku</div>
+          </div>
+        </div>
+        <div class="comp-stat-grid" style="grid-template-columns: repeat(2, 1fr);">
+          <div class="comp-stat-card">
+            <div class="comp-stat-num" id="compDetailQuizCount">0</div>
+            <div class="comp-stat-label">splněných kvízů</div>
+          </div>
+          <div class="comp-stat-card">
+            <div class="comp-stat-num" id="compDetailChallengeCount">0</div>
+            <div class="comp-stat-label">splněných výzev</div>
+          </div>
+        </div>
+
+        <h2 class="section-title">Kvízy</h2>
+        <div id="compDetailQuizList"><div class="empty-note">Načítám...</div></div>
+
+        <h2 class="section-title">Odznáčky</h2>
+        <div id="compDetailBadges" class="badge-grid"></div>
+      </div>
+
       <!-- ZPRÁVY -->
       <div class="screen hidden" id="screen-messages">
         <div id="studentMessagesContent">
@@ -953,6 +1043,11 @@
       </div>
 
     </div>
+  </div>
+
+  <!-- Zvětšený náhled profilovky (klik na fotku studenta v detailu) -->
+  <div class="avatar-lightbox hidden" id="avatarLightbox" onclick="closeAvatarLightbox()">
+    <img id="avatarLightboxImg" src="" alt="">
   </div>
 </div>
 
@@ -1244,6 +1339,10 @@ async function completeLogin() {
   document.getElementById("navAchievementsSidebar").classList.toggle("hidden", !showAchievements);
   document.getElementById("navAchievementsDrawer").classList.toggle("hidden", !showAchievements);
 
+  const showCompetitors = user.role === "mistrova";
+  document.getElementById("navCompetitorsSidebar").classList.toggle("hidden", !showCompetitors);
+  document.getElementById("navCompetitorsDrawer").classList.toggle("hidden", !showCompetitors);
+
   await loadQuizzes();
   await loadChallenges();
   renderHome();
@@ -1284,7 +1383,7 @@ function hasPersistedSupabaseSession() {
 // o pár řádků níž – kdyby byl RESUMABLE_SCREENS deklarovaný až za tím
 // (přes const), skončilo by to chybou "Cannot access before initialization"
 // a celá appka by se nenačetla.)
-const RESUMABLE_SCREENS = ["home", "quizzes", "quiz-take", "challenges", "slovnik", "leaderboard", "achievements", "messages", "profile"];
+const RESUMABLE_SCREENS = ["home", "quizzes", "quiz-take", "challenges", "slovnik", "leaderboard", "competitors", "achievements", "messages", "profile"];
 
 if (!hasPersistedSupabaseSession()) {
   showScreen("login");
@@ -1362,6 +1461,8 @@ function showScreen(name) {
     "word-create": ["Nové slovo", "Přidat slovo dne"],
     "word-detail": ["Slovo", "Reakce studentů"],
     leaderboard: ["Žebříček", "Jak si vedeš"],
+    competitors: ["Soutěžící", "Přehled studentů"],
+    "competitor-detail": ["Student", "Detail studenta"],
     achievements: ["Úspěchy", "Tvoje odznáčky"],
     messages: ["Zprávy", "Chat"],
     "chat-thread": ["Zprávy", "Chat"],
@@ -1386,6 +1487,7 @@ function showScreen(name) {
   if (name === "achievements") renderAchievements();
   if (name === "messages") renderMessages();
   if (name === "admin") loadAdminData();
+  if (name === "competitors") renderCompetitors();
 }
 
 // ---------- KVÍZY ----------
@@ -2637,6 +2739,177 @@ async function loadRank() {
   document.getElementById("homeRank").textContent = row.my_rank
     ? "Pozice v žebříčku: " + row.my_rank + ". z " + row.my_total
     : "Pozice v žebříčku: —";
+}
+
+// ---------- SOUTĚŽÍCÍ (přehled studentů, jen mistrová) ----------
+let allCompetitors = [];
+let currentCompetitorId = null;
+
+async function renderCompetitors() {
+  const list = document.getElementById("competitorsList");
+  list.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  document.getElementById("compRocnikFilter").value = "all";
+  document.getElementById("compSearchInput").value = "";
+
+  const { data, error } = await sb.rpc("get_leaderboard_admin");
+  if (error) {
+    list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst studenty: " + esc(error.message) + "</div>";
+    return;
+  }
+  allCompetitors = data || [];
+  renderCompetitorsList(allCompetitors);
+}
+
+function filterCompetitors() {
+  const rocnik = document.getElementById("compRocnikFilter").value;
+  const q = document.getElementById("compSearchInput").value.trim().toLowerCase();
+  let rows = allCompetitors;
+  if (rocnik !== "all") rows = rows.filter((r) => String(r.rocnik) === rocnik);
+  if (q) rows = rows.filter((r) => r.name.toLowerCase().includes(q));
+  renderCompetitorsList(rows);
+}
+
+function renderCompetitorsList(rows) {
+  const list = document.getElementById("competitorsList");
+  if (!rows || rows.length === 0) {
+    list.innerHTML = "<div class='empty-note'>Žádný student neodpovídá výběru.</div>";
+    return;
+  }
+  list.innerHTML = "";
+  rows.forEach((r) => {
+    const div = document.createElement("div");
+    div.className = "list-item competitor-row";
+    div.innerHTML =
+      "<div style='display:flex;align-items:center;gap:10px;'>" + miniAvatarHtml(r.avatar_url, r.name) +
+      "<div><div class='name'>" + esc(r.name) + "</div>" +
+      "<div class='meta'>" + esc(r.rocnik) + ". ročník · " + r.points + " b.</div></div></div>" +
+      "<div class='lb-points'>#" + r.rank_overall + "</div>";
+    div.onclick = () => openCompetitorDetail(r.id);
+    list.appendChild(div);
+  });
+}
+
+function czPokusy(n) {
+  if (n === 1) return "pokus";
+  if (n >= 2 && n <= 4) return "pokusy";
+  return "pokusů";
+}
+
+async function openCompetitorDetail(id) {
+  currentCompetitorId = id;
+  const r = allCompetitors.find((c) => c.id === id);
+  if (!r) return;
+  showScreen("competitor-detail");
+
+  const avatarWrap = document.getElementById("compDetailAvatar");
+  avatarWrap.innerHTML = "";
+  if (r.avatar_url) {
+    const img = document.createElement("img");
+    img.className = "comp-avatar-lg";
+    img.src = r.avatar_url;
+    img.alt = "";
+    img.onclick = () => openAvatarLightbox(r.avatar_url);
+    avatarWrap.appendChild(img);
+  } else {
+    const span = document.createElement("span");
+    span.className = "comp-avatar-lg";
+    span.textContent = initials(r.name);
+    avatarWrap.appendChild(span);
+  }
+  document.getElementById("compDetailName").textContent = r.name;
+  document.getElementById("compDetailMeta").textContent = r.rocnik + ". ročník · Kuchař/Číšník";
+  document.getElementById("compDetailPoints").textContent = r.points;
+  document.getElementById("compDetailRankOverall").textContent = "#" + r.rank_overall;
+  document.getElementById("compDetailRankRocnik").textContent = "#" + r.rank_in_rocnik;
+
+  document.getElementById("compDetailQuizCount").textContent = "…";
+  document.getElementById("compDetailChallengeCount").textContent = "…";
+  document.getElementById("compDetailQuizList").innerHTML = "<div class='empty-note'>Načítám...</div>";
+  document.getElementById("compDetailBadges").innerHTML = "";
+
+  const [statsRes, quizRes] = await Promise.all([
+    sb.rpc("get_student_badges_stats", { p_student_id: id }),
+    sb.rpc("get_student_quiz_results", { p_student_id: id }),
+  ]);
+
+  if (currentCompetitorId !== id) return; // mezitím otevřela detail jiného studenta
+
+  if (!statsRes.error && statsRes.data && statsRes.data[0]) {
+    const b = statsRes.data[0];
+    document.getElementById("compDetailQuizCount").textContent = b.completed_quizzes;
+    document.getElementById("compDetailChallengeCount").textContent = b.challenges_completed;
+    renderCompetitorBadges(b);
+  } else {
+    document.getElementById("compDetailQuizCount").textContent = "0";
+    document.getElementById("compDetailChallengeCount").textContent = "0";
+  }
+
+  const quizListEl = document.getElementById("compDetailQuizList");
+  if (quizRes.error) {
+    quizListEl.innerHTML = "<div class='empty-note'>Nepodařilo se načíst kvízy: " + esc(quizRes.error.message) + "</div>";
+  } else if (!quizRes.data || quizRes.data.length === 0) {
+    quizListEl.innerHTML = "<div class='empty-note'>Zatím nesplnil/a žádný kvíz.</div>";
+  } else {
+    quizListEl.innerHTML = "";
+    quizRes.data.forEach((q) => {
+      const div = document.createElement("div");
+      div.className = "comp-quiz-row";
+      const pct = q.best_total > 0 ? Math.round((q.best_score / q.best_total) * 100) : 0;
+      div.innerHTML =
+        "<div><div class='name'>" + esc(q.quiz_title) + "</div>" +
+        "<div class='sub'>" + q.best_score + "/" + q.best_total + " (" + pct + " %) · " + q.attempts_count + "× " + czPokusy(q.attempts_count) + "</div></div>" +
+        "<div class='pts'>" + q.best_earned_points + " b.</div>";
+      quizListEl.appendChild(div);
+    });
+  }
+}
+
+function renderCompetitorBadges(b) {
+  const badges = [
+    {
+      icon: "&#127942;",
+      title: "10 kvízů na 100 %",
+      desc: "Dokončil/a 10 kvízů s plným počtem bodů (100 %).",
+      progress: Math.min(b.perfect_quizzes, 10) + " / 10",
+      earned: b.perfect_quizzes >= 10,
+    },
+    {
+      icon: "&#9989;",
+      title: "10 splněných kvízů",
+      desc: "Dokončil/a celkem 10 různých kvízů.",
+      progress: Math.min(b.completed_quizzes, 10) + " / 10",
+      earned: b.completed_quizzes >= 10,
+    },
+    {
+      icon: "&#128172;",
+      title: "20 reakcí",
+      desc: "Přidal/a 20 reakcí u aktualit nebo slova dne.",
+      progress: Math.min(b.reactions_count, 20) + " / 20",
+      earned: b.reactions_count >= 20,
+    },
+  ];
+  const list = document.getElementById("compDetailBadges");
+  list.innerHTML = "";
+  badges.forEach((bd) => {
+    const div = document.createElement("div");
+    div.className = "badge-card" + (bd.earned ? " earned" : "");
+    div.innerHTML =
+      "<div class='badge-icon'>" + bd.icon + "</div>" +
+      "<div class='badge-title'>" + esc(bd.title) + "</div>" +
+      "<div class='badge-desc'>" + esc(bd.desc) + "</div>" +
+      "<div class='badge-progress'>" + esc(bd.progress) + "</div>";
+    list.appendChild(div);
+  });
+}
+
+function openAvatarLightbox(url) {
+  document.getElementById("avatarLightboxImg").src = url;
+  document.getElementById("avatarLightbox").classList.remove("hidden");
+}
+
+function closeAvatarLightbox() {
+  document.getElementById("avatarLightbox").classList.add("hidden");
+  document.getElementById("avatarLightboxImg").src = "";
 }
 
 // ---------- PROFIL ----------
