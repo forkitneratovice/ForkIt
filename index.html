@@ -1789,17 +1789,19 @@ async function submitQuiz() {
   bestValueEl.innerHTML = "";
   retryEl.innerHTML = "";
 
+  const bonusAmount = result.perfect_bonus ? Math.max(0, result.earned_points - currentQuiz.points) : 0;
+
   if (result.is_test) {
     const lines = ["Zkušební pokus (mistrová) – nezapočítává se do bodů ani statistik."];
     if (result.effort_bonus) lines.push("Kdyby to byl student: 1 b. za snahu.");
-    else if (result.perfect_bonus) lines.push("Kdyby to byl student: plný počet + bonus za 100 % = " + result.earned_points + " b.");
+    else if (result.perfect_bonus) lines.push("Kdyby to byl student: plný počet + bonus " + bonusAmount + " b. za 100 % = " + result.earned_points + " b.");
     else lines.push("Kdyby to byl student, dostal by " + result.earned_points + " b. za tento pokus.");
     introEl.innerHTML = lines.join("<br>");
   } else {
     introEl.textContent = result.effort_bonus
       ? "Tentokrát to nevyšlo, ale dostáváš:"
       : result.perfect_bonus
-      ? "Všechno správně! Skvělá práce – navíc bonus za 100 %:"
+      ? "Všechno správně! Skvělá práce – navíc bonus " + bonusAmount + " b. za 100 %:"
       : "Za tento pokus jsi získal/a:";
     pointsEl.textContent = "+" + result.earned_points + " b.";
 
