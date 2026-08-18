@@ -1337,26 +1337,22 @@ async function setReaction(type, id, emoji, context) {
 async function renderHomeNews() {
   const el = document.getElementById("homeNewsList");
   el.innerHTML = "<div class='empty-note'>Načítám...</div>";
-  const { data, error } = await sb.from("announcements").select("id,text,created_at").order("created_at", { ascending: false }).limit(3);
+  const { data, error } = await sb.from("announcements").select("id,text,created_at").order("created_at", { ascending: false }).limit(1);
   if (error || !data || data.length === 0) {
     el.innerHTML = "<div class='empty-note'>Zatím žádné aktuality.</div>";
     return;
   }
-  const ids = data.map((a) => a.id);
-  const { data: myReactions } = await sb.from("announcement_reactions").select("announcement_id,emoji").in("announcement_id", ids);
-  const reactionMap = {};
-  (myReactions || []).forEach((r) => { reactionMap[r.announcement_id] = r.emoji; });
+  const a = data[0];
+  const { data: myReaction } = await sb.from("announcement_reactions").select("emoji").eq("announcement_id", a.id).maybeSingle();
 
   el.innerHTML = "";
-  data.forEach((a) => {
-    const div = document.createElement("div");
-    div.className = "news-card";
-    const dateStr = new Date(a.created_at).toLocaleDateString("cs-CZ");
-    div.innerHTML =
-      "<div class='news-text'>" + esc(a.text) + "</div><div class='news-date'>" + dateStr + "</div>" +
-      reactionBarHtml("announcement", a.id, reactionMap[a.id], "home-news");
-    el.appendChild(div);
-  });
+  const div = document.createElement("div");
+  div.className = "news-card";
+  const dateStr = new Date(a.created_at).toLocaleDateString("cs-CZ");
+  div.innerHTML =
+    "<div class='news-text'>" + esc(a.text) + "</div><div class='news-date'>" + dateStr + "</div>" +
+    reactionBarHtml("announcement", a.id, myReaction ? myReaction.emoji : null, "home-news");
+  el.appendChild(div);
 }
 
 async function renderHomeNewsAdmin() {
@@ -2166,19 +2162,12 @@ async function renderAnnouncementsFull() {
   }
 
   if (user.role === "student") {
-    const ids = data.map((a) => a.id);
-    const { data: myReactions } = await sb.from("announcement_reactions").select("announcement_id,emoji").in("announcement_id", ids);
-    const reactionMap = {};
-    (myReactions || []).forEach((r) => { reactionMap[r.announcement_id] = r.emoji; });
-
     el.innerHTML = "";
     data.forEach((a) => {
       const div = document.createElement("div");
       div.className = "news-card";
       const dateStr = new Date(a.created_at).toLocaleDateString("cs-CZ");
-      div.innerHTML =
-        "<div class='news-text'>" + esc(a.text) + "</div><div class='news-date'>" + dateStr + "</div>" +
-        reactionBarHtml("announcement", a.id, reactionMap[a.id], "announcements-list");
+      div.innerHTML = "<div class='news-text'>" + esc(a.text) + "</div><div class='news-date'>" + dateStr + "</div>";
       el.appendChild(div);
     });
     return;
@@ -2239,23 +2228,13 @@ async function renderSlovnik() {
     return;
   }
 
-  let reactionMap = {};
-  if (user.role === "student") {
-    const ids = data.map((w) => w.id);
-    const { data: myReactions } = await sb.from("word_reactions").select("word_id,emoji").in("word_id", ids);
-    (myReactions || []).forEach((r) => { reactionMap[r.word_id] = r.emoji; });
-  }
-
   el.innerHTML = "";
   data.forEach((w) => {
     const div = document.createElement("div");
     div.className = "card";
-    let html =
+    const html =
       "<div style=\"font-weight:800;font-size:15px;color:var(--dark);font-family:'Poppins',sans-serif;\">" + esc(w.word) + "</div>" +
       "<div style='font-size:13px;color:var(--text-muted);margin-top:4px;'>" + esc(w.definition) + "</div>";
-    if (user.role === "student") {
-      html += reactionBarHtml("word", w.id, reactionMap[w.id], "slovnik");
-    }
     div.innerHTML = html;
     if (user.role === "mistrova") {
       div.style.cursor = "pointer";
