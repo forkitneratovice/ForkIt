@@ -1160,9 +1160,18 @@ if (!hasPersistedSupabaseSession()) {
 
 sb.auth.onAuthStateChange((event, sess) => {
   session = sess;
-  if (sess) {
-    afterLogin(event);
+  if (!sess) return;
+
+  // Supabase si na pozadí sama obnovuje přihlašovací token – typicky se to
+  // spustí i po odemčení telefonu, kdy appka byla chvíli uspaná. Pokud už
+  // jsme přihlášení a jde jen o obnovení tokenu, appku nijak nepřekreslujeme
+  // ani nepřesměrováváme na Domů, ať uživatel zůstane přesně tam, kde byl
+  // (např. rozepsaný kvíz).
+  if (event === "TOKEN_REFRESHED" && user && user.id === sess.user.id) {
+    return;
   }
+
+  afterLogin(event);
 });
 sb.auth.getSession().then(({ data }) => {
   if (data.session) {
