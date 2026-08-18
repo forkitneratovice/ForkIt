@@ -541,8 +541,14 @@
         <div class="result-box">
           <div class="score" id="quizScoreText">0 / 0</div>
           <div class="msg" id="quizScoreMsg"></div>
-          <button class="btn-primary" onclick="showScreen('quizzes')">Zpět na kvízy</button>
+          <button class="btn-primary" onclick="showScreen('quiz-review')">Potvrdit</button>
         </div>
+      </div>
+
+      <!-- QUIZ REVIEW (správné odpovědi) -->
+      <div class="screen hidden" id="screen-quiz-review">
+        <div id="quizReviewQuestions"></div>
+        <button class="btn-primary" onclick="showScreen('quizzes')">Zpět na kvízy</button>
       </div>
 
       <!-- LEADERBOARD -->
@@ -666,6 +672,7 @@ let user = null;        // profil z tabulky "profiles"
 let quizzes = [];        // z RPC get_quizzes_for_my_rocnik (bez správných odpovědí)
 let currentQuiz = null;
 let currentAnswers = [];
+let lastCorrectAnswers = [];
 let lbFilter = "all";
 
 function initials(name) {
@@ -965,6 +972,7 @@ function showScreen(name) {
     quizzes: ["Kvízy", "Vyber si kvíz"],
     "quiz-take": ["Kvíz", "Vyplň odpovědi"],
     "quiz-result": ["Výsledek", "Kvíz dokončen"],
+    "quiz-review": ["Správné odpovědi", "Zkontroluj si odpovědi"],
     "quiz-create": ["Nový kvíz", "Vytvořit kvíz"],
     "set-points": ["Body", "Nastavit body studentům"],
     leaderboard: ["Žebříček", "Jak si vedeš"],
@@ -979,6 +987,7 @@ function showScreen(name) {
   if (name === "profile") renderProfile();
   if (name === "home") renderHome();
   if (name === "quizzes") renderQuizList();
+  if (name === "quiz-review") renderQuizReview();
   if (name === "set-points") loadSetPoints();
   if (name === "admin") loadAdminData();
 }
@@ -1283,10 +1292,20 @@ async function submitQuiz() {
   }
 
   const result = data[0];
+  lastCorrectAnswers = result.correct_answers || [];
   document.getElementById("quizScoreText").textContent = result.score + " / " + result.total;
-  document.getElementById("quizScoreMsg").textContent = result.already_done
-    ? "Tento kvíz jsi už jednou splnil/a, body se znovu nepřipisují."
-    : "Správně! Připsáno +" + result.earned_points + " bodů.";
+
+  let msg;
+  if (result.already_done) {
+    msg = "Tento kvíz jsi už jednou splnil/a, body se znovu nepřipisují.";
+  } else if (result.effort_bonus) {
+    msg = "Připsán 1 b. za snahu, příště to bude lepší!";
+  } else if (result.perfect_bonus) {
+    msg = "Všechno správně! Připsáno +" + result.earned_points + " bodů (včetně bonusu za 100 %).";
+  } else {
+    msg = "Připsáno +" + result.earned_points + " bodů.";
+  }
+  document.getElementById("quizScoreMsg").textContent = msg;
 
   if (!result.already_done) {
     user.points += result.earned_points;
@@ -1295,6 +1314,27 @@ async function submitQuiz() {
   }
 
   setTimeout(() => showScreen("quiz-result"), 900);
+}
+
+function renderQuizReview() {
+  if (!currentQuiz) return;
+  const container = document.getElementById("quizReviewQuestions");
+  container.innerHTML = "<h2 class='section-title'>" + esc(currentQuiz.title) + " – správné odpovědi</h2>";
+  currentQuiz.questions.forEach((q, qi) => {
+    const box = document.createElement("div");
+    box.className = "quiz-question";
+    let html = "<p class='q'>" + (qi + 1) + ". " + esc(q.q) + "</p>";
+    const correctIdx = lastCorrectAnswers[qi];
+    const chosenIdx = currentAnswers[qi];
+    q.options.forEach((opt, oi) => {
+      let cls = "quiz-option";
+      if (oi === correctIdx) cls += " correct";
+      else if (oi === chosenIdx) cls += " incorrect";
+      html += "<div class='" + cls + "'>" + esc(opt) + "</div>";
+    });
+    box.innerHTML = html;
+    container.appendChild(box);
+  });
 }
 
 // ---------- ŽEBŘÍČEK ----------
