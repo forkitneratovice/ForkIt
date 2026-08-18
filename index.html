@@ -235,6 +235,19 @@
   }
   .result-box .score { font-size: 36px; font-weight: 800; color: var(--primary); }
   .result-box .msg { font-size: 13px; color: var(--text-muted); margin: 8px 0 20px; font-weight: 600; }
+  .result-box .msg:empty { margin: 0; }
+  .quiz-points-earned {
+    font-size: 24px; font-weight: 800; color: var(--primary); font-family: 'Poppins', sans-serif;
+    margin: 4px 0 18px;
+  }
+  .quiz-points-earned:empty { display: none; }
+  .quiz-best-label { font-size: 12px; color: var(--text-muted); font-weight: 700; margin-top: 4px; }
+  .quiz-best-label:empty { display: none; }
+  .quiz-best-value {
+    font-size: 28px; font-weight: 800; color: var(--dark); font-family: 'Poppins', sans-serif;
+    margin: 2px 0 16px;
+  }
+  .quiz-best-value:empty { display: none; }
 
   /* Leaderboard */
   .lb-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
@@ -725,8 +738,23 @@
       <div class="screen hidden" id="screen-quiz-result">
         <div class="result-box">
           <div class="score" id="quizScoreText">0 / 0</div>
-          <div class="msg" id="quizScoreMsg"></div>
+          <div class="msg" id="quizScoreIntroMsg"></div>
+          <div class="quiz-points-earned" id="quizPointsEarned"></div>
+          <div class="quiz-best-label" id="quizBestLabel"></div>
+          <div class="quiz-best-value" id="quizBestValue"></div>
+          <div class="msg" id="quizRetryMsg"></div>
           <button class="btn-primary" onclick="showScreen('quiz-review')">Potvrdit</button>
+        </div>
+      </div>
+
+      <!-- QUIZ ZAMČEN (24h odstup) -->
+      <div class="screen hidden" id="screen-quiz-locked">
+        <div class="result-box">
+          <div style="font-size:38px;margin-bottom:6px;">&#9203;</div>
+          <h2 class="section-title" style="margin-top:0;" id="quizLockedTitle">Kvíz</h2>
+          <div class="msg" style="margin-bottom:4px;">Tento kvíz jsi už zkusil/a. Další pokus bude možný za:</div>
+          <div class="quiz-best-value" id="quizLockedCountdown">–</div>
+          <button class="btn-primary" onclick="showScreen('quizzes')">Zpět na kvízy</button>
         </div>
       </div>
 
@@ -852,6 +880,8 @@ let currentQuiz = null;
 let currentAnswers = [];
 let lastCorrectAnswers = [];
 let lbFilter = "all";
+let quizLockedTimer = null;
+let quizLockedTarget = null;
 
 function initials(name) {
   return name.split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase();
@@ -1155,6 +1185,10 @@ function closeNavDrawer() {
 
 function showScreen(name) {
   closeNavDrawer();
+  if (name !== "quiz-locked" && quizLockedTimer) {
+    clearInterval(quizLockedTimer);
+    quizLockedTimer = null;
+  }
   document.querySelectorAll(".screen").forEach((el) => el.classList.add("hidden"));
   document.getElementById("screen-" + name).classList.remove("hidden");
   document.querySelectorAll(".nav-item").forEach((el) => el.classList.remove("active"));
@@ -1166,6 +1200,7 @@ function showScreen(name) {
     "quiz-take": ["Kvíz", "Vyplň odpovědi"],
     "quiz-result": ["Výsledek", "Kvíz dokončen"],
     "quiz-review": ["Správné odpovědi", "Zkontroluj si odpovědi"],
+    "quiz-locked": ["Kvíz zamčen", "Zkus to znovu později"],
     "quiz-create": ["Nový kvíz", "Vytvořit kvíz"],
     "set-points": ["Body", "Nastavit body studentům"],
     challenges: ["Výzvy", "Praktické úkoly"],
@@ -1643,6 +1678,28 @@ function formatTimeRemaining(targetDate) {
   return minutes + " min";
 }
 
+// Zobrazí obrazovku "kvíz je zamčený" s živým odpočtem do next_attempt_at.
+function showQuizLocked(q) {
+  quizLockedTarget = q.next_attempt_at ? new Date(q.next_attempt_at) : new Date(Date.now() + 24 * 60 * 60 * 1000);
+  document.getElementById("quizLockedTitle").textContent = q.title;
+  updateQuizLockedCountdown();
+  if (quizLockedTimer) clearInterval(quizLockedTimer);
+  quizLockedTimer = setInterval(updateQuizLockedCountdown, 30000);
+  showScreen("quiz-locked");
+}
+
+function updateQuizLockedCountdown() {
+  const el = document.getElementById("quizLockedCountdown");
+  if (!el || !quizLockedTarget) return;
+  const remaining = formatTimeRemaining(quizLockedTarget);
+  if (remaining === "za chvíli") {
+    el.textContent = "Už to můžeš zkusit znovu!";
+    if (quizLockedTimer) { clearInterval(quizLockedTimer); quizLockedTimer = null; }
+  } else {
+    el.textContent = remaining;
+  }
+}
+
 function openQuiz(id) {
   const q = quizzes.find((qq) => qq.id === id);
   if (!q) return;
@@ -1653,8 +1710,7 @@ function openQuiz(id) {
       return;
     }
     if (!q.can_attempt) {
-      const remaining = q.next_attempt_at ? formatTimeRemaining(q.next_attempt_at) : "24 hodin";
-      alert("Tento kvíz teď nemůžeš dělat. Další pokus bude možný za: " + remaining + ".");
+      showQuizLocked(q);
       return;
     }
   }
@@ -1722,34 +1778,40 @@ async function submitQuiz() {
   document.getElementById("quizScoreText").textContent = result.score + " / " + result.total;
 
   const q = quizzes.find((qq) => qq.id === currentQuiz.id);
-  const lines = [];
+  const introEl = document.getElementById("quizScoreIntroMsg");
+  const pointsEl = document.getElementById("quizPointsEarned");
+  const bestLabelEl = document.getElementById("quizBestLabel");
+  const bestValueEl = document.getElementById("quizBestValue");
+  const retryEl = document.getElementById("quizRetryMsg");
+  introEl.innerHTML = "";
+  pointsEl.innerHTML = "";
+  bestLabelEl.innerHTML = "";
+  bestValueEl.innerHTML = "";
+  retryEl.innerHTML = "";
 
   if (result.is_test) {
-    lines.push("Zkušební pokus (mistrová) – nezapočítává se do bodů ani statistik.");
+    const lines = ["Zkušební pokus (mistrová) – nezapočítává se do bodů ani statistik."];
     if (result.effort_bonus) lines.push("Kdyby to byl student: 1 b. za snahu.");
     else if (result.perfect_bonus) lines.push("Kdyby to byl student: plný počet + bonus za 100 % = " + result.earned_points + " b.");
     else lines.push("Kdyby to byl student, dostal by " + result.earned_points + " b. za tento pokus.");
+    introEl.innerHTML = lines.join("<br>");
   } else {
-    if (result.effort_bonus) {
-      lines.push("Tentokrát to nevyšlo, ale dostáváš 1 b. za snahu.");
-    } else if (result.perfect_bonus) {
-      lines.push("Všechno správně! Skvělá práce – navíc bonus za 100 % (" + result.earned_points + " b. za tento pokus).");
-    } else {
-      lines.push(result.earned_points + " b. za tento pokus.");
-    }
+    introEl.textContent = result.effort_bonus
+      ? "Tentokrát to nevyšlo, ale dostáváš:"
+      : result.perfect_bonus
+      ? "Všechno správně! Skvělá práce – navíc bonus za 100 %:"
+      : "Za tento pokus jsi získal/a:";
+    pointsEl.textContent = "+" + result.earned_points + " b.";
 
-    lines.push(
-      result.is_new_best
-        ? "Tvůj nejlepší výsledek u tohoto kvízu je teď " + result.best_points + " b."
-        : "Tvůj nejlepší výsledek u tohoto kvízu zůstává " + result.best_points + " b."
-    );
+    bestLabelEl.textContent = result.is_new_best
+      ? "Tvůj nejlepší výsledek tohoto kvízu je teď"
+      : "Tvůj nejlepší výsledek tohoto kvízu zůstává";
+    bestValueEl.textContent = result.best_points + " b.";
 
     if (!result.perfect_bonus) {
-      lines.push(
-        result.attempts_left > 0
-          ? "Kvíz můžeš zkusit znovu za 24 hodin."
-          : "Vyčerpal/a jsi všechny 3 pokusy u tohoto kvízu."
-      );
+      retryEl.textContent = result.attempts_left > 0
+        ? "Kvíz můžeš zkusit znovu za 24 hodin."
+        : "Vyčerpal/a jsi všechny 3 pokusy u tohoto kvízu.";
     }
 
     const prevBest = q ? (q.best_points || 0) : 0;
@@ -1758,11 +1820,12 @@ async function submitQuiz() {
       q.best_points = result.best_points;
       q.attempts_used = result.attempts_used;
       q.attempts_left = result.attempts_left;
-      q.can_attempt = result.attempts_left > 0;
+      // Právě proběhl pokus, takže 24h odstup začíná teď – bez ohledu na to,
+      // kolik pokusů ještě zbývá, kvíz teď nejde spustit znovu.
+      q.can_attempt = false;
+      q.next_attempt_at = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     }
   }
-
-  document.getElementById("quizScoreMsg").innerHTML = lines.join("<br>");
 
   setTimeout(() => showScreen("quiz-result"), 900);
 }
