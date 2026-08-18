@@ -1277,6 +1277,15 @@ function hasPersistedSupabaseSession() {
   } catch (e) {}
   return false;
 }
+// Obrazovky, na které má smysl appku po znovunačtení (např. po odemčení
+// telefonu, kdy appku systém "vyhodil z paměti") vrátit – vynecháváme login,
+// loading a jednorázové mezikroky typu výsledek kvízu.
+// (Pozn.: musí být deklarováno už tady, protože showScreen() se volá hned
+// o pár řádků níž – kdyby byl RESUMABLE_SCREENS deklarovaný až za tím
+// (přes const), skončilo by to chybou "Cannot access before initialization"
+// a celá appka by se nenačetla.)
+const RESUMABLE_SCREENS = ["home", "quizzes", "quiz-take", "challenges", "slovnik", "leaderboard", "achievements", "messages", "profile"];
+
 if (!hasPersistedSupabaseSession()) {
   showScreen("login");
 }
@@ -1319,11 +1328,6 @@ function closeNavDrawer() {
   document.getElementById("navDrawer").classList.add("hidden");
   document.getElementById("hamburgerBtn").classList.remove("open");
 }
-
-// Obrazovky, na které má smysl appku po znovunačtení (např. po odemčení
-// telefonu, kdy appku systém "vyhodil z paměti") vrátit – vynecháváme login,
-// loading a jednorázové mezikroky typu výsledek kvízu.
-const RESUMABLE_SCREENS = ["home", "quizzes", "quiz-take", "challenges", "slovnik", "leaderboard", "achievements", "messages", "profile"];
 
 function showScreen(name) {
   closeNavDrawer();
