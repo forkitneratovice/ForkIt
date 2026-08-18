@@ -159,6 +159,7 @@
     line-height: 1.5;
   }
   .demo-note b { color: var(--lime); }
+  .demo-note.msg-note { padding: 16px 18px; margin-bottom: 18px; line-height: 1.7; }
   .error-note {
     background: #f6e3e1; color: var(--red);
     font-size: 12.5px; padding: 10px 12px; border-radius: 8px; margin-top: 12px; text-align: left; font-weight: 600;
@@ -226,6 +227,7 @@
   .chat-bubble.theirs { align-self: flex-start; background: var(--card); color: var(--dark); border-bottom-left-radius: 4px; box-shadow: 0 1px 5px rgba(0,0,0,0.06); }
   .chat-bubble.mine { align-self: flex-end; background: var(--primary); color: white; border-bottom-right-radius: 4px; }
   .chat-bubble-time { font-size: 10px; opacity: 0.65; margin-top: 4px; text-align: right; }
+  .chat-bubble-status { font-size: 10px; opacity: 0.8; margin-top: 2px; text-align: right; font-weight: 700; }
   .chat-input-bar { position: sticky; bottom: 0; display: flex; gap: 8px; padding-top: 10px; background: var(--bg); }
   .chat-input-bar input { flex: 1; padding: 11px 12px; border-radius: 20px; border: 1px solid #E0DCD3; font-size: 14px; font-family: inherit; }
 
@@ -871,7 +873,7 @@
       <!-- ZPRÁVY -->
       <div class="screen hidden" id="screen-messages">
         <div id="studentMessagesContent">
-          <div class="demo-note">Zasekli jste se u úkolu nebo v životě? Ozvěte se.<br>-Vaše mistrová Bára 🍸</div>
+          <div class="demo-note msg-note">Zasekli jste se u úkolu nebo v životě? Ozvěte se.<br>-Vaše mistrová Bára 🍸</div>
           <div class="chat-messages" id="chatMessagesList"></div>
           <div class="chat-input-bar">
             <input type="text" id="chatInputText" placeholder="Napiš zprávu…" onkeydown="if(event.key==='Enter'){sendChatMessage();}">
@@ -1135,11 +1137,12 @@ function logoutUser() {
   user = null;
   session = null;
   clearQuizProgress();
+  // Pozn.: "už viděno" stav pro odznáčky (kvízy/výzvy/úspěchy) se záměrně
+  // NEmaže - je vázaný na id konkrétního uživatele, takže po opětovném
+  // přihlášení stejného studenta zůstane zachovaný a odznáčky se neobjeví
+  // znovu jen kvůli odhlášení.
   try {
     localStorage.removeItem("forkit_last_screen");
-    localStorage.removeItem("forkit_seen_quiz_ids");
-    localStorage.removeItem("forkit_seen_challenge_ids");
-    localStorage.removeItem("forkit_seen_badge_keys");
   } catch (e) {}
   ["quizzes", "challenges", "achievements", "messages"].forEach((n) => setNavBadge(n, 0));
   document.getElementById("hamburgerBtn").classList.add("hidden");
@@ -2685,9 +2688,16 @@ async function updateMessagesBadge() {
 
 // Sady ID "už viděno" - kdy se v dané sekci naposledy něco zobrazilo studentovi,
 // aby odznáček zmizel po kliknutí a znovu se objevil jen u opravdu nových věcí.
+// Klíč je vždy vázaný na konkrétního uživatele (podle jeho id), aby se stav
+// zachoval i po odhlášení/přihlášení a nepletl se mezi různými účty na
+// stejném telefonu.
+function seenStorageKey(baseKey) {
+  return user ? baseKey + "_" + user.id : baseKey;
+}
+
 function getSeenSet(key) {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = localStorage.getItem(seenStorageKey(key));
     return new Set(raw ? JSON.parse(raw) : []);
   } catch (e) {
     return new Set();
@@ -2697,7 +2707,7 @@ function getSeenSet(key) {
 function markSeen(key, ids) {
   const set = getSeenSet(key);
   ids.forEach((id) => set.add(id));
-  try { localStorage.setItem(key, JSON.stringify([...set])); } catch (e) {}
+  try { localStorage.setItem(seenStorageKey(key), JSON.stringify([...set])); } catch (e) {}
 }
 
 function setNavBadge(navName, count) {
@@ -2849,7 +2859,7 @@ async function openChatThread(studentId, studentName) {
 async function loadChatMessages(threadStudentId, containerId) {
   const el = document.getElementById(containerId);
   el.innerHTML = "<div class='empty-note'>Načítám...</div>";
-  const { data, error } = await sb.from("messages").select("id,sender_id,text,created_at").eq("thread_student_id", threadStudentId).order("created_at", { ascending: true });
+  const { data, error } = await sb.from("messages").select("id,sender_id,text,created_at,is_read").eq("thread_student_id", threadStudentId).order("created_at", { ascending: true });
   if (error) {
     el.innerHTML = "<div class='empty-note'>Nepodařilo se načíst zprávy: " + esc(error.message) + "</div>";
     return;
@@ -2864,7 +2874,10 @@ async function loadChatMessages(threadStudentId, containerId) {
     const bubble = document.createElement("div");
     bubble.className = "chat-bubble " + (isMine ? "mine" : "theirs");
     const timeStr = new Date(m.created_at).toLocaleString("cs-CZ", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
-    bubble.innerHTML = "<div class='chat-bubble-text'>" + esc(m.text) + "</div><div class='chat-bubble-time'>" + timeStr + "</div>";
+    const statusHtml = isMine
+      ? "<div class='chat-bubble-status'>" + (m.is_read ? "Přečteno" : "Odesláno") + "</div>"
+      : "";
+    bubble.innerHTML = "<div class='chat-bubble-text'>" + esc(m.text) + "</div><div class='chat-bubble-time'>" + timeStr + "</div>" + statusHtml;
     el.appendChild(bubble);
   });
   el.scrollTop = el.scrollHeight;
