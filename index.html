@@ -77,6 +77,11 @@
   }
   .topbar .title { font-size: 18px; font-weight: 800; letter-spacing: 0.3px; font-family: 'Poppins', sans-serif; }
   .topbar .sub { font-size: 12px; opacity: 0.75; }
+  .topbar-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+  .home-btn {
+    background: none; border: none; padding: 8px; display: flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; flex-shrink: 0; color: white; font-size: 19px; line-height: 1;
+  }
   .hamburger-btn {
     background: none; border: none; padding: 8px; display: flex; flex-direction: column;
     justify-content: center; align-items: flex-end; gap: 5px; width: 36px; height: 36px; flex-shrink: 0;
@@ -320,6 +325,22 @@
     font-family: 'Poppins', sans-serif; overflow: hidden;
   }
   .avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+  /* Výřez profilovky do kruhu */
+  .avatar-crop-wrap { display: flex; justify-content: center; padding: 10px 0 6px; }
+  .avatar-crop-circle {
+    width: 240px; height: 240px; border-radius: 50%; overflow: hidden; position: relative;
+    background: #000; touch-action: none; cursor: grab;
+    box-shadow: 0 0 0 4px var(--bg), 0 0 0 6px #E0DCD3;
+  }
+  .avatar-crop-circle.dragging { cursor: grabbing; }
+  .avatar-crop-circle img { position: absolute; top: 0; left: 0; user-select: none; }
+  .mini-avatar {
+    width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+    background: var(--primary); color: white; font-size: 11px; font-weight: 800;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: 'Poppins', sans-serif;
+  }
   .profile-head .pname { font-size: 17px; font-weight: 700; color: var(--dark); }
   .profile-head .pmeta { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; font-weight: 600; }
 
@@ -374,6 +395,7 @@
 
     .main { min-height: 680px; }
     .hamburger-btn { display: none !important; }
+    .home-btn { display: none !important; }
     .nav-drawer { display: none !important; }
     .screen { padding: 34px 46px 46px; max-width: 720px; }
     .topbar { padding: 26px 46px 22px; padding-top: 26px; }
@@ -432,9 +454,12 @@
         <div class="title" id="topbarTitle">ForkIt</div>
         <div class="sub" id="topbarSub">Přihlášení</div>
       </div>
-      <button class="hamburger-btn hidden" id="hamburgerBtn" onclick="toggleNavDrawer()" aria-label="Menu">
-        <span></span><span></span><span></span>
-      </button>
+      <div class="topbar-actions">
+        <button class="home-btn hidden" id="homeBtn" onclick="closeNavDrawer(); showScreen('home')" aria-label="Domů">&#8962;</button>
+        <button class="hamburger-btn hidden" id="hamburgerBtn" onclick="toggleNavDrawer()" aria-label="Menu">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
     </div>
 
     <!-- ROZBALOVACÍ MENU (mobil) -->
@@ -864,6 +889,24 @@
         <button class="btn-secondary" style="margin-top:12px;" onclick="logoutUser()">Odhlásit se</button>
       </div>
 
+      <!-- ÚPRAVA PROFILOVKY (výřez do kruhu) -->
+      <div class="screen hidden" id="screen-avatar-crop">
+        <h2 class="section-title">Upravit profilovku</h2>
+        <div class="avatar-crop-wrap">
+          <div class="avatar-crop-circle" id="avatarCropCircle">
+            <img id="avatarCropImg" draggable="false" alt="">
+          </div>
+        </div>
+        <p class="lb-note" style="text-align:center;">Foto přetáhni prstem nebo myší, ať se vejde přesně tam, kam chceš.</p>
+        <div class="field">
+          <label>Přiblížení</label>
+          <input type="range" id="avatarZoomSlider" min="100" max="300" value="100">
+        </div>
+        <button class="btn-primary" onclick="confirmAvatarCrop()" id="avatarCropSaveBtn">Uložit profilovku</button>
+        <button class="btn-secondary" onclick="cancelAvatarCrop()">Zrušit</button>
+        <div id="avatarCropError"></div>
+      </div>
+
       <!-- ÚSPĚCHY (odznáčky, jen studenti) -->
       <div class="screen hidden" id="screen-achievements">
         <h2 class="section-title">Úspěchy</h2>
@@ -938,6 +981,15 @@ let quizLockedTarget = null;
 
 function initials(name) {
   return name.split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase();
+}
+
+// Malý kulatý avatar (28px) pro použití v žebříčku, u reakcí a ve zprávách.
+// Když uživatel nemá nahranou fotku, zobrazí se místo toho jeho iniciály.
+function miniAvatarHtml(avatarUrl, name) {
+  if (avatarUrl) {
+    return "<img class='mini-avatar' src='" + esc(avatarUrl) + "' alt=''>";
+  }
+  return "<span class='mini-avatar'>" + esc(initials(name || "?")) + "</span>";
 }
 
 // Bezpečnostní ochrana: jméno studenta zadává student sám při registraci,
@@ -1146,6 +1198,7 @@ function logoutUser() {
   } catch (e) {}
   ["quizzes", "challenges", "achievements", "messages"].forEach((n) => setNavBadge(n, 0));
   document.getElementById("hamburgerBtn").classList.add("hidden");
+  document.getElementById("homeBtn").classList.add("hidden");
   closeNavDrawer();
   document.getElementById("sidebar").classList.add("hidden");
   setAuthMode("login");
@@ -1184,6 +1237,7 @@ async function afterLogin(event) {
 
 async function completeLogin() {
   document.getElementById("hamburgerBtn").classList.remove("hidden");
+  document.getElementById("homeBtn").classList.remove("hidden");
   document.getElementById("sidebar").classList.remove("hidden");
 
   const showAchievements = user.role === "student";
@@ -1226,6 +1280,7 @@ function hasPersistedSupabaseSession() {
 if (!hasPersistedSupabaseSession()) {
   showScreen("login");
 }
+initAvatarCropDrag();
 
 sb.auth.onAuthStateChange((event, sess) => {
   session = sess;
@@ -1307,6 +1362,7 @@ function showScreen(name) {
     messages: ["Zprávy", "Chat"],
     "chat-thread": ["Zprávy", "Chat"],
     profile: ["Profil", "Tvoje statistiky"],
+    "avatar-crop": ["Profilovka", "Uprav výřez"],
     admin: ["Administrace", "Zápis docházky"],
   };
   if (titles[name]) {
@@ -2343,7 +2399,9 @@ async function openAnnouncementDetail(id, text, createdAt) {
   data.forEach((r) => {
     const row = document.createElement("div");
     row.className = "list-item";
-    row.innerHTML = "<div class='name'>" + esc(r.student_name) + "</div><span style='font-size:20px;'>" + esc(r.emoji) + "</span>";
+    row.innerHTML =
+      "<div style='display:flex;align-items:center;gap:8px;'>" + miniAvatarHtml(r.avatar_url, r.student_name) +
+      "<div class='name'>" + esc(r.student_name) + "</div></div><span style='font-size:20px;'>" + esc(r.emoji) + "</span>";
     listEl.appendChild(row);
   });
 }
@@ -2460,7 +2518,9 @@ async function openWordDetail(id, word, definition) {
   data.forEach((r) => {
     const row = document.createElement("div");
     row.className = "list-item";
-    row.innerHTML = "<div class='name'>" + esc(r.student_name) + "</div><span style='font-size:20px;'>" + esc(r.emoji) + "</span>";
+    row.innerHTML =
+      "<div style='display:flex;align-items:center;gap:8px;'>" + miniAvatarHtml(r.avatar_url, r.student_name) +
+      "<div class='name'>" + esc(r.student_name) + "</div></div><span style='font-size:20px;'>" + esc(r.emoji) + "</span>";
     listEl.appendChild(row);
   });
 }
@@ -2506,6 +2566,7 @@ async function renderLeaderboardAdmin() {
     div.className = "lb-row";
     div.innerHTML =
       "<div class='lb-rank'>#" + rank + "</div>" +
+      miniAvatarHtml(r.avatar_url, r.name) +
       "<div><div class='lb-name'>" + esc(r.name) + "</div><div class='lb-sub'>" + esc(r.rocnik) + ". ročník</div></div>" +
       "<div class='lb-points' style='margin-left:auto;'>" + r.points + " b.</div>";
     list.appendChild(div);
@@ -2544,6 +2605,7 @@ async function renderLeaderboard() {
     div.className = "lb-row" + (p.name === user.name && p.points === user.points ? "" : "");
     div.innerHTML =
       "<div class='medal medal-" + (i + 1) + "'>" + (i + 1) + "</div>" +
+      miniAvatarHtml(p.avatar_url, p.name) +
       "<div><div class='lb-name'>" + esc(p.name) + "</div><div class='lb-sub'>" + esc(p.rocnik) + ". ročník</div></div>" +
       "<div class='lb-points' style='margin-left:auto;'>" + p.points + " b.</div>";
     top3El.appendChild(div);
@@ -2780,7 +2842,7 @@ async function loadConversations() {
   const listEl = document.getElementById("conversationList");
   listEl.innerHTML = "<div class='empty-note'>Načítám...</div>";
 
-  const { data: students, error: sErr } = await sb.from("profiles").select("id,name,rocnik").eq("role", "student").order("name");
+  const { data: students, error: sErr } = await sb.from("profiles").select("id,name,rocnik,avatar_url").eq("role", "student").order("name");
   if (sErr) {
     listEl.innerHTML = "<div class='empty-note'>Nepodařilo se načíst studenty: " + esc(sErr.message) + "</div>";
     return;
@@ -2802,6 +2864,7 @@ async function loadConversations() {
     id: s.id,
     name: s.name,
     rocnik: s.rocnik,
+    avatar_url: s.avatar_url,
     lastText: meta[s.id] ? meta[s.id].lastText : null,
     lastAt: meta[s.id] ? meta[s.id].lastAt : null,
     unread: meta[s.id] ? meta[s.id].unread : 0,
@@ -2831,8 +2894,9 @@ function renderConversationList(students, isSearchMode) {
     const preview = s.lastText ? (s.lastText.length > 40 ? s.lastText.slice(0, 40) + "…" : s.lastText) : "Zatím žádné zprávy – klikni a napiš";
     const unreadBadge = s.unread > 0 ? "<span class='badge-pts'>" + s.unread + "</span>" : "";
     div.innerHTML =
+      "<div style='display:flex;align-items:center;gap:10px;'>" + miniAvatarHtml(s.avatar_url, s.name) +
       "<div><div class='name'>" + esc(s.name) + " <span style='font-weight:400;color:var(--text-muted);'>(" + s.rocnik + ". roč.)</span></div>" +
-      "<div class='meta'>" + esc(preview) + "</div></div>" + unreadBadge;
+      "<div class='meta'>" + esc(preview) + "</div></div></div>" + unreadBadge;
     div.onclick = () => openChatThread(s.id, s.name);
     listEl.appendChild(div);
   });
@@ -2968,16 +3032,148 @@ async function saveStudentPoints(studentId, input, btn) {
   setTimeout(() => { btn.textContent = originalText; }, 1200);
 }
 
-// ---------- PROFILOVÁ FOTKA ----------
+// ---------- PROFILOVÁ FOTKA (výřez do kruhu) ----------
+const AVATAR_CROP_SIZE = 240; // px, velikost kruhového výřezu na obrazovce
+const AVATAR_OUTPUT_SIZE = 400; // px, výsledná uložená fotka (čtverec)
+
+let avatarCropImgEl = null;
+let avatarCrop = { naturalW: 0, naturalH: 0, baseScale: 1, scale: 1, x: 0, y: 0 };
+let avatarDrag = null; // { startPointerX, startPointerY, startX, startY }
+
 async function handleAvatarSelected(event) {
   const file = event.target.files && event.target.files[0];
   event.target.value = "";
   if (!file || !user) return;
-  const errorEl = document.getElementById("avatarError");
-  errorEl.innerHTML = "";
+
+  const errorEl = document.getElementById("avatarCropError");
+  if (errorEl) errorEl.innerHTML = "";
 
   try {
-    const blob = await resizeImageToBlob(file, 400, 0.82);
+    const dataUrl = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    avatarCropImgEl = document.getElementById("avatarCropImg");
+    avatarCropImgEl.src = dataUrl;
+    await new Promise((resolve, reject) => {
+      avatarCropImgEl.onload = resolve;
+      avatarCropImgEl.onerror = reject;
+    });
+
+    avatarCrop.naturalW = avatarCropImgEl.naturalWidth;
+    avatarCrop.naturalH = avatarCropImgEl.naturalHeight;
+    avatarCrop.baseScale = Math.max(AVATAR_CROP_SIZE / avatarCrop.naturalW, AVATAR_CROP_SIZE / avatarCrop.naturalH);
+    avatarCrop.scale = avatarCrop.baseScale;
+    avatarCrop.x = (AVATAR_CROP_SIZE - avatarCrop.naturalW * avatarCrop.scale) / 2;
+    avatarCrop.y = (AVATAR_CROP_SIZE - avatarCrop.naturalH * avatarCrop.scale) / 2;
+
+    document.getElementById("avatarZoomSlider").value = 100;
+    applyAvatarCropTransform();
+    showScreen("avatar-crop");
+  } catch (e) {
+    const errEl = document.getElementById("avatarError");
+    if (errEl) errEl.innerHTML = "<div class='error-note'>Nepodařilo se načíst obrázek.</div>";
+  }
+}
+
+// Udrží pozici snímku tak, aby vždy zcela vyplňoval kruh (nedovolí odtáhnout
+// mimo, ať ve výřezu nevznikne prázdné místo).
+function clampAvatarPan() {
+  const w = avatarCrop.naturalW * avatarCrop.scale;
+  const h = avatarCrop.naturalH * avatarCrop.scale;
+  const minX = Math.min(0, AVATAR_CROP_SIZE - w);
+  const minY = Math.min(0, AVATAR_CROP_SIZE - h);
+  avatarCrop.x = Math.max(minX, Math.min(0, avatarCrop.x));
+  avatarCrop.y = Math.max(minY, Math.min(0, avatarCrop.y));
+}
+
+function applyAvatarCropTransform() {
+  if (!avatarCropImgEl) return;
+  clampAvatarPan();
+  avatarCropImgEl.style.width = (avatarCrop.naturalW * avatarCrop.scale) + "px";
+  avatarCropImgEl.style.height = (avatarCrop.naturalH * avatarCrop.scale) + "px";
+  avatarCropImgEl.style.left = avatarCrop.x + "px";
+  avatarCropImgEl.style.top = avatarCrop.y + "px";
+}
+
+function onAvatarZoomChange() {
+  const zoomPercent = parseInt(document.getElementById("avatarZoomSlider").value, 10);
+  const centerX = AVATAR_CROP_SIZE / 2, centerY = AVATAR_CROP_SIZE / 2;
+  // Zoom drží stejný bod (střed kruhu) na místě, aby se obrázek při přibližování neposkočil.
+  const imgCenterX = (centerX - avatarCrop.x) / avatarCrop.scale;
+  const imgCenterY = (centerY - avatarCrop.y) / avatarCrop.scale;
+  avatarCrop.scale = avatarCrop.baseScale * (zoomPercent / 100);
+  avatarCrop.x = centerX - imgCenterX * avatarCrop.scale;
+  avatarCrop.y = centerY - imgCenterY * avatarCrop.scale;
+  applyAvatarCropTransform();
+}
+
+function avatarPointerDown(e) {
+  const circle = document.getElementById("avatarCropCircle");
+  circle.classList.add("dragging");
+  const point = e.touches ? e.touches[0] : e;
+  avatarDrag = { startPointerX: point.clientX, startPointerY: point.clientY, startX: avatarCrop.x, startY: avatarCrop.y };
+  e.preventDefault();
+}
+
+function avatarPointerMove(e) {
+  if (!avatarDrag) return;
+  const point = e.touches ? e.touches[0] : e;
+  avatarCrop.x = avatarDrag.startX + (point.clientX - avatarDrag.startPointerX);
+  avatarCrop.y = avatarDrag.startY + (point.clientY - avatarDrag.startPointerY);
+  applyAvatarCropTransform();
+  e.preventDefault();
+}
+
+function avatarPointerUp() {
+  avatarDrag = null;
+  const circle = document.getElementById("avatarCropCircle");
+  if (circle) circle.classList.remove("dragging");
+}
+
+function initAvatarCropDrag() {
+  const circle = document.getElementById("avatarCropCircle");
+  const slider = document.getElementById("avatarZoomSlider");
+  circle.addEventListener("mousedown", avatarPointerDown);
+  circle.addEventListener("touchstart", avatarPointerDown, { passive: false });
+  window.addEventListener("mousemove", avatarPointerMove);
+  window.addEventListener("touchmove", avatarPointerMove, { passive: false });
+  window.addEventListener("mouseup", avatarPointerUp);
+  window.addEventListener("touchend", avatarPointerUp);
+  slider.addEventListener("input", onAvatarZoomChange);
+}
+
+function cancelAvatarCrop() {
+  showScreen("profile");
+}
+
+async function confirmAvatarCrop() {
+  if (!avatarCropImgEl || !user) return;
+  const errorEl = document.getElementById("avatarCropError");
+  errorEl.innerHTML = "";
+  const btn = document.getElementById("avatarCropSaveBtn");
+  btn.disabled = true;
+
+  try {
+    const sourceX = -avatarCrop.x / avatarCrop.scale;
+    const sourceY = -avatarCrop.y / avatarCrop.scale;
+    const sourceSize = AVATAR_CROP_SIZE / avatarCrop.scale;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = AVATAR_OUTPUT_SIZE;
+    canvas.height = AVATAR_OUTPUT_SIZE;
+    canvas.getContext("2d").drawImage(
+      avatarCropImgEl,
+      sourceX, sourceY, sourceSize, sourceSize,
+      0, 0, AVATAR_OUTPUT_SIZE, AVATAR_OUTPUT_SIZE
+    );
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("canvas toBlob failed"))), "image/jpeg", 0.85);
+    });
+
     const path = user.id;
     const { error: uploadError } = await sb.storage.from("avatars").upload(path, blob, {
       upsert: true,
@@ -2985,6 +3181,7 @@ async function handleAvatarSelected(event) {
     });
     if (uploadError) {
       errorEl.innerHTML = "<div class='error-note'>Nepodařilo se nahrát fotku: " + esc(uploadError.message) + "</div>";
+      btn.disabled = false;
       return;
     }
     const { data: pub } = sb.storage.from("avatars").getPublicUrl(path);
@@ -2992,12 +3189,15 @@ async function handleAvatarSelected(event) {
     const { error: updateError } = await sb.from("profiles").update({ avatar_url: url }).eq("id", user.id);
     if (updateError) {
       errorEl.innerHTML = "<div class='error-note'>Fotka se nahrála, ale nepodařilo se uložit do profilu: " + esc(updateError.message) + "</div>";
+      btn.disabled = false;
       return;
     }
     user.avatar_url = url;
-    renderProfile();
+    btn.disabled = false;
+    showScreen("profile");
   } catch (e) {
     errorEl.innerHTML = "<div class='error-note'>Nepodařilo se zpracovat obrázek.</div>";
+    btn.disabled = false;
   }
 }
 
