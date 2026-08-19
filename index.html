@@ -282,6 +282,35 @@
   .avatar-lightbox.hidden { display: none; }
   .avatar-lightbox img { max-width: 82vw; max-height: 82vh; border-radius: 16px; }
 
+  /* Procvičování (hub + trénink kvízů) */
+  .practice-hub-btn {
+    display: block; width: 100%; background: var(--card); border: none; border-radius: 16px;
+    padding: 22px 18px; margin-bottom: 14px; text-align: left; box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    cursor: pointer;
+  }
+  .practice-hub-btn .icon { font-size: 26px; margin-bottom: 6px; display: block; }
+  .practice-hub-btn .title { font-size: 16px; font-weight: 800; color: var(--dark); font-family: 'Poppins', sans-serif; }
+  .practice-hub-btn .desc { font-size: 12.5px; color: var(--text-muted); margin-top: 3px; line-height: 1.4; }
+  .practice-banner {
+    background: #FFF1CE; color: #7A5A00; border-radius: 12px; padding: 10px 12px;
+    font-size: 12px; margin-bottom: 14px; font-weight: 700; text-align: center;
+  }
+
+  /* Slovíčka (Anki styl procvičování) */
+  .flash-progress { text-align: center; font-size: 13px; color: var(--text-muted); font-weight: 700; margin-bottom: 14px; }
+  .flash-card {
+    background: var(--card); border-radius: 20px; min-height: 200px; padding: 26px 20px;
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08); margin-bottom: 16px; cursor: pointer;
+  }
+  .flash-card-face.flash-front { font-size: 24px; font-weight: 800; color: var(--dark); font-family: 'Poppins', sans-serif; }
+  .flash-card-face.flash-back { font-size: 15.5px; color: var(--dark); line-height: 1.5; }
+  .flash-actions { display: flex; flex-direction: column; gap: 10px; }
+  .flash-btn { border: none; border-radius: 12px; padding: 15px; font-size: 14px; font-weight: 700; font-family: inherit; color: white; cursor: pointer; }
+  .flash-btn-good { background: #3DAA5C; }
+  .flash-btn-mid { background: #D99A26; }
+  .flash-btn-bad { background: var(--red); }
+
   /* Quiz */
   .quiz-question { background: var(--card); border-radius: 14px; padding: 15px; margin-bottom: 12px; }
   .quiz-question p.q { font-weight: 700; font-size: 14px; margin: 0 0 10px; color: var(--dark); }
@@ -460,6 +489,9 @@
     <button class="nav-item" data-nav="challenges" onclick="showScreen('challenges')">
       <span class="nav-icon">&#127859;</span>Výzvy
     </button>
+    <button class="nav-item" data-nav="practice-hub" onclick="showScreen('practice-hub')">
+      <span class="nav-icon">&#128260;</span>Procvičování
+    </button>
     <button class="nav-item" data-nav="slovnik" onclick="showScreen('slovnik')">
       <span class="nav-icon">&#128218;</span>Slovník
     </button>
@@ -508,6 +540,9 @@
       </button>
       <button class="nav-item" data-nav="challenges" onclick="showScreen('challenges')">
         <span class="nav-icon">&#127859;</span>Výzvy
+      </button>
+      <button class="nav-item" data-nav="practice-hub" onclick="showScreen('practice-hub')">
+        <span class="nav-icon">&#128260;</span>Procvičování
       </button>
       <button class="nav-item" data-nav="slovnik" onclick="showScreen('slovnik')">
         <span class="nav-icon">&#128218;</span>Slovník
@@ -794,6 +829,27 @@
         <div id="announcementDetailContent"></div>
       </div>
 
+      <!-- PROCVIČOVÁNÍ (rozcestník, oba typy uživatelů) -->
+      <div class="screen hidden" id="screen-practice-hub">
+        <button class="practice-hub-btn" onclick="showScreen('practice-quizzes')">
+          <span class="icon">&#9998;</span>
+          <span class="title">Kvízy</span>
+          <span class="desc">Natrénuj si kvízy nanečisto, kolikrát chceš. Neomezeně, bez bodů a bez čekání.</span>
+        </button>
+        <button class="practice-hub-btn" onclick="showScreen('flashcards')">
+          <span class="icon">&#128218;</span>
+          <span class="title">Slovíčka</span>
+          <span class="desc">Procvič si slovník jako kartičky – podívej se na slovo, řekni si definici a ohodnoť se.</span>
+        </button>
+      </div>
+
+      <!-- PROCVIČOVÁNÍ: SEZNAM KVÍZŮ K TRÉNINKU -->
+      <div class="screen hidden" id="screen-practice-quizzes">
+        <span class="back-link" onclick="showScreen('practice-hub')">&larr; Zpět na procvičování</span>
+        <div class="practice-banner">Tréninkový režim – bez bodů, bez omezení pokusů.</div>
+        <div id="practiceQuizList"><div class="empty-note">Načítám...</div></div>
+      </div>
+
       <!-- SLOVNÍK -->
       <div class="screen hidden" id="screen-slovnik">
         <div id="teacherSlovnikContent" class="hidden">
@@ -828,9 +884,36 @@
         <div id="wordDetailContent"></div>
       </div>
 
+      <!-- SLOVÍČKA (procvičování stylem kartiček, oba typy uživatelů) -->
+      <div class="screen hidden" id="screen-flashcards">
+        <span class="back-link" onclick="showScreen('practice-hub')">&larr; Zpět na procvičování</span>
+        <div class="flash-progress" id="flashProgress">Načítám...</div>
+        <div class="flash-card" id="flashCard" onclick="flipFlashcard()">
+          <div id="flashCardFront" class="flash-card-face flash-front"></div>
+          <div id="flashCardBack" class="flash-card-face flash-back hidden"></div>
+        </div>
+        <p class="lb-note" id="flashHint" style="text-align:center;">Klepni na kartičku a zkus si v hlavě říct definici. Pak klepni znovu a ohodnoť se.</p>
+        <div class="flash-actions hidden" id="flashActions">
+          <button class="flash-btn flash-btn-bad" onclick="answerFlashcard('learning')">Neumím</button>
+          <button class="flash-btn flash-btn-mid" onclick="answerFlashcard('practice')">Chci si to ještě procvičit</button>
+          <button class="flash-btn flash-btn-good" onclick="answerFlashcard('known')">Umím</button>
+        </div>
+        <div id="flashEmptyState" class="hidden">
+          <div class="empty-note">Ve slovníku zatím nejsou žádná slova k procvičení.</div>
+        </div>
+        <div id="flashDoneState" class="hidden">
+          <div class="result-box">
+            <div style="font-size:38px;margin-bottom:6px;">&#127881;</div>
+            <div class="msg">Projel/a jsi celý balíček!</div>
+            <button class="btn-primary" onclick="startFlashcardSession()">Zamíchat a projet znovu</button>
+            <button class="btn-secondary" onclick="showScreen('practice-hub')">Zpět na procvičování</button>
+          </div>
+        </div>
+      </div>
+
       <!-- QUIZ TAKING -->
       <div class="screen hidden" id="screen-quiz-take">
-        <span class="back-link" onclick="showScreen('quizzes')">&larr; Zpět na kvízy</span>
+        <span class="back-link" onclick="backToQuizList()">&larr; Zpět na kvízy</span>
         <div id="quizQuestions"></div>
         <button class="btn-primary" id="submitQuizBtn" onclick="submitQuiz()">Odeslat odpovědi</button>
       </div>
@@ -855,14 +938,14 @@
           <h2 class="section-title" style="margin-top:0;" id="quizLockedTitle">Kvíz</h2>
           <div class="msg" style="margin-bottom:4px;">Tento kvíz jsi už zkusil/a. Další pokus bude možný za:</div>
           <div class="quiz-best-value" id="quizLockedCountdown">–</div>
-          <button class="btn-primary" onclick="showScreen('quizzes')">Zpět na kvízy</button>
+          <button class="btn-primary" onclick="backToQuizList()">Zpět na kvízy</button>
         </div>
       </div>
 
       <!-- QUIZ REVIEW (správné odpovědi) -->
       <div class="screen hidden" id="screen-quiz-review">
         <div id="quizReviewQuestions"></div>
-        <button class="btn-primary" onclick="showScreen('quizzes')">Zpět na kvízy</button>
+        <button class="btn-primary" onclick="backToQuizList()">Zpět na kvízy</button>
       </div>
 
       <!-- LEADERBOARD -->
@@ -1386,7 +1469,7 @@ function hasPersistedSupabaseSession() {
 // o pár řádků níž – kdyby byl RESUMABLE_SCREENS deklarovaný až za tím
 // (přes const), skončilo by to chybou "Cannot access before initialization"
 // a celá appka by se nenačetla.)
-const RESUMABLE_SCREENS = ["home", "quizzes", "quiz-take", "challenges", "slovnik", "leaderboard", "competitors", "achievements", "messages", "profile"];
+const RESUMABLE_SCREENS = ["home", "quizzes", "quiz-take", "challenges", "practice-hub", "practice-quizzes", "flashcards", "slovnik", "leaderboard", "competitors", "achievements", "messages", "profile"];
 
 if (!hasPersistedSupabaseSession()) {
   showScreen("login");
@@ -1463,6 +1546,9 @@ function showScreen(name) {
     slovnik: ["Slovník", "Slova dne"],
     "word-create": ["Nové slovo", "Přidat slovo dne"],
     "word-detail": ["Slovo", "Reakce studentů"],
+    "practice-hub": ["Procvičování", "Trénuj bez rizika"],
+    "practice-quizzes": ["Kvízy nanečisto", "Tréninkový režim"],
+    flashcards: ["Slovíčka", "Procvičuj jako kartičky"],
     leaderboard: ["Žebříček", "Jak si vedeš"],
     competitors: ["Soutěžící", "Přehled studentů"],
     "competitor-detail": ["Student", "Detail studenta"],
@@ -1491,6 +1577,8 @@ function showScreen(name) {
   if (name === "messages") renderMessages();
   if (name === "admin") loadAdminData();
   if (name === "competitors") renderCompetitors();
+  if (name === "practice-quizzes") renderPracticeQuizzes();
+  if (name === "flashcards") openFlashcards();
 }
 
 // ---------- KVÍZY ----------
@@ -1715,6 +1803,35 @@ function renderQuizList() {
 
   markSeen("forkit_seen_quiz_ids", quizzes.map((q) => q.id));
   setNavBadge("quizzes", 0);
+}
+
+// ---------- PROCVIČOVÁNÍ: KVÍZY NANEČISTO (oba typy uživatelů) ----------
+// Seznam obsahuje úplně všechny kvízy bez ohledu na ročník – jde o trénink,
+// ne o plnění za body, takže si student může vyzkoušet i kvíz z jiného
+// ročníku a učitelka si tu může projít cokoliv, co vytvořila.
+async function renderPracticeQuizzes() {
+  const list = document.getElementById("practiceQuizList");
+  list.innerHTML = "<div class='empty-note'>Načítám...</div>";
+
+  const { data, error } = await sb.rpc("get_quizzes_for_practice");
+  if (error) {
+    list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst kvízy: " + esc(error.message) + "</div>";
+    return;
+  }
+  practiceQuizzes = data || [];
+  if (practiceQuizzes.length === 0) {
+    list.innerHTML = "<div class='empty-note'>Zatím tu nejsou žádné kvízy k procvičení.</div>";
+    return;
+  }
+  list.innerHTML = "";
+  practiceQuizzes.forEach((q) => {
+    const div = document.createElement("div");
+    div.className = "list-item";
+    div.innerHTML =
+      "<div><div class='name'>" + esc(q.title) + "</div><div class='meta'>" + q.rocnik + ". ročník · " + q.questions.length + " otázky</div></div>";
+    div.onclick = () => openPracticeQuiz(q.id);
+    list.appendChild(div);
+  });
 }
 
 // ---------- KVÍZY: ADMINISTRACE (jen mistrová) ----------
@@ -1958,6 +2075,12 @@ function updateQuizLockedCountdown() {
   }
 }
 
+// isPracticeMode: true, když se právě trénuje kvíz z Procvičování (bez bodů,
+// bez omezení pokusů) – ovlivňuje jak volání submit_quiz, tak kam vedou
+// tlačítka "Zpět na kvízy" po dokončení.
+let isPracticeMode = false;
+let practiceQuizzes = [];
+
 function openQuiz(id, restoredAnswers) {
   const q = quizzes.find((qq) => qq.id === id);
   if (!q) return;
@@ -1973,6 +2096,25 @@ function openQuiz(id, restoredAnswers) {
     }
   }
 
+  isPracticeMode = false;
+  startQuizTake(q, restoredAnswers);
+}
+
+// Otevře kvíz v tréninkovém režimu (Procvičování → Kvízy) – neomezeně
+// pokusů, bez cooldownu, žádné body se nezapočítávají.
+function openPracticeQuiz(id, restoredAnswers) {
+  const q = practiceQuizzes.find((qq) => qq.id === id);
+  if (!q) return;
+  isPracticeMode = true;
+  startQuizTake(q, restoredAnswers);
+}
+
+// Vrátí na seznam kvízů odpovídající aktuálnímu režimu (ostrý/tréninkový).
+function backToQuizList() {
+  showScreen(isPracticeMode ? "practice-quizzes" : "quizzes");
+}
+
+function startQuizTake(q, restoredAnswers) {
   currentQuiz = q;
   currentAnswers = (restoredAnswers && restoredAnswers.length === currentQuiz.questions.length)
     ? restoredAnswers.slice()
@@ -2005,11 +2147,18 @@ function openQuiz(id, restoredAnswers) {
 
 // Uloží rozepsaný kvíz do localStorage, aby se dal obnovit, pokud appku na
 // telefonu na chvíli "vyhodí z paměti" (typicky po zamknutí/odemknutí) a
-// appka se znovu načte od začátku.
+// appka se znovu načte od začátku. Ukládáme rovnou celý potřebný obsah kvízu
+// (ne jen jeho id), aby obnovení fungovalo i u tréninkových kvízů z
+// Procvičování, jejichž seznam se na rozdíl od ostrých kvízů nenačítá hned
+// po přihlášení.
 function saveQuizProgress() {
   if (!currentQuiz) return;
   try {
-    localStorage.setItem("forkit_quiz_progress", JSON.stringify({ quizId: currentQuiz.id, answers: currentAnswers }));
+    localStorage.setItem("forkit_quiz_progress", JSON.stringify({
+      quiz: { id: currentQuiz.id, title: currentQuiz.title, points: currentQuiz.points, questions: currentQuiz.questions },
+      answers: currentAnswers,
+      practice: isPracticeMode,
+    }));
   } catch (e) {}
 }
 
@@ -2022,10 +2171,9 @@ function clearQuizProgress() {
 function tryResumeQuiz() {
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem("forkit_quiz_progress") || "null"); } catch (e) {}
-  if (!saved || !saved.quizId) return false;
-  const q = quizzes.find((qq) => qq.id === saved.quizId);
-  if (!q) return false;
-  openQuiz(q.id, saved.answers);
+  if (!saved || !saved.quiz) return false;
+  isPracticeMode = !!saved.practice;
+  startQuizTake(saved.quiz, saved.answers);
   return true;
 }
 
@@ -2047,6 +2195,7 @@ async function submitQuiz() {
   const { data, error } = await sb.rpc("submit_quiz", {
     p_quiz_id: currentQuiz.id,
     p_answers: currentAnswers,
+    p_practice: isPracticeMode,
   });
 
   btn.disabled = false;
@@ -2061,7 +2210,7 @@ async function submitQuiz() {
     } else {
       alert("Něco se nepovedlo: " + error.message);
     }
-    showScreen("quizzes");
+    backToQuizList();
     return;
   }
 
@@ -2085,10 +2234,18 @@ async function submitQuiz() {
   const bonusAmount = result.perfect_bonus ? Math.max(0, result.earned_points - currentQuiz.points) : 0;
 
   if (result.is_test) {
-    const lines = ["Zkušební pokus (mistrová) – nezapočítává se do bodů ani statistik."];
-    if (result.effort_bonus) lines.push("Kdyby to byl student: 1 b. za snahu.");
-    else if (result.perfect_bonus) lines.push("Kdyby to byl student: plný počet + bonus " + bonusAmount + " b. za 100 % = " + result.earned_points + " b.");
-    else lines.push("Kdyby to byl student, dostal by " + result.earned_points + " b. za tento pokus.");
+    const lines = [];
+    if (user.role === "mistrova") {
+      lines.push("Zkušební pokus (mistrová) – nezapočítává se do bodů ani statistik.");
+      if (result.effort_bonus) lines.push("Kdyby to byl student: 1 b. za snahu.");
+      else if (result.perfect_bonus) lines.push("Kdyby to byl student: plný počet + bonus " + bonusAmount + " b. za 100 % = " + result.earned_points + " b.");
+      else lines.push("Kdyby to byl student, dostal by " + result.earned_points + " b. za tento pokus.");
+    } else {
+      lines.push("Tréninkový pokus – nezapočítává se do bodů ani statistik.");
+      if (result.effort_bonus) lines.push("V ostrém kvízu bys dostal/a 1 b. za snahu.");
+      else if (result.perfect_bonus) lines.push("V ostrém kvízu bys dostal/a plný počet + bonus " + bonusAmount + " b. za 100 % = " + result.earned_points + " b.");
+      else lines.push("V ostrém kvízu bys dostal/a " + result.earned_points + " b. za tento pokus.");
+    }
     introEl.innerHTML = lines.join("<br>");
   } else {
     introEl.textContent = result.effort_bonus
@@ -2632,6 +2789,109 @@ async function openWordDetail(id, word, definition) {
       "<div class='name'>" + esc(r.student_name) + "</div></div><span style='font-size:20px;'>" + esc(r.emoji) + "</span>";
     listEl.appendChild(row);
   });
+}
+
+// ---------- SLOVÍČKA (procvičování stylem kartiček, oba typy uživatelů) ----------
+// Jednoduchá obdoba Anki: karta ukáže slovo, student/učitelka si v hlavě
+// řekne definici, klepnutím ji odkryje a pak se ohodnotí. "Umím" natrvalo
+// uloží stav 'known' (počítá se do poměru umím X z Y), "Neumím" i "Chci si
+// to ještě procvičit" uloží 'learning' a kartu v aktuální session vrátí zpět
+// do balíčku (tréninkové opakování) – "Neumím" o něco dřív než "Chci si to
+// ještě procvičit". Nové slovo bez záznamu automaticky vychází jako
+// 'learning', takže se samo zařadí do mixu (viz get_my_word_progress).
+let flashAllWords = [];
+let flashDeck = [];
+let flashCurrent = null;
+let flashRevealed = false;
+
+async function openFlashcards() {
+  document.getElementById("flashDoneState").classList.add("hidden");
+  document.getElementById("flashEmptyState").classList.add("hidden");
+  document.getElementById("flashCard").classList.remove("hidden");
+  document.getElementById("flashActions").classList.add("hidden");
+  document.getElementById("flashHint").classList.remove("hidden");
+  document.getElementById("flashProgress").textContent = "Načítám...";
+  document.getElementById("flashCardFront").textContent = "";
+  document.getElementById("flashCardBack").textContent = "";
+
+  const { data, error } = await sb.rpc("get_my_word_progress");
+  if (error) {
+    document.getElementById("flashCard").classList.add("hidden");
+    document.getElementById("flashHint").textContent = "Nepodařilo se načíst slovíčka: " + error.message;
+    document.getElementById("flashProgress").textContent = "";
+    return;
+  }
+  flashAllWords = data || [];
+  if (flashAllWords.length === 0) {
+    document.getElementById("flashCard").classList.add("hidden");
+    document.getElementById("flashHint").classList.add("hidden");
+    document.getElementById("flashEmptyState").classList.remove("hidden");
+    updateFlashProgress();
+    return;
+  }
+  startFlashcardSession();
+}
+
+function updateFlashProgress() {
+  const known = flashAllWords.filter((w) => w.status === "known").length;
+  document.getElementById("flashProgress").textContent = "Umíš " + known + " z " + flashAllWords.length;
+}
+
+function startFlashcardSession() {
+  document.getElementById("flashDoneState").classList.add("hidden");
+  document.getElementById("flashCard").classList.remove("hidden");
+  document.getElementById("flashHint").classList.remove("hidden");
+  flashDeck = shuffleArray(flashAllWords);
+  updateFlashProgress();
+  showNextFlashcard();
+}
+
+function showNextFlashcard() {
+  flashRevealed = false;
+  document.getElementById("flashActions").classList.add("hidden");
+  document.getElementById("flashHint").classList.remove("hidden");
+  document.getElementById("flashCardBack").classList.add("hidden");
+  document.getElementById("flashCardFront").classList.remove("hidden");
+
+  if (flashDeck.length === 0) {
+    document.getElementById("flashCard").classList.add("hidden");
+    document.getElementById("flashHint").classList.add("hidden");
+    document.getElementById("flashDoneState").classList.remove("hidden");
+    return;
+  }
+  flashCurrent = flashDeck.shift();
+  document.getElementById("flashCardFront").textContent = flashCurrent.word;
+  document.getElementById("flashCardBack").textContent = flashCurrent.definition;
+}
+
+function flipFlashcard() {
+  if (!flashCurrent || flashRevealed) return;
+  flashRevealed = true;
+  document.getElementById("flashCardFront").classList.add("hidden");
+  document.getElementById("flashCardBack").classList.remove("hidden");
+  document.getElementById("flashHint").classList.add("hidden");
+  document.getElementById("flashActions").classList.remove("hidden");
+}
+
+async function answerFlashcard(kind) {
+  if (!flashCurrent) return;
+  const dbStatus = kind === "known" ? "known" : "learning";
+  flashCurrent.status = dbStatus;
+  const master = flashAllWords.find((w) => w.word_id === flashCurrent.word_id);
+  if (master) master.status = dbStatus;
+  updateFlashProgress();
+
+  if (kind === "practice") {
+    // "Chci si to ještě procvičit" – vrátit o kus dál do balíčku.
+    flashDeck.splice(Math.min(flashDeck.length, 6), 0, flashCurrent);
+  } else if (kind === "learning") {
+    // "Neumím" – vrátit brzy zpátky, ať to jde znovu zkusit.
+    flashDeck.splice(Math.min(flashDeck.length, 2), 0, flashCurrent);
+  }
+  // "Umím" – kartu v této session dál neopakujeme.
+
+  sb.rpc("set_word_progress", { p_word_id: flashCurrent.word_id, p_status: dbStatus });
+  showNextFlashcard();
 }
 
 // ---------- ŽEBŘÍČEK ----------
