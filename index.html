@@ -2464,6 +2464,20 @@ function challengeStatusLabel(c) {
   if (c.my_status === "rejected") return "Nesplněno, pokusy vyčerpány";
   return "Zatím nesplněno";
 }
+// Body z maxima, např. "30/50 b." - jakmile má student aspoň jedno
+// posouzení (schválené i zamítnuté), jinak jen "50 b." (max za splnění).
+function challengePointsLabel(c) {
+  if (c.my_status === "none") return c.points + " b.";
+  return (c.my_best_points != null ? c.my_best_points : 0) + "/" + c.points + " b.";
+}
+// Barva karty se statusem (stejná paleta jako list-item.status-yellow/green),
+// pro použití i mimo seznam (např. v detailu jedné výzvy).
+function challengeStatusBg(c) {
+  const cls = challengeStatusClass(c);
+  if (cls === "status-yellow") return "#fff6d9";
+  if (cls === "status-green") return "#e3efe5";
+  return "";
+}
 
 async function loadChallenges() {
   if (!user || user.role !== "student") {
@@ -2503,7 +2517,7 @@ async function renderChallenges() {
     div.className = "list-item " + challengeStatusClass(c);
     div.innerHTML =
       '<div><div class="name">' + esc(c.title) + '</div><div class="meta">' + challengeStatusLabel(c) + "</div></div>" +
-      "<span class='badge-pts'>" + (c.my_status === "approved" && c.my_best_points != null ? c.my_best_points + " b." : c.points + " b.") + "</span>";
+      "<span class='badge-pts'>" + challengePointsLabel(c) + "</span>";
     div.onclick = () => openChallenge(c.id);
     list.appendChild(div);
   });
@@ -2544,7 +2558,7 @@ function renderChallengeDetail() {
         (c.last_comment
           ? "<div style='font-size:13.5px;white-space:pre-wrap;'>" + esc(c.last_comment) + "</div>"
           : "<div style='font-size:13.5px;color:var(--text-muted);'>Mistrová nenapsala žádný komentář.</div>") +
-        "<div style='font-size:12.5px;color:var(--text-muted);margin-top:6px;'>Zbývá ti " + c.attempts_left + " z 3 pokusů.</div>" +
+        "<div style='font-size:12.5px;color:var(--text-muted);margin-top:6px;'>Teď máš " + challengePointsLabel(c) + " &middot; zbývá ti " + c.attempts_left + " z 3 pokusů.</div>" +
         "</div>";
     }
     container.innerHTML =
@@ -2562,7 +2576,7 @@ function renderChallengeDetail() {
   if (c.my_status === "pending") {
     container.innerHTML =
       "<h2 class='section-title'>" + esc(c.title) + "</h2>" +
-      "<div style='margin-bottom:12px;'><span class='badge-pts'>Čeká na schválení</span></div>" +
+      "<div class='card' style='background:" + challengeStatusBg(c) + ";text-align:center;font-weight:700;margin-bottom:14px;'>Čeká na schválení</div>" +
       "<div class='card' style='white-space:pre-wrap;font-size:14px;'>" + esc(c.last_text || "") + "</div>" +
       "<p style='font-size:13.5px;color:var(--text-muted);margin-top:10px;'>Mistrová si tvůj pokus zatím neschválila ani nezamítla.</p>";
     return;
@@ -2570,12 +2584,13 @@ function renderChallengeDetail() {
 
   // Definitivní stav: schváleno (třeba i na míň bodů, ale bez dalších
   // pokusů), nebo zamítnuto a došly všechny tři pokusy.
-  const statusHtml = c.my_status === "approved"
-    ? "<span class='done-tag'>Splněno &middot; " + c.my_best_points + " b.</span>"
-    : "<span class='badge-pts'>Nesplněno &middot; pokusy vyčerpány</span>";
+  const statusLabel = c.my_status === "approved" ? "Splněno" : "Nesplněno &middot; pokusy vyčerpány";
   container.innerHTML =
     "<h2 class='section-title'>" + esc(c.title) + "</h2>" +
-    "<div style='margin-bottom:12px;'>" + statusHtml + "</div>" +
+    "<div class='card' style='background:" + challengeStatusBg(c) + ";text-align:center;margin-bottom:14px;'>" +
+    "<div style='font-weight:700;'>" + statusLabel + "</div>" +
+    "<div style='font-size:22px;font-weight:800;color:var(--dark);font-family:\"Poppins\",sans-serif;margin-top:4px;'>" + challengePointsLabel(c) + "</div>" +
+    "</div>" +
     (c.last_comment ? "<div class='card' style='white-space:pre-wrap;font-size:13.5px;margin-bottom:10px;'>" + esc(c.last_comment) + "</div>" : "") +
     "<p style='font-size:13.5px;color:var(--text-muted);'>Svůj odeslaný pokus si už jen prohlížíš, znovu ho odeslat nejde.</p>";
 }
