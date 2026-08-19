@@ -715,9 +715,9 @@
       <div class="screen hidden" id="screen-home">
         <div id="homeMessageBanner" class="hidden"></div>
         <div id="studentHomeContent">
-          <div class="card points-card">
+          <div class="card points-card" style="cursor:pointer;" onclick="openPointsBreakdown('home')">
             <div class="num" id="homePoints">0</div>
-            <div class="label">celkem bodů</div>
+            <div class="label">celkem bodů &middot; klepni pro rozpis</div>
             <div class="rank" id="homeRank">Pozice v žebříčku: —</div>
           </div>
 
@@ -1031,8 +1031,9 @@
         </div>
         <div id="profilePointsSection">
           <h2 class="section-title">Body celkem</h2>
-          <div class="card" style="text-align:center;">
+          <div class="card" style="text-align:center;cursor:pointer;" onclick="openPointsBreakdown('profile')">
             <div style="font-size:26px;font-weight:800;color:var(--primary);font-family:'Poppins',sans-serif;" id="profilePoints">0</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">klepni pro rozpis</div>
           </div>
         </div>
         <h2 class="section-title">Heslo</h2>
@@ -1054,6 +1055,12 @@
         </div>
 
         <button class="btn-secondary" style="margin-top:12px;" onclick="logoutUser()">Odhlásit se</button>
+      </div>
+
+      <!-- ROZPIS BODŮ (student, z Domů nebo Profilu) -->
+      <div class="screen hidden" id="screen-points-breakdown">
+        <span class="back-link" onclick="showScreen(pointsBreakdownReturnTo)">&larr; Zpět</span>
+        <div id="pointsBreakdownContent"></div>
       </div>
 
       <!-- ÚPRAVA PROFILOVKY (výřez do kruhu) -->
@@ -1129,6 +1136,9 @@
 
         <h2 class="section-title">Kvízy</h2>
         <div id="compDetailQuizList"><div class="empty-note">Načítám...</div></div>
+
+        <h2 class="section-title">Výzvy</h2>
+        <div id="compDetailChallengeList"><div class="empty-note">Načítám...</div></div>
 
         <h2 class="section-title">Odznáčky</h2>
         <div id="compDetailBadges" class="badge-grid"></div>
@@ -1613,6 +1623,7 @@ function showScreen(name) {
     messages: ["Zprávy", "Chat"],
     "chat-thread": ["Zprávy", "Chat"],
     profile: ["Profil", "Tvoje statistiky"],
+    "points-breakdown": ["Body", "Za co je máš"],
     "avatar-crop": ["Profilovka", "Uprav výřez"],
     admin: ["Administrace", "Zápis docházky"],
   };
@@ -1682,6 +1693,71 @@ function renderHome() {
   renderHomeLatestWord();
   renderHomeLatestQuiz();
   renderHomeLatestChallenge();
+}
+
+// ---------- ROZPIS BODŮ (student) ----------
+// Body se počítají jen ze dvou zdrojů (kvízy + výzvy, oba "nejlepší pokus se
+// počítá"), takže rozpis jde poskládat rovnou z už načtených polí quizzes/
+// challenges bez další DB dotazu. "Ostatní" se ukáže jen když součet
+// nesedí (např. staré/ruční úpravy bodů z dřívějška appky).
+let pointsBreakdownReturnTo = "home";
+
+function openPointsBreakdown(returnTo) {
+  pointsBreakdownReturnTo = returnTo || "home";
+  renderPointsBreakdown();
+  showScreen("points-breakdown");
+}
+
+function renderPointsBreakdown() {
+  const container = document.getElementById("pointsBreakdownContent");
+  const attemptedQuizzes = quizzes.filter((q) => (q.best_points || 0) > 0 || q.attempts_used > 0);
+  const attemptedChallenges = challenges.filter((c) => c.my_status && c.my_status !== "none");
+
+  const quizTotal = quizzes.reduce((sum, q) => sum + (q.best_points || 0), 0);
+  const challengeTotal = challenges.reduce((sum, c) => sum + (c.my_best_points || 0), 0);
+  const total = user.points || 0;
+  const other = total - quizTotal - challengeTotal;
+
+  let html =
+    "<div class='card' style='text-align:center;margin-bottom:16px;'>" +
+    "<div style='font-size:26px;font-weight:800;color:var(--primary);font-family:\"Poppins\",sans-serif;'>" + total + " b. celkem</div>" +
+    "</div>";
+
+  html += "<div class='comp-quiz-row'><div><div class='name'>Kvízy</div></div><div class='pts'>" + quizTotal + " b.</div></div>";
+  html += "<div class='comp-quiz-row'><div><div class='name'>Výzvy</div></div><div class='pts'>" + challengeTotal + " b.</div></div>";
+  if (other !== 0) {
+    html += "<div class='comp-quiz-row'><div><div class='name'>Ostatní</div></div><div class='pts'>" + other + " b.</div></div>";
+  }
+
+  html += "<h2 class='section-title'>Kvízy</h2>";
+  if (attemptedQuizzes.length === 0) {
+    html += "<div class='empty-note'>Zatím jsi nezkusil/a žádný kvíz načisto.</div>";
+  } else {
+    attemptedQuizzes.forEach((q) => {
+      html +=
+        "<div class='comp-quiz-row'><div><div class='name'>" + esc(q.title) + "</div>" +
+        "<div class='sub'>" + q.attempts_used + "× " + czPokusy(q.attempts_used) + "</div></div>" +
+        "<div class='pts'>" + (q.best_points || 0) + " b.</div></div>";
+    });
+  }
+
+  html += "<h2 class='section-title'>Výzvy</h2>";
+  if (attemptedChallenges.length === 0) {
+    html += "<div class='empty-note'>Zatím ses nepustil/a do žádné výzvy.</div>";
+  } else {
+    attemptedChallenges.forEach((c) => {
+      let statusLabel;
+      if (c.my_status === "pending") statusLabel = "Čeká na schválení";
+      else if (c.my_status === "approved") statusLabel = "Schváleno";
+      else statusLabel = "Zamítnuto";
+      html +=
+        "<div class='comp-quiz-row'><div><div class='name'>" + esc(c.title) + "</div>" +
+        "<div class='sub'>" + statusLabel + " &middot; " + c.attempts_used + "× " + czPokusy(c.attempts_used) + "</div></div>" +
+        "<div class='pts'>" + (c.my_best_points != null ? c.my_best_points : 0) + " b.</div></div>";
+    });
+  }
+
+  container.innerHTML = html;
 }
 
 async function renderHomeLatestWord() {
@@ -3426,11 +3502,13 @@ async function openCompetitorDetail(id) {
   document.getElementById("compDetailQuizCount").textContent = "…";
   document.getElementById("compDetailChallengeCount").textContent = "…";
   document.getElementById("compDetailQuizList").innerHTML = "<div class='empty-note'>Načítám...</div>";
+  document.getElementById("compDetailChallengeList").innerHTML = "<div class='empty-note'>Načítám...</div>";
   document.getElementById("compDetailBadges").innerHTML = "";
 
-  const [statsRes, quizRes] = await Promise.all([
+  const [statsRes, quizRes, challengeRes] = await Promise.all([
     sb.rpc("get_student_badges_stats", { p_student_id: id }),
     sb.rpc("get_student_quiz_results", { p_student_id: id }),
+    sb.rpc("get_student_challenge_results", { p_student_id: id }),
   ]);
 
   if (currentCompetitorId !== id) return; // mezitím otevřela detail jiného studenta
@@ -3461,6 +3539,28 @@ async function openCompetitorDetail(id) {
         "<div class='sub'>" + q.best_score + "/" + q.best_total + " (" + pct + " %) · " + q.attempts_count + "× " + czPokusy(q.attempts_count) + "</div></div>" +
         "<div class='pts'>" + q.best_earned_points + " b.</div>";
       quizListEl.appendChild(div);
+    });
+  }
+
+  const challengeListEl = document.getElementById("compDetailChallengeList");
+  if (challengeRes.error) {
+    challengeListEl.innerHTML = "<div class='empty-note'>Nepodařilo se načíst výzvy: " + esc(challengeRes.error.message) + "</div>";
+  } else if (!challengeRes.data || challengeRes.data.length === 0) {
+    challengeListEl.innerHTML = "<div class='empty-note'>Zatím se nepustil/a do žádné výzvy.</div>";
+  } else {
+    challengeListEl.innerHTML = "";
+    challengeRes.data.forEach((c) => {
+      const div = document.createElement("div");
+      div.className = "comp-quiz-row";
+      let statusLabel;
+      if (c.my_status === "pending") statusLabel = "Čeká na schválení";
+      else if (c.my_status === "approved") statusLabel = "Schváleno";
+      else statusLabel = "Zamítnuto";
+      div.innerHTML =
+        "<div><div class='name'>" + esc(c.challenge_title) + "</div>" +
+        "<div class='sub'>" + statusLabel + " &middot; " + c.attempts_used + "× " + czPokusy(c.attempts_used) + "</div></div>" +
+        "<div class='pts'>" + (c.best_points != null ? c.best_points : 0) + " b.</div>";
+      challengeListEl.appendChild(div);
     });
   }
 }
