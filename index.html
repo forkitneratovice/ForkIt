@@ -2453,8 +2453,12 @@ function challengeDecisionKey(c) {
 
 function challengeStatusClass(c) {
   if (c.my_status === "pending") return "status-yellow";
-  if (c.my_status === "none" || c.can_resubmit) return "";
-  return "status-green";
+  // Zelená hned, jakmile mistrová schválí (i jen na část bodů) - nebo když
+  // dojdou všechny tři pokusy. Bílá zůstává jen pro "nová" a "zamítnuto,
+  // ještě to jde zkusit znovu" (na tom teď má být řada studenta).
+  if (c.my_status === "approved") return "status-green";
+  if (c.attempts_used >= 3) return "status-green";
+  return "";
 }
 function challengeStatusLabel(c) {
   if (c.my_status === "pending") return "Čeká na schválení";
@@ -2549,16 +2553,23 @@ function renderChallengeDetail() {
     const isRetry = c.my_status !== "none";
     let noticeHtml = "";
     if (isRetry) {
-      const reasonLabel = c.my_status === "rejected"
+      // Zamítnuto = neutrální/červenkavé upozornění (na tomhle stavu se
+      // barva karty v seznamu nemění - zůstává bílá, na tobě je to zkusit
+      // znovu). Schváleno jen částečně = zelená karta jako v seznamu,
+      // protože už to schválené je, jen se to dá ještě vylepšit.
+      const isRejected = c.my_status === "rejected";
+      const bg = isRejected ? "#FDEDEA" : challengeStatusBg(c);
+      const border = isRejected ? "border:1px solid #F3C9C0;" : "";
+      const heading = isRejected
         ? "Tvůj předchozí pokus byl zamítnut."
-        : "Tvůj předchozí pokus byl schválen jen částečně – zkus získat víc bodů.";
+        : "Schváleno &middot; " + challengePointsLabel(c) + " – zkus získat víc bodů.";
       noticeHtml =
-        "<div class='card' style='margin-bottom:14px;background:#FDEDEA;border:1px solid #F3C9C0;'>" +
-        "<div style='font-weight:600;margin-bottom:4px;'>" + reasonLabel + "</div>" +
+        "<div class='card' style='margin-bottom:14px;background:" + bg + ";" + border + "'>" +
+        "<div style='font-weight:600;margin-bottom:4px;'>" + heading + "</div>" +
         (c.last_comment
           ? "<div style='font-size:13.5px;white-space:pre-wrap;'>" + esc(c.last_comment) + "</div>"
           : "<div style='font-size:13.5px;color:var(--text-muted);'>Mistrová nenapsala žádný komentář.</div>") +
-        "<div style='font-size:12.5px;color:var(--text-muted);margin-top:6px;'>Teď máš " + challengePointsLabel(c) + " &middot; zbývá ti " + c.attempts_left + " z 3 pokusů.</div>" +
+        "<div style='font-size:12.5px;color:var(--text-muted);margin-top:6px;'>Zbývá ti " + c.attempts_left + " z 3 pokusů.</div>" +
         "</div>";
     }
     container.innerHTML =
