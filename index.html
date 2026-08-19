@@ -956,6 +956,13 @@
         </div>
       </div>
 
+      <!-- DETAIL KVÍZU: VŠICHNI STUDENTI DANÉHO ROČNÍKU (jen mistrová) -->
+      <div class="screen hidden" id="screen-quiz-students">
+        <span class="back-link" onclick="showScreen('quizzes')">&larr; Zpět na kvízy</span>
+        <div id="quizStudentsHeader"></div>
+        <div id="quizStudentsList"></div>
+      </div>
+
       <!-- QUIZ TAKING -->
       <div class="screen hidden" id="screen-quiz-take">
         <span class="back-link" onclick="backToQuizList()">&larr; Zpět na kvízy</span>
@@ -1601,6 +1608,7 @@ function showScreen(name) {
     "quiz-review": ["Správné odpovědi", "Zkontroluj si odpovědi"],
     "quiz-locked": ["Kvíz zamčen", "Zkus to znovu později"],
     "quiz-create": ["Nový kvíz", "Vytvořit kvíz"],
+    "quiz-students": ["Studenti", "Jak si vedli"],
     "set-points": ["Body", "Nastavit body studentům"],
     challenges: ["Výzvy", "Praktické úkoly"],
     "challenge-detail": ["Výzva", "Detail výzvy"],
@@ -1992,6 +2000,49 @@ async function loadQuizzesAdmin() {
     tryBtn.textContent = "Vyzkoušet";
     tryBtn.onclick = (e) => { e.stopPropagation(); openQuiz(q.id); };
     div.appendChild(tryBtn);
+    div.onclick = () => openQuizStudents(q.id, q.title);
+    list.appendChild(div);
+  });
+}
+
+let currentQuizStudentsCtx = null;
+
+async function openQuizStudents(id, title) {
+  currentQuizStudentsCtx = { id, title };
+  showScreen("quiz-students");
+  await loadQuizStudents();
+}
+
+async function loadQuizStudents() {
+  const ctx = currentQuizStudentsCtx;
+  document.getElementById("quizStudentsHeader").innerHTML = "<h2 class='section-title'>" + esc(ctx.title) + "</h2>";
+  const list = document.getElementById("quizStudentsList");
+  list.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const { data, error } = await sb.rpc("get_quiz_students", { p_quiz_id: ctx.id });
+  list.innerHTML = "";
+  if (error) {
+    list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst: " + esc(error.message) + "</div>";
+    return;
+  }
+  if (!data || data.length === 0) {
+    list.innerHTML = "<div class='empty-note'>V tomto ročníku zatím nejsou žádní studenti.</div>";
+    return;
+  }
+  data.forEach((s) => {
+    const div = document.createElement("div");
+    div.className = "comp-quiz-row";
+    let sub, pts;
+    if (s.attempts_count > 0) {
+      const pct = s.best_total > 0 ? Math.round((s.best_score / s.best_total) * 100) : 0;
+      sub = s.best_score + "/" + s.best_total + " (" + pct + " %) &middot; " + s.attempts_count + "× " + czPokusy(s.attempts_count);
+      pts = s.best_earned_points + " b.";
+    } else {
+      sub = "Nezkoušeno";
+      pts = "—";
+    }
+    div.innerHTML =
+      "<div><div class='name'>" + esc(s.student_name) + "</div><div class='sub'>" + sub + "</div></div>" +
+      "<div class='pts'>" + pts + "</div>";
     list.appendChild(div);
   });
 }
