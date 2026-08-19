@@ -287,6 +287,33 @@
   .challenge-media-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; cursor: zoom-in; }
   .challenge-media-grid video { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; background: #000; }
 
+  /* Prohlížení víc fotek/videí u odevzdané výzvy – přejíždění mezi soubory */
+  .media-lightbox {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .media-lightbox.hidden { display: none; }
+  .media-lightbox-stage {
+    max-width: 92vw; max-height: 82vh; display: flex; align-items: center; justify-content: center;
+    touch-action: pan-y;
+  }
+  .media-lightbox-stage img, .media-lightbox-stage video { max-width: 92vw; max-height: 82vh; border-radius: 12px; }
+  .media-lightbox-close {
+    position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.15); color: white;
+    border: none; width: 40px; height: 40px; border-radius: 50%; font-size: 20px; line-height: 1;
+  }
+  .media-lightbox-counter {
+    position: absolute; top: 22px; left: 50%; transform: translateX(-50%); color: white; font-size: 12.5px;
+    font-weight: 700; background: rgba(255,255,255,0.15); padding: 5px 14px; border-radius: 20px;
+  }
+  .media-lightbox-nav {
+    position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.15); color: white;
+    border: none; width: 44px; height: 44px; border-radius: 50%; font-size: 24px; line-height: 1;
+  }
+  .media-lightbox-nav.prev { left: 8px; }
+  .media-lightbox-nav.next { right: 8px; }
+  .media-lightbox-nav.hidden, .media-lightbox-counter.hidden { display: none; }
+
   /* Procvičování (hub + trénink kvízů) */
   .practice-hub-btn {
     display: block; width: 100%; background: var(--card); border: none; border-radius: 16px;
@@ -821,6 +848,12 @@
         <div id="challengeListAdmin"></div>
       </div>
 
+      <!-- DETAIL ODEVZDANÉ VÝZVY KE SCHVÁLENÍ (jen mistrová) -->
+      <div class="screen hidden" id="screen-challenge-review-detail">
+        <span class="back-link" onclick="showScreen('challenge-approvals')">&larr; Zpět na seznam</span>
+        <div id="challengeReviewContent"></div>
+      </div>
+
       <!-- AKTUALITY: VŠECHNY (jen mistrová) -->
       <div class="screen hidden" id="screen-announcements">
         <span class="back-link" onclick="showScreen('home')">&larr; Zpět domů</span>
@@ -1139,6 +1172,15 @@
   <!-- Zvětšený náhled profilovky (klik na fotku studenta v detailu) -->
   <div class="avatar-lightbox hidden" id="avatarLightbox" onclick="closeAvatarLightbox()">
     <img id="avatarLightboxImg" src="" alt="">
+  </div>
+
+  <!-- Prohlížení fotek/videí u odevzdané výzvy (víc souborů, přejíždění) -->
+  <div class="media-lightbox hidden" id="mediaLightbox">
+    <button class="media-lightbox-close" onclick="closeMediaLightbox()">&times;</button>
+    <div class="media-lightbox-counter hidden" id="mediaLightboxCounter">1 / 1</div>
+    <button class="media-lightbox-nav prev hidden" id="mediaLightboxPrev" onclick="navMediaLightbox(-1)">&#8249;</button>
+    <div class="media-lightbox-stage" id="mediaLightboxStage"></div>
+    <button class="media-lightbox-nav next hidden" id="mediaLightboxNext" onclick="navMediaLightbox(1)">&#8250;</button>
   </div>
 </div>
 
@@ -1480,6 +1522,7 @@ if (!hasPersistedSupabaseSession()) {
   showScreen("login");
 }
 initAvatarCropDrag();
+initMediaLightboxSwipe();
 
 sb.auth.onAuthStateChange((event, sess) => {
   session = sess;
@@ -1546,6 +1589,7 @@ function showScreen(name) {
     "challenge-detail": ["Výzva", "Detail výzvy"],
     "challenge-create": ["Nová výzva", "Vytvořit výzvu"],
     "challenge-approvals": ["Ke schválení", "Žádosti studentů"],
+    "challenge-review-detail": ["Posouzení výzvy", "Detail odevzdání"],
     announcements: ["Aktuality", "Všechny aktuality"],
     "announcement-detail": ["Aktualita", "Reakce studentů"],
     slovnik: ["Slovník", "Slova dne"],
@@ -2312,14 +2356,21 @@ function renderQuizReview() {
 let challenges = [];
 let currentChallenge = null;
 
-function challengeStatusClass(status) {
-  if (status === "approved") return "status-green";
-  if (status === "pending") return "status-yellow";
-  return "";
+// Barvy podle toho, kdo má "tah": bílá = nová výzva nebo čeká na studenta
+// (nezačato, nebo zamítnuto/částečně schváleno a ještě má pokus navíc),
+// žlutá = čeká na posouzení mistrovou, zelená = definitivně hotovo (ať už
+// schváleno na plný počet bodů, nebo došly všechny tři pokusy).
+function challengeStatusClass(c) {
+  if (c.my_status === "pending") return "status-yellow";
+  if (c.my_status === "none" || c.can_resubmit) return "";
+  return "status-green";
 }
 function challengeStatusLabel(c) {
-  if (c.my_status === "approved") return "Splněno";
   if (c.my_status === "pending") return "Čeká na schválení";
+  if (c.my_status === "rejected" && c.can_resubmit) return "Zamítnuto, zkus to znovu (zbývá " + c.attempts_left + "×)";
+  if (c.my_status === "approved" && c.can_resubmit) return "Zkus získat víc bodů (zbývá " + c.attempts_left + "×)";
+  if (c.my_status === "approved") return "Splněno";
+  if (c.my_status === "rejected") return "Nesplněno, pokusy vyčerpány";
   return "Zatím nesplněno";
 }
 
@@ -2358,10 +2409,10 @@ async function renderChallenges() {
   }
   challenges.forEach((c) => {
     const div = document.createElement("div");
-    div.className = "list-item " + challengeStatusClass(c.my_status);
+    div.className = "list-item " + challengeStatusClass(c);
     div.innerHTML =
       '<div><div class="name">' + esc(c.title) + '</div><div class="meta">' + challengeStatusLabel(c) + "</div></div>" +
-      "<span class='badge-pts'>" + (c.my_status === "approved" ? c.my_awarded_points + " b." : c.points + " b.") + "</span>";
+      "<span class='badge-pts'>" + (c.my_status === "approved" && c.my_best_points != null ? c.my_best_points + " b." : c.points + " b.") + "</span>";
     div.onclick = () => openChallenge(c.id);
     list.appendChild(div);
   });
@@ -2381,24 +2432,53 @@ function renderChallengeDetail() {
   const c = currentChallenge;
   const container = document.getElementById("challengeDetailContent");
 
-  if (c.my_status === "none") {
+  // Nikdy neodevzdáno, nebo zamítnuto/částečně schváleno a ještě zbývá pokus
+  if (c.my_status === "none" || c.can_resubmit) {
+    const isRetry = c.my_status !== "none";
+    let noticeHtml = "";
+    if (isRetry) {
+      const reasonLabel = c.my_status === "rejected"
+        ? "Tvůj předchozí pokus byl zamítnut."
+        : "Tvůj předchozí pokus byl schválen jen částečně – zkus získat víc bodů.";
+      noticeHtml =
+        "<div class='card' style='margin-bottom:14px;background:#FDEDEA;border:1px solid #F3C9C0;'>" +
+        "<div style='font-weight:600;margin-bottom:4px;'>" + reasonLabel + "</div>" +
+        (c.last_comment
+          ? "<div style='font-size:13.5px;white-space:pre-wrap;'>" + esc(c.last_comment) + "</div>"
+          : "<div style='font-size:13.5px;color:var(--text-muted);'>Mistrová nenapsala žádný komentář.</div>") +
+        "<div style='font-size:12.5px;color:var(--text-muted);margin-top:6px;'>Zbývá ti " + c.attempts_left + " z 3 pokusů.</div>" +
+        "</div>";
+    }
     container.innerHTML =
       "<h2 class='section-title'>" + esc(c.title) + "</h2>" +
       "<p style='font-size:13.5px;color:var(--text-muted);margin-bottom:14px;'>" + esc(c.description || "") + "</p>" +
       "<div class='card' style='text-align:center;margin-bottom:16px;'><span class='badge-pts'>" + c.points + " b. za splnění</span></div>" +
-      "<div class='field'><label>Ingredience a postup</label><textarea id='challengeText' rows='6' style='width:100%;padding:11px 12px;border-radius:10px;border:1px solid #E0DCD3;font-size:14px;font-family:inherit;' placeholder='Napiš, co jsi použil/a a jak jsi postupoval/a...'></textarea></div>" +
+      noticeHtml +
+      "<div class='field'><label>Ingredience a postup</label><textarea id='challengeText' rows='6' style='width:100%;padding:11px 12px;border-radius:10px;border:1px solid #E0DCD3;font-size:14px;font-family:inherit;' placeholder='Napiš, co jsi použil/a a jak jsi postupoval/a...'>" + esc(c.last_text || "") + "</textarea></div>" +
       "<div class='field'><label>Fotky nebo videa hotového pokrmu</label><input type='file' id='challengeMediaInput' accept='image/*,video/*' multiple></div>" +
       "<div id='challengeSubmitError'></div>" +
-      "<button class='btn-primary' id='challengeSubmitBtn' onclick='submitChallengeForm()'>Odeslat ke schválení</button>";
+      "<button class='btn-primary' id='challengeSubmitBtn' onclick='submitChallengeForm()'>" + (isRetry ? "Odeslat znovu ke schválení" : "Odeslat ke schválení") + "</button>";
     return;
   }
 
+  if (c.my_status === "pending") {
+    container.innerHTML =
+      "<h2 class='section-title'>" + esc(c.title) + "</h2>" +
+      "<div style='margin-bottom:12px;'><span class='badge-pts'>Čeká na schválení</span></div>" +
+      "<div class='card' style='white-space:pre-wrap;font-size:14px;'>" + esc(c.last_text || "") + "</div>" +
+      "<p style='font-size:13.5px;color:var(--text-muted);margin-top:10px;'>Mistrová si tvůj pokus zatím neschválila ani nezamítla.</p>";
+    return;
+  }
+
+  // Definitivní stav: schváleno (třeba i na míň bodů, ale bez dalších
+  // pokusů), nebo zamítnuto a došly všechny tři pokusy.
   const statusHtml = c.my_status === "approved"
-    ? "<span class='done-tag'>Splněno &middot; " + c.my_awarded_points + " b.</span>"
-    : "<span class='badge-pts'>Čeká na schválení</span>";
+    ? "<span class='done-tag'>Splněno &middot; " + c.my_best_points + " b.</span>"
+    : "<span class='badge-pts'>Nesplněno &middot; pokusy vyčerpány</span>";
   container.innerHTML =
     "<h2 class='section-title'>" + esc(c.title) + "</h2>" +
     "<div style='margin-bottom:12px;'>" + statusHtml + "</div>" +
+    (c.last_comment ? "<div class='card' style='white-space:pre-wrap;font-size:13.5px;margin-bottom:10px;'>" + esc(c.last_comment) + "</div>" : "") +
     "<p style='font-size:13.5px;color:var(--text-muted);'>Svůj odeslaný pokus si už jen prohlížíš, znovu ho odeslat nejde.</p>";
 }
 
@@ -2491,11 +2571,18 @@ async function submitChallengeForm() {
     btn.textContent = "Odeslat ke schválení";
 
     if (subError) {
-      errorEl.innerHTML = "<div class='error-note'>Nepodařilo se odeslat: " + esc(subError.message) + "</div>";
+      const msg = subError.message || "";
+      let friendly = msg;
+      if (msg.includes("ALREADY_SUBMITTED")) friendly = "Tenhle pokus už čeká na posouzení, nejde ho poslat znovu.";
+      else if (msg.includes("ALREADY_COMPLETED")) friendly = "Tuhle výzvu už máš splněnou na plný počet bodů.";
+      else if (msg.includes("MAX_ATTEMPTS")) friendly = "Došly ti všechny tři pokusy u téhle výzvy.";
+      errorEl.innerHTML = "<div class='error-note'>Nepodařilo se odeslat: " + esc(friendly) + "</div>";
       return;
     }
 
     currentChallenge.my_status = "pending";
+    currentChallenge.can_resubmit = false;
+    currentChallenge.last_text = text;
     renderChallengeDetail();
   } catch (e) {
     btn.disabled = false;
@@ -2571,6 +2658,15 @@ async function saveChallengeDraft() {
   showScreen("challenges");
 }
 
+let pendingChallengeSubmissions = [];
+let currentReviewSubmission = null;
+
+function czSouboru(n) {
+  if (n === 1) return "soubor";
+  if (n >= 2 && n <= 4) return "soubory";
+  return "souborů";
+}
+
 async function loadChallengesAdmin() {
   const { data, error } = await sb.rpc("get_pending_challenge_submissions");
   const list = document.getElementById("challengeListAdmin");
@@ -2580,68 +2676,117 @@ async function loadChallengesAdmin() {
     return;
   }
   if (!data || data.length === 0) {
+    pendingChallengeSubmissions = [];
     list.innerHTML = "<div class='empty-note'>Žádné výzvy zatím nečekají na schválení.</div>";
     setNavBadge("challenges", 0);
     return;
   }
+  pendingChallengeSubmissions = data;
   setNavBadge("challenges", data.length);
   data.forEach((s) => {
-    const box = document.createElement("div");
-    box.className = "card";
-
     const media = s.media || [];
-    let mediaHtml = "<div class='challenge-media-grid'>";
-    media.forEach((m) => {
+    const div = document.createElement("div");
+    div.className = "list-item";
+    div.innerHTML =
+      '<div><div class="name">' + esc(s.student_name) + '</div><div class="meta">' + esc(s.challenge_title) +
+      (s.attempt_number > 1 ? " &middot; " + s.attempt_number + ". pokus" : "") + "</div></div>" +
+      "<span class='badge-pts'>" + media.length + " " + czSouboru(media.length) + "</span>";
+    div.onclick = () => openChallengeReview(s.submission_id);
+    list.appendChild(div);
+  });
+}
+
+function openChallengeReview(submissionId) {
+  currentReviewSubmission = pendingChallengeSubmissions.find((s) => s.submission_id === submissionId);
+  if (!currentReviewSubmission) return;
+  renderChallengeReview();
+  showScreen("challenge-review-detail");
+}
+
+function renderChallengeReview() {
+  const s = currentReviewSubmission;
+  const container = document.getElementById("challengeReviewContent");
+  const media = s.media || [];
+
+  let mediaHtml = "";
+  if (media.length) {
+    mediaHtml = "<div class='challenge-media-grid'>";
+    media.forEach((m, i) => {
       if (m.type === "image") {
-        mediaHtml += "<img src='" + esc(m.url) + "' onclick=\"openAvatarLightbox('" + esc(m.url).replace(/'/g, "&#39;") + "')\">";
+        mediaHtml += "<img src='" + esc(m.url) + "' onclick='openMediaLightbox(currentReviewSubmission.media, " + i + ")'>";
       } else {
         mediaHtml += "<video src='" + esc(m.url) + "' controls></video>";
       }
     });
     mediaHtml += "</div>";
-    if (media.length > 1) {
-      mediaHtml = "<div class='meta' style='margin-top:6px;'>" + media.length + " souborů</div>" + mediaHtml;
-    }
+  }
 
-    box.innerHTML =
-      "<div class='name'>" + esc(s.student_name) + " &middot; " + esc(s.challenge_title) + "</div>" +
-      "<div class='meta' style='margin:4px 0 8px;white-space:pre-wrap;'>" + esc(s.submission_text) + "</div>" +
-      mediaHtml;
-
-    const row = document.createElement("div");
-    row.style.cssText = "display:flex;align-items:center;gap:8px;margin-top:8px;";
-
-    const input = document.createElement("input");
-    input.type = "number";
-    input.min = "0";
-    input.value = s.suggested_points;
-    input.style.cssText = "width:70px;padding:8px;border-radius:8px;border:1px solid #E5E0D6;font-size:13px;text-align:center;font-family:inherit;";
-    row.appendChild(input);
-
-    const approveBtn = document.createElement("button");
-    approveBtn.className = "toggle-btn present";
-    approveBtn.textContent = "Schválit a přidat body";
-    approveBtn.onclick = () => approveChallenge(s.submission_id, input, approveBtn);
-    row.appendChild(approveBtn);
-
-    box.appendChild(row);
-    list.appendChild(box);
-  });
+  container.innerHTML =
+    "<h2 class='section-title'>" + esc(s.challenge_title) + "</h2>" +
+    "<div class='meta' style='margin-bottom:10px;'>" + esc(s.student_name) +
+    (s.attempt_number > 1 ? " &middot; " + s.attempt_number + ". pokus" : "") + "</div>" +
+    "<div class='card' style='white-space:pre-wrap;font-size:14px;margin-bottom:14px;'>" + esc(s.submission_text) + "</div>" +
+    mediaHtml +
+    "<div class='field' style='margin-top:16px;'><label>Body za splnění</label><input type='number' id='reviewPoints' min='0' value='" + s.suggested_points + "' style='width:100px;padding:9px 10px;border-radius:8px;border:1px solid #E0DCD3;font-size:14px;font-family:inherit;'></div>" +
+    "<div class='field'><label>Komentář pro studenta (nepovinné)</label><textarea id='reviewComment' rows='3' style='width:100%;padding:11px 12px;border-radius:10px;border:1px solid #E0DCD3;font-size:14px;font-family:inherit;' placeholder='Např. co je potřeba opravit nebo doplnit...'></textarea></div>" +
+    "<div id='reviewError'></div>" +
+    "<div style='display:flex;gap:10px;margin-top:10px;'>" +
+    "<button class='btn-primary' style='flex:1;background:#B33A3A;' id='rejectBtn' onclick='rejectReviewSubmission()'>Zamítnout</button>" +
+    "<button class='btn-primary' style='flex:1;' id='approveBtn' onclick='approveReviewSubmission()'>Schválit</button>" +
+    "</div>";
 }
 
-async function approveChallenge(submissionId, input, btn) {
-  const points = parseInt(input.value, 10);
+function setReviewButtonsDisabled(disabled) {
+  const a = document.getElementById("approveBtn");
+  const r = document.getElementById("rejectBtn");
+  if (a) a.disabled = disabled;
+  if (r) r.disabled = disabled;
+}
+
+async function approveReviewSubmission() {
+  const s = currentReviewSubmission;
+  const points = parseInt(document.getElementById("reviewPoints").value, 10);
+  const comment = document.getElementById("reviewComment").value.trim();
+  const errorEl = document.getElementById("reviewError");
+  errorEl.innerHTML = "";
   if (isNaN(points) || points < 0) {
-    alert("Zadejte platný počet bodů.");
+    errorEl.innerHTML = "<div class='error-note'>Zadejte platný počet bodů.</div>";
     return;
   }
-  btn.disabled = true;
-  const { error } = await sb.rpc("approve_challenge_submission", { p_submission_id: submissionId, p_points: points });
-  btn.disabled = false;
+  setReviewButtonsDisabled(true);
+  const { error } = await sb.rpc("approve_challenge_submission", {
+    p_submission_id: s.submission_id,
+    p_points: points,
+    p_comment: comment || null,
+  });
   if (error) {
-    alert("Nepodařilo se schválit: " + error.message);
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se schválit: " + esc(error.message) + "</div>";
+    setReviewButtonsDisabled(false);
     return;
   }
+  showScreen("challenge-approvals");
+  loadChallengesAdmin();
+}
+
+async function rejectReviewSubmission() {
+  const s = currentReviewSubmission;
+  const comment = document.getElementById("reviewComment").value.trim();
+  const errorEl = document.getElementById("reviewError");
+  errorEl.innerHTML = "";
+  if (!comment && !confirm("Zamítnout bez komentáře? Student pak nebude vědět, co má opravit.")) {
+    return;
+  }
+  setReviewButtonsDisabled(true);
+  const { error } = await sb.rpc("reject_challenge_submission", {
+    p_submission_id: s.submission_id,
+    p_comment: comment || null,
+  });
+  if (error) {
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se zamítnout: " + esc(error.message) + "</div>";
+    setReviewButtonsDisabled(false);
+    return;
+  }
+  showScreen("challenge-approvals");
   loadChallengesAdmin();
 }
 
@@ -3212,6 +3357,68 @@ function openAvatarLightbox(url) {
 function closeAvatarLightbox() {
   document.getElementById("avatarLightbox").classList.add("hidden");
   document.getElementById("avatarLightboxImg").src = "";
+}
+
+// ---------- LIGHTBOX PRO VÍCE FOTEK/VIDEÍ (např. u odevzdaných výzev) ----------
+// Umožňuje prohlížet víc souborů u jedné odevzdané výzvy tak, že se mezi nimi
+// dá přejíždět (swipe) nebo klikat na šipky, bez nutnosti lightbox zavírat.
+let mediaLightboxItems = [];
+let mediaLightboxIndex = 0;
+
+function openMediaLightbox(items, startIndex) {
+  if (!items || !items.length) return;
+  mediaLightboxItems = items;
+  mediaLightboxIndex = startIndex || 0;
+  renderMediaLightbox();
+  document.getElementById("mediaLightbox").classList.remove("hidden");
+}
+
+function closeMediaLightbox() {
+  document.getElementById("mediaLightbox").classList.add("hidden");
+  document.getElementById("mediaLightboxStage").innerHTML = "";
+}
+
+function navMediaLightbox(delta) {
+  if (!mediaLightboxItems.length) return;
+  mediaLightboxIndex = (mediaLightboxIndex + delta + mediaLightboxItems.length) % mediaLightboxItems.length;
+  renderMediaLightbox();
+}
+
+function renderMediaLightbox() {
+  const item = mediaLightboxItems[mediaLightboxIndex];
+  const stage = document.getElementById("mediaLightboxStage");
+  stage.innerHTML = "";
+  if (!item) return;
+  if (item.type === "video") {
+    const video = document.createElement("video");
+    video.src = item.url;
+    video.controls = true;
+    video.playsInline = true;
+    stage.appendChild(video);
+  } else {
+    const img = document.createElement("img");
+    img.src = item.url;
+    stage.appendChild(img);
+  }
+  const multi = mediaLightboxItems.length > 1;
+  const counterEl = document.getElementById("mediaLightboxCounter");
+  counterEl.textContent = (mediaLightboxIndex + 1) + " / " + mediaLightboxItems.length;
+  counterEl.classList.toggle("hidden", !multi);
+  document.getElementById("mediaLightboxPrev").classList.toggle("hidden", !multi);
+  document.getElementById("mediaLightboxNext").classList.toggle("hidden", !multi);
+}
+
+let mlbTouchStartX = null;
+function initMediaLightboxSwipe() {
+  const stage = document.getElementById("mediaLightboxStage");
+  if (!stage) return;
+  stage.addEventListener("touchstart", (e) => { mlbTouchStartX = e.touches[0].clientX; }, { passive: true });
+  stage.addEventListener("touchend", (e) => {
+    if (mlbTouchStartX === null) return;
+    const dx = e.changedTouches[0].clientX - mlbTouchStartX;
+    mlbTouchStartX = null;
+    if (Math.abs(dx) > 40) navMediaLightbox(dx < 0 ? 1 : -1);
+  }, { passive: true });
 }
 
 // ---------- PROFIL ----------
