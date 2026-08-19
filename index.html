@@ -282,6 +282,11 @@
   .avatar-lightbox.hidden { display: none; }
   .avatar-lightbox img { max-width: 82vw; max-height: 82vh; border-radius: 16px; }
 
+  /* Galerie více souborů u odevzdané výzvy (schvalování, jen mistrová) */
+  .challenge-media-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0; }
+  .challenge-media-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; cursor: zoom-in; }
+  .challenge-media-grid video { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; background: #000; }
+
   /* Procvičování (hub + trénink kvízů) */
   .practice-hub-btn {
     display: block; width: 100%; background: var(--card); border: none; border-radius: 16px;
@@ -2382,7 +2387,7 @@ function renderChallengeDetail() {
       "<p style='font-size:13.5px;color:var(--text-muted);margin-bottom:14px;'>" + esc(c.description || "") + "</p>" +
       "<div class='card' style='text-align:center;margin-bottom:16px;'><span class='badge-pts'>" + c.points + " b. za splnění</span></div>" +
       "<div class='field'><label>Ingredience a postup</label><textarea id='challengeText' rows='6' style='width:100%;padding:11px 12px;border-radius:10px;border:1px solid #E0DCD3;font-size:14px;font-family:inherit;' placeholder='Napiš, co jsi použil/a a jak jsi postupoval/a...'></textarea></div>" +
-      "<div class='field'><label>Fotka nebo video hotového pokrmu</label><input type='file' id='challengeMediaInput' accept='image/*,video/*'></div>" +
+      "<div class='field'><label>Fotky nebo videa hotového pokrmu</label><input type='file' id='challengeMediaInput' accept='image/*,video/*' multiple></div>" +
       "<div id='challengeSubmitError'></div>" +
       "<button class='btn-primary' id='challengeSubmitBtn' onclick='submitChallengeForm()'>Odeslat ke schválení</button>";
     return;
@@ -2397,10 +2402,12 @@ function renderChallengeDetail() {
     "<p style='font-size:13.5px;color:var(--text-muted);'>Svůj odeslaný pokus si už jen prohlížíš, znovu ho odeslat nejde.</p>";
 }
 
+const CHALLENGE_MEDIA_MAX = 20;
+
 async function submitChallengeForm() {
   const text = document.getElementById("challengeText").value.trim();
   const fileInput = document.getElementById("challengeMediaInput");
-  const file = fileInput.files && fileInput.files[0];
+  const files = fileInput.files ? Array.from(fileInput.files) : [];
   const errorEl = document.getElementById("challengeSubmitError");
   errorEl.innerHTML = "";
 
@@ -2408,51 +2415,64 @@ async function submitChallengeForm() {
     errorEl.innerHTML = "<div class='error-note'>Napiš prosím ingredience a postup.</div>";
     return;
   }
-  if (!file) {
-    errorEl.innerHTML = "<div class='error-note'>Nahraj prosím fotku nebo video.</div>";
+  if (files.length === 0) {
+    errorEl.innerHTML = "<div class='error-note'>Nahraj prosím alespoň jednu fotku nebo video.</div>";
     return;
   }
-  const isImage = file.type.startsWith("image/");
-  const isVideo = file.type.startsWith("video/");
-  if (!isImage && !isVideo) {
-    errorEl.innerHTML = "<div class='error-note'>Podporované jsou jen obrázky nebo videa.</div>";
+  if (files.length > CHALLENGE_MEDIA_MAX) {
+    errorEl.innerHTML = "<div class='error-note'>Můžeš nahrát nejvýš " + CHALLENGE_MEDIA_MAX + " souborů najednou – vyber prosím míň.</div>";
     return;
   }
-  if (isVideo && file.size > 25 * 1024 * 1024) {
-    errorEl.innerHTML = "<div class='error-note'>Video je moc velké (max 25 MB) – zkus kratší nebo nižší kvalitu.</div>";
-    return;
+  for (const f of files) {
+    const isImage = f.type.startsWith("image/");
+    const isVideo = f.type.startsWith("video/");
+    if (!isImage && !isVideo) {
+      errorEl.innerHTML = "<div class='error-note'>Podporované jsou jen obrázky nebo videa.</div>";
+      return;
+    }
+    if (isVideo && f.size > 25 * 1024 * 1024) {
+      errorEl.innerHTML = "<div class='error-note'>Video „" + esc(f.name) + "“ je moc velké (max 25 MB) – zkus kratší nebo nižší kvalitu.</div>";
+      return;
+    }
   }
 
   const btn = document.getElementById("challengeSubmitBtn");
   btn.disabled = true;
-  btn.textContent = "Odesílám...";
 
   try {
-    let blob, contentType, ext;
-    if (isImage) {
-      blob = await resizeImageToBlob(file, 1280, 0.85);
-      contentType = "image/jpeg";
-      ext = "jpg";
-    } else {
-      blob = file;
-      contentType = file.type || "video/mp4";
-      ext = (file.name.split(".").pop() || "mp4").toLowerCase();
-    }
-    const path = user.id + "_" + currentChallenge.id + "_" + Date.now() + "." + ext;
-    const { error: uploadError } = await sb.storage.from("challenge-media").upload(path, blob, { upsert: true, contentType });
-    if (uploadError) {
-      errorEl.innerHTML = "<div class='error-note'>Nepodařilo se nahrát soubor: " + esc(uploadError.message) + "</div>";
-      btn.disabled = false;
-      btn.textContent = "Odeslat ke schválení";
-      return;
-    }
-    const { data: pub } = sb.storage.from("challenge-media").getPublicUrl(path);
+    const media = [];
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const isImage = f.type.startsWith("image/");
+      btn.textContent = "Nahrávám " + (i + 1) + "/" + files.length + "...";
 
+      let blob, contentType, ext;
+      if (isImage) {
+        blob = await resizeImageToBlob(f, 1280, 0.85);
+        contentType = "image/jpeg";
+        ext = "jpg";
+      } else {
+        blob = f;
+        contentType = f.type || "video/mp4";
+        ext = (f.name.split(".").pop() || "mp4").toLowerCase();
+      }
+      const path = user.id + "_" + currentChallenge.id + "_" + Date.now() + "_" + i + "." + ext;
+      const { error: uploadError } = await sb.storage.from("challenge-media").upload(path, blob, { upsert: true, contentType });
+      if (uploadError) {
+        errorEl.innerHTML = "<div class='error-note'>Nepodařilo se nahrát soubor „" + esc(f.name) + "“: " + esc(uploadError.message) + "</div>";
+        btn.disabled = false;
+        btn.textContent = "Odeslat ke schválení";
+        return;
+      }
+      const { data: pub } = sb.storage.from("challenge-media").getPublicUrl(path);
+      media.push({ url: pub.publicUrl, type: isImage ? "image" : "video" });
+    }
+
+    btn.textContent = "Odesílám...";
     const { error: subError } = await sb.rpc("submit_challenge", {
       p_challenge_id: currentChallenge.id,
       p_text: text,
-      p_media_url: pub.publicUrl,
-      p_media_type: isImage ? "image" : "video",
+      p_media: media,
     });
 
     btn.disabled = false;
@@ -2557,11 +2577,18 @@ async function loadChallengesAdmin() {
     const box = document.createElement("div");
     box.className = "card";
 
-    let mediaHtml;
-    if (s.media_type === "image") {
-      mediaHtml = "<img src='" + esc(s.media_url) + "' style='width:100%;border-radius:10px;margin:8px 0;'>";
-    } else {
-      mediaHtml = "<video src='" + esc(s.media_url) + "' controls style='width:100%;border-radius:10px;margin:8px 0;'></video>";
+    const media = s.media || [];
+    let mediaHtml = "<div class='challenge-media-grid'>";
+    media.forEach((m) => {
+      if (m.type === "image") {
+        mediaHtml += "<img src='" + esc(m.url) + "' onclick=\"openAvatarLightbox('" + esc(m.url).replace(/'/g, "&#39;") + "')\">";
+      } else {
+        mediaHtml += "<video src='" + esc(m.url) + "' controls></video>";
+      }
+    });
+    mediaHtml += "</div>";
+    if (media.length > 1) {
+      mediaHtml = "<div class='meta' style='margin-top:6px;'>" + media.length + " souborů</div>" + mediaHtml;
     }
 
     box.innerHTML =
