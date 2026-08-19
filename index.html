@@ -2885,7 +2885,7 @@ function challengeStudentStatusLabel(s) {
   if (s.status === "rejected") {
     return s.attempts_used >= 3 ? "Zamítnuto, pokusy vyčerpány" : "Zamítnuto, může to zkusit znovu";
   }
-  return s.status;
+  return "Zatím se do toho nepustil/a";
 }
 
 async function loadChallengeStudents() {
@@ -2908,10 +2908,15 @@ async function loadChallengeStudents() {
   data.forEach((s) => {
     const div = document.createElement("div");
     div.className = "list-item" + (s.status === "pending" ? " status-yellow" : s.status === "approved" ? " status-green" : "");
-    const pts = s.best_points != null ? "<span class='badge-pts'>" + s.best_points + " b.</span>" : "";
+    const pts = "<span class='badge-pts'>" + (s.best_points != null ? s.best_points + " b." : "—") + "</span>";
     div.innerHTML =
       '<div><div class="name">' + esc(s.student_name) + '</div><div class="meta">' + challengeStudentStatusLabel(s) + "</div></div>" + pts;
-    div.onclick = () => openChallengeReview(s.latest_submission_id, "challenge-students");
+    // Kdo se ještě do výzvy vůbec nepustil, nemá žádné odevzdání k zobrazení.
+    if (s.latest_submission_id != null) {
+      div.onclick = () => openChallengeReview(s.latest_submission_id, "challenge-students");
+    } else {
+      div.style.cursor = "default";
+    }
     list.appendChild(div);
   });
 }
