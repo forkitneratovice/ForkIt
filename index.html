@@ -2452,8 +2452,20 @@ async function submitChallengeForm() {
         contentType = "image/jpeg";
         ext = "jpg";
       } else {
-        blob = f;
+        // Video z galerie (hlavně na iPhonu) posíláme jako File objekt přímo
+        // – ten ale někdy nahrávka pošle jako prázdný (appka do něj chvíli po
+        // výběru ještě "dopisuje"/exportuje obsah). Proto soubor nejdřív
+        // celý přečteme do paměti a teprve z toho uděláme nový Blob – tím se
+        // vynutí, že se čeká na kompletní data, než se vůbec začne nahrávat.
+        const buf = await f.arrayBuffer();
+        if (!buf || buf.byteLength === 0) {
+          errorEl.innerHTML = "<div class='error-note'>Soubor „" + esc(f.name) + "“ se nepodařilo načíst (je prázdný). Zkus ho vybrat znovu, případně počkej, až se stáhne z iCloudu/zálohy.</div>";
+          btn.disabled = false;
+          btn.textContent = "Odeslat ke schválení";
+          return;
+        }
         contentType = f.type || "video/mp4";
+        blob = new Blob([buf], { type: contentType });
         ext = (f.name.split(".").pop() || "mp4").toLowerCase();
       }
       const path = user.id + "_" + currentChallenge.id + "_" + Date.now() + "_" + i + "." + ext;
