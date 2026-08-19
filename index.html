@@ -1881,10 +1881,10 @@ function renderHomeLatestChallenge() {
   }
   const c = challenges[0];
   const div = document.createElement("div");
-  div.className = "list-item " + challengeStatusClass(c.my_status);
+  div.className = "list-item " + challengeStatusClass(c);
   div.innerHTML =
     '<div><div class="name">' + esc(c.title) + '</div><div class="meta">' + challengeStatusLabel(c) + "</div></div>" +
-    "<span class='badge-pts'>" + (c.my_status === "approved" ? c.my_awarded_points + " b." : c.points + " b.") + "</span>";
+    "<span class='badge-pts'>" + challengePointsLabel(c) + "</span>";
   div.onclick = () => openChallenge(c.id);
   el.appendChild(div);
 }
