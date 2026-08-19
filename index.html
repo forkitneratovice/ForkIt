@@ -850,8 +850,15 @@
 
       <!-- DETAIL ODEVZDANÉ VÝZVY KE SCHVÁLENÍ (jen mistrová) -->
       <div class="screen hidden" id="screen-challenge-review-detail">
-        <span class="back-link" onclick="showScreen('challenge-approvals')">&larr; Zpět na seznam</span>
+        <span class="back-link" onclick="backFromChallengeReview()">&larr; Zpět na seznam</span>
         <div id="challengeReviewContent"></div>
+      </div>
+
+      <!-- DETAIL VÝZVY: KDO NA NÍ PRACUJE / KDO JI UDĚLAL (jen mistrová) -->
+      <div class="screen hidden" id="screen-challenge-students">
+        <span class="back-link" onclick="showScreen('challenges')">&larr; Zpět na výzvy</span>
+        <div id="challengeStudentsHeader"></div>
+        <div id="challengeStudentsList"></div>
       </div>
 
       <!-- AKTUALITY: VŠECHNY (jen mistrová) -->
@@ -1590,6 +1597,7 @@ function showScreen(name) {
     "challenge-create": ["Nová výzva", "Vytvořit výzvu"],
     "challenge-approvals": ["Ke schválení", "Žádosti studentů"],
     "challenge-review-detail": ["Posouzení výzvy", "Detail odevzdání"],
+    "challenge-students": ["Studenti", "Kdo na výzvě pracuje"],
     announcements: ["Aktuality", "Všechny aktuality"],
     "announcement-detail": ["Aktualita", "Reakce studentů"],
     slovnik: ["Slovník", "Slova dne"],
@@ -2360,6 +2368,13 @@ let currentChallenge = null;
 // (nezačato, nebo zamítnuto/částečně schváleno a ještě má pokus navíc),
 // žlutá = čeká na posouzení mistrovou, zelená = definitivně hotovo (ať už
 // schváleno na plný počet bodů, nebo došly všechny tři pokusy).
+// Klíč pro "viděno" sledování posouzení výzvy - kombinace id pokusu a času
+// posouzení, aby se odznáček objevil znovu i po zpětné opravě hodnocení
+// (last_reviewed_at se změní, i když jde pořád o stejný submission id).
+function challengeDecisionKey(c) {
+  return c.last_submission_id + "_" + (c.last_reviewed_at || "");
+}
+
 function challengeStatusClass(c) {
   if (c.my_status === "pending") return "status-yellow";
   if (c.my_status === "none" || c.can_resubmit) return "";
@@ -2417,7 +2432,14 @@ async function renderChallenges() {
     list.appendChild(div);
   });
 
-  markSeen("forkit_seen_challenge_ids", challenges.map((c) => c.id));
+  // "Viděno" se sleduje podle konkrétního posouzení (submission id +
+  // reviewed_at), ne podle id výzvy - díky tomu se odznáček objeví znovu i
+  // po dalším pokusu, a taky když mistrová zpětně opraví hodnocení (což mění
+  // reviewed_at, i když jde o stejný pokus).
+  markSeen(
+    "forkit_seen_challenge_decision_ids",
+    challenges.filter((c) => (c.my_status === "approved" || c.my_status === "rejected") && c.last_submission_id).map(challengeDecisionKey)
+  );
   setNavBadge("challenges", 0);
 }
 
@@ -2609,6 +2631,7 @@ async function loadChallengesAdminOverview() {
     div.className = "list-item";
     div.innerHTML =
       '<div><div class="name">' + esc(c.title) + '</div><div class="meta">' + c.points + " b. · splnilo " + c.approved_count + " · čeká " + c.pending_count + "</div></div>";
+    div.onclick = () => openChallengeStudents(c.id, c.title, c.points);
     list.appendChild(div);
   });
 }
@@ -2658,8 +2681,10 @@ async function saveChallengeDraft() {
   showScreen("challenges");
 }
 
-let pendingChallengeSubmissions = [];
 let currentReviewSubmission = null;
+let reviewReturnTo = "challenge-approvals";
+let currentChallengeStudentsCtx = null;
+let reviewEditMode = false;
 
 function czSouboru(n) {
   if (n === 1) return "soubor";
@@ -2676,12 +2701,10 @@ async function loadChallengesAdmin() {
     return;
   }
   if (!data || data.length === 0) {
-    pendingChallengeSubmissions = [];
     list.innerHTML = "<div class='empty-note'>Žádné výzvy zatím nečekají na schválení.</div>";
     setNavBadge("challenges", 0);
     return;
   }
-  pendingChallengeSubmissions = data;
   setNavBadge("challenges", data.length);
   data.forEach((s) => {
     const media = s.media || [];
@@ -2691,16 +2714,73 @@ async function loadChallengesAdmin() {
       '<div><div class="name">' + esc(s.student_name) + '</div><div class="meta">' + esc(s.challenge_title) +
       (s.attempt_number > 1 ? " &middot; " + s.attempt_number + ". pokus" : "") + "</div></div>" +
       "<span class='badge-pts'>" + media.length + " " + czSouboru(media.length) + "</span>";
-    div.onclick = () => openChallengeReview(s.submission_id);
+    div.onclick = () => openChallengeReview(s.submission_id, "challenge-approvals");
     list.appendChild(div);
   });
 }
 
-function openChallengeReview(submissionId) {
-  currentReviewSubmission = pendingChallengeSubmissions.find((s) => s.submission_id === submissionId);
-  if (!currentReviewSubmission) return;
-  renderChallengeReview();
+// Detail konkrétní výzvy pro učitelku: kdo na ní pracuje / kdo ji už udělal.
+function openChallengeStudents(id, title, points) {
+  currentChallengeStudentsCtx = { id, title, points };
+  showScreen("challenge-students");
+  loadChallengeStudents();
+}
+
+function challengeStudentStatusLabel(s) {
+  if (s.status === "pending") return "Čeká na schválení" + (s.attempt_number > 1 ? " &middot; " + s.attempt_number + ". pokus" : "");
+  if (s.status === "approved") return "Schváleno";
+  if (s.status === "rejected") {
+    return s.attempts_used >= 3 ? "Zamítnuto, pokusy vyčerpány" : "Zamítnuto, může to zkusit znovu";
+  }
+  return s.status;
+}
+
+async function loadChallengeStudents() {
+  const ctx = currentChallengeStudentsCtx;
+  document.getElementById("challengeStudentsHeader").innerHTML =
+    "<h2 class='section-title'>" + esc(ctx.title) + "</h2>" +
+    "<div class='meta' style='margin-bottom:12px;'>" + ctx.points + " b. za splnění</div>";
+  const list = document.getElementById("challengeStudentsList");
+  list.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const { data, error } = await sb.rpc("get_challenge_students", { p_challenge_id: ctx.id });
+  list.innerHTML = "";
+  if (error) {
+    list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst: " + esc(error.message) + "</div>";
+    return;
+  }
+  if (!data || data.length === 0) {
+    list.innerHTML = "<div class='empty-note'>Zatím na tom nikdo nepracuje.</div>";
+    return;
+  }
+  data.forEach((s) => {
+    const div = document.createElement("div");
+    div.className = "list-item" + (s.status === "pending" ? " status-yellow" : s.status === "approved" ? " status-green" : "");
+    const pts = s.best_points != null ? "<span class='badge-pts'>" + s.best_points + " b.</span>" : "";
+    div.innerHTML =
+      '<div><div class="name">' + esc(s.student_name) + '</div><div class="meta">' + challengeStudentStatusLabel(s) + "</div></div>" + pts;
+    div.onclick = () => openChallengeReview(s.latest_submission_id, "challenge-students");
+    list.appendChild(div);
+  });
+}
+
+// Detail jednoho odevzdání: funguje jak pro "Ke schválení" (čerstvě odeslané,
+// dá se schválit/zamítnout), tak pro pohled z detailu výzvy na už posouzené
+// pokusy (jen ke čtení - jednou rozhodnuté se znovu neposuzuje).
+async function openChallengeReview(submissionId, returnTo) {
+  reviewReturnTo = returnTo || "challenge-approvals";
+  currentReviewSubmission = null;
+  reviewEditMode = false;
   showScreen("challenge-review-detail");
+  document.getElementById("challengeReviewContent").innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const { data, error } = await sb.rpc("get_challenge_submission_detail", { p_submission_id: submissionId });
+  const row = data && data[0];
+  if (error || !row) {
+    document.getElementById("challengeReviewContent").innerHTML =
+      "<div class='empty-note'>Nepodařilo se načíst: " + esc(error ? error.message : "odevzdání nenalezeno") + "</div>";
+    return;
+  }
+  currentReviewSubmission = row;
+  renderChallengeReview();
 }
 
 function renderChallengeReview() {
@@ -2721,19 +2801,42 @@ function renderChallengeReview() {
     mediaHtml += "</div>";
   }
 
+  const isPending = s.status === "pending";
+  const isEditing = !isPending && reviewEditMode;
+
+  let actionHtml;
+  if (isPending || isEditing) {
+    const pointsValue = isEditing ? (s.awarded_points != null ? s.awarded_points : s.suggested_points) : s.suggested_points;
+    const commentValue = isEditing ? (s.teacher_comment || "") : "";
+    const rejectOnclick = isEditing ? "editReviewSubmission('rejected')" : "rejectReviewSubmission()";
+    const approveOnclick = isEditing ? "editReviewSubmission('approved')" : "approveReviewSubmission()";
+    actionHtml =
+      (isEditing ? "<div class='meta' style='margin-bottom:6px;'>Upravuješ už dřív posouzené odevzdání.</div>" : "") +
+      "<div class='field' style='margin-top:16px;'><label>Body za schválení</label><input type='number' id='reviewPoints' min='0' value='" + pointsValue + "' style='width:100px;padding:9px 10px;border-radius:8px;border:1px solid #E0DCD3;font-size:14px;font-family:inherit;'></div>" +
+      "<div class='field'><label>Komentář pro studenta (nepovinné)</label><textarea id='reviewComment' rows='3' style='width:100%;padding:11px 12px;border-radius:10px;border:1px solid #E0DCD3;font-size:14px;font-family:inherit;' placeholder='Např. co je potřeba opravit nebo doplnit...'>" + esc(commentValue) + "</textarea></div>" +
+      "<div id='reviewError'></div>" +
+      "<div style='display:flex;gap:10px;margin-top:10px;'>" +
+      "<button class='btn-primary' style='flex:1;background:#B33A3A;' id='rejectBtn' onclick=\"" + rejectOnclick + "\">Zamítnout &middot; 0 b.</button>" +
+      "<button class='btn-primary' style='flex:1;' id='approveBtn' onclick=\"" + approveOnclick + "\">Schválit body nahoře</button>" +
+      "</div>" +
+      (isEditing ? "<button class='btn-secondary' style='width:100%;margin-top:10px;text-align:center;' onclick='cancelEditReview()'>Zrušit úpravu</button>" : "");
+  } else {
+    const resultLabel = s.status === "approved"
+      ? "Schváleno &middot; " + (s.awarded_points != null ? s.awarded_points : 0) + " b."
+      : "Zamítnuto &middot; 0 b.";
+    actionHtml =
+      "<div class='card' style='text-align:center;'><span class='" + (s.status === "approved" ? "done-tag" : "badge-pts") + "'>" + resultLabel + "</span></div>" +
+      (s.teacher_comment ? "<div class='card' style='white-space:pre-wrap;font-size:13.5px;margin-top:10px;'><b>Tvůj komentář:</b><br>" + esc(s.teacher_comment) + "</div>" : "") +
+      "<button class='btn-primary' style='width:100%;margin-top:12px;background:var(--dark);' onclick='enterEditReview()'>Upravit hodnocení</button>";
+  }
+
   container.innerHTML =
     "<h2 class='section-title'>" + esc(s.challenge_title) + "</h2>" +
     "<div class='meta' style='margin-bottom:10px;'>" + esc(s.student_name) +
     (s.attempt_number > 1 ? " &middot; " + s.attempt_number + ". pokus" : "") + "</div>" +
     "<div class='card' style='white-space:pre-wrap;font-size:14px;margin-bottom:14px;'>" + esc(s.submission_text) + "</div>" +
     mediaHtml +
-    "<div class='field' style='margin-top:16px;'><label>Body za splnění</label><input type='number' id='reviewPoints' min='0' value='" + s.suggested_points + "' style='width:100px;padding:9px 10px;border-radius:8px;border:1px solid #E0DCD3;font-size:14px;font-family:inherit;'></div>" +
-    "<div class='field'><label>Komentář pro studenta (nepovinné)</label><textarea id='reviewComment' rows='3' style='width:100%;padding:11px 12px;border-radius:10px;border:1px solid #E0DCD3;font-size:14px;font-family:inherit;' placeholder='Např. co je potřeba opravit nebo doplnit...'></textarea></div>" +
-    "<div id='reviewError'></div>" +
-    "<div style='display:flex;gap:10px;margin-top:10px;'>" +
-    "<button class='btn-primary' style='flex:1;background:#B33A3A;' id='rejectBtn' onclick='rejectReviewSubmission()'>Zamítnout</button>" +
-    "<button class='btn-primary' style='flex:1;' id='approveBtn' onclick='approveReviewSubmission()'>Schválit</button>" +
-    "</div>";
+    actionHtml;
 }
 
 function setReviewButtonsDisabled(disabled) {
@@ -2741,6 +2844,59 @@ function setReviewButtonsDisabled(disabled) {
   const r = document.getElementById("rejectBtn");
   if (a) a.disabled = disabled;
   if (r) r.disabled = disabled;
+}
+
+function backFromChallengeReview() {
+  showScreen(reviewReturnTo);
+  if (reviewReturnTo === "challenge-approvals") loadChallengesAdmin();
+  else loadChallengeStudents();
+}
+
+// Zpětná oprava už posouzeného odevzdání (překlep, zapomenutý komentář,
+// změna názoru na schváleno/zamítnuto). Body na profilu studenta se
+// dopočítávají korektně i v "nejlepší pokus se počítá" modelu - viz DB
+// funkce edit_challenge_submission_review.
+function enterEditReview() {
+  reviewEditMode = true;
+  renderChallengeReview();
+}
+
+function cancelEditReview() {
+  reviewEditMode = false;
+  renderChallengeReview();
+}
+
+async function editReviewSubmission(newStatus) {
+  const s = currentReviewSubmission;
+  const comment = document.getElementById("reviewComment").value.trim();
+  const errorEl = document.getElementById("reviewError");
+  errorEl.innerHTML = "";
+
+  let points = 0;
+  if (newStatus === "approved") {
+    points = parseInt(document.getElementById("reviewPoints").value, 10);
+    if (isNaN(points) || points < 0) {
+      errorEl.innerHTML = "<div class='error-note'>Zadejte platný počet bodů.</div>";
+      return;
+    }
+  } else if (!comment && !confirm("Zamítnout bez komentáře? Student pak nebude vědět, co má opravit.")) {
+    return;
+  }
+
+  setReviewButtonsDisabled(true);
+  const { error } = await sb.rpc("edit_challenge_submission_review", {
+    p_submission_id: s.submission_id,
+    p_status: newStatus,
+    p_points: points,
+    p_comment: comment || null,
+  });
+  if (error) {
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se uložit úpravu: " + esc(error.message) + "</div>";
+    setReviewButtonsDisabled(false);
+    return;
+  }
+  reviewEditMode = false;
+  backFromChallengeReview();
 }
 
 async function approveReviewSubmission() {
@@ -2764,8 +2920,7 @@ async function approveReviewSubmission() {
     setReviewButtonsDisabled(false);
     return;
   }
-  showScreen("challenge-approvals");
-  loadChallengesAdmin();
+  backFromChallengeReview();
 }
 
 async function rejectReviewSubmission() {
@@ -2786,8 +2941,7 @@ async function rejectReviewSubmission() {
     setReviewButtonsDisabled(false);
     return;
   }
-  showScreen("challenge-approvals");
-  loadChallengesAdmin();
+  backFromChallengeReview();
 }
 
 // ---------- AKTUALITY: PLNÝ SEZNAM A DETAIL (jen mistrová) ----------
@@ -3576,8 +3730,11 @@ async function computeNavBadges() {
     const seenQuizIds = getSeenSet("forkit_seen_quiz_ids");
     setNavBadge("quizzes", quizzes.filter((q) => !seenQuizIds.has(q.id)).length);
 
-    const seenChallengeIds = getSeenSet("forkit_seen_challenge_ids");
-    setNavBadge("challenges", challenges.filter((c) => !seenChallengeIds.has(c.id)).length);
+    const seenChallengeDecisionIds = getSeenSet("forkit_seen_challenge_decision_ids");
+    setNavBadge(
+      "challenges",
+      challenges.filter((c) => (c.my_status === "approved" || c.my_status === "rejected") && c.last_submission_id && !seenChallengeDecisionIds.has(challengeDecisionKey(c))).length
+    );
 
     const { data: badgeData } = await sb.rpc("get_my_badges");
     if (badgeData && badgeData[0]) {
