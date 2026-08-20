@@ -1543,7 +1543,11 @@ async function completeLogin() {
   if (lastScreen === "quiz-take" && tryResumeQuiz()) {
     return;
   }
-  showScreen(lastScreen === "quiz-take" ? "quizzes" : lastScreen);
+  if (lastScreen === "personality-take" && tryResumePersonality()) {
+    return;
+  }
+  const isTakeScreen = lastScreen === "quiz-take" || lastScreen === "personality-take";
+  showScreen(isTakeScreen ? "quizzes" : lastScreen);
 }
 
 // Pozná, jestli v telefonu vůbec může být uložené přihlášení (Supabase si
@@ -1568,7 +1572,7 @@ function hasPersistedSupabaseSession() {
 // o pár řádků níž – kdyby byl RESUMABLE_SCREENS deklarovaný až za tím
 // (přes const), skončilo by to chybou "Cannot access before initialization"
 // a celá appka by se nenačetla.)
-const RESUMABLE_SCREENS = ["home", "quizzes", "quiz-take", "challenges", "practice-hub", "practice-quizzes", "flashcards", "slovnik", "leaderboard", "competitors", "achievements", "messages", "profile"];
+const RESUMABLE_SCREENS = ["home", "quizzes", "quiz-take", "personality-take", "challenges", "practice-hub", "practice-quizzes", "flashcards", "slovnik", "leaderboard", "competitors", "achievements", "messages", "profile"];
 
 if (!hasPersistedSupabaseSession()) {
   showScreen("login");
@@ -2020,20 +2024,43 @@ function openPersonalityTest(returnTo) {
   }
 }
 
+// Rozepsané (ještě neodeslané) odpovědi testu osobnosti se ukládají zvlášť
+// pro každého uživatele, aby zůstaly, i když student omylem odejde na jinou
+// obrazovku a pak se vrátí zpátky (stejně jako u rozepsaného kvízu).
+function personalityProgressKey() {
+  return "forkit_personality_progress_" + (user ? user.id : "anon");
+}
+function savePersonalityProgress(answers) {
+  try { localStorage.setItem(personalityProgressKey(), JSON.stringify(answers)); } catch (e) {}
+}
+function readPersonalityProgress() {
+  try {
+    const raw = localStorage.getItem(personalityProgressKey());
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function clearPersonalityProgress() {
+  try { localStorage.removeItem(personalityProgressKey()); } catch (e) {}
+}
+
 function startPersonalityTake() {
-  personalityAnswers = new Array(PERSONALITY_QUESTIONS.length).fill(null);
+  const saved = readPersonalityProgress();
+  personalityAnswers = (saved && saved.length === PERSONALITY_QUESTIONS.length) ? saved.slice() : new Array(PERSONALITY_QUESTIONS.length).fill(null);
   const container = document.getElementById("personalityQuestions");
   container.innerHTML = "";
   PERSONALITY_QUESTIONS.forEach((item, qi) => {
     const box = document.createElement("div");
     box.className = "quiz-question";
+    const selA = personalityAnswers[qi] === "A";
+    const selB = personalityAnswers[qi] === "B";
     box.innerHTML =
       "<p class='q'>" + (qi + 1) + ". " + esc(item.q) + "</p>" +
-      "<label class='quiz-option' id='popt-" + qi + "-A'><input type='radio' name='p" + qi + "' onclick='selectPersonalityAnswer(" + qi + ",\"A\")'>" + esc(item.a) + "</label>" +
-      "<label class='quiz-option' id='popt-" + qi + "-B'><input type='radio' name='p" + qi + "' onclick='selectPersonalityAnswer(" + qi + ",\"B\")'>" + esc(item.b) + "</label>";
+      "<label class='quiz-option" + (selA ? " selected" : "") + "' id='popt-" + qi + "-A'><input type='radio' name='p" + qi + "' onclick='selectPersonalityAnswer(" + qi + ",\"A\")'" + (selA ? " checked" : "") + ">" + esc(item.a) + "</label>" +
+      "<label class='quiz-option" + (selB ? " selected" : "") + "' id='popt-" + qi + "-B'><input type='radio' name='p" + qi + "' onclick='selectPersonalityAnswer(" + qi + ",\"B\")'" + (selB ? " checked" : "") + ">" + esc(item.b) + "</label>";
     container.appendChild(box);
   });
   document.getElementById("personalityTakeError").innerHTML = "";
+  savePersonalityProgress(personalityAnswers);
   showScreen("personality-take");
 }
 
@@ -2041,6 +2068,19 @@ function selectPersonalityAnswer(qi, val) {
   personalityAnswers[qi] = val;
   document.getElementById("popt-" + qi + "-A").classList.toggle("selected", val === "A");
   document.getElementById("popt-" + qi + "-B").classList.toggle("selected", val === "B");
+  savePersonalityProgress(personalityAnswers);
+}
+
+// Zkusí obnovit rozepsaný test osobnosti uložený v localStorage (analogicky
+// k tryResumeQuiz) – použije se po znovunačtení appky (např. po odemčení
+// telefonu), když uživatel předtím skončil na obrazovce s vyplňováním.
+function tryResumePersonality() {
+  if (!user || user.role !== "student" || personalityResult) return false;
+  const saved = readPersonalityProgress();
+  if (!saved || saved.length !== PERSONALITY_QUESTIONS.length) return false;
+  personalityReturnTo = "home";
+  startPersonalityTake();
+  return true;
 }
 
 async function submitPersonalityTest() {
@@ -2056,6 +2096,7 @@ async function submitPersonalityTest() {
   btn.disabled = false;
   if (error) {
     if (error.message && error.message.includes("ALREADY_COMPLETED")) {
+      clearPersonalityProgress();
       await loadPersonalityResult();
       renderHomePersonalityPrompt();
       renderPersonalityResult();
@@ -2065,6 +2106,7 @@ async function submitPersonalityTest() {
     errorEl.innerHTML = "<div class='error-note'>Něco se nepovedlo: " + esc(error.message) + "</div>";
     return;
   }
+  clearPersonalityProgress();
   personalityResult = { type_code: data, answers: personalityAnswers.slice(), completed_at: new Date().toISOString() };
   renderHomePersonalityPrompt();
   renderPersonalityResult();
@@ -2494,6 +2536,9 @@ function openQuiz(id, restoredAnswers) {
   }
 
   isPracticeMode = false;
+  // Když se do stejného kvízu vracíš (třeba jsi omylem odešla na jinou
+  // obrazovku), obnov rozepsané odpovědi z localStorage, ať nezmizí.
+  if (!restoredAnswers) restoredAnswers = getSavedQuizProgressFor(id, false);
   startQuizTake(q, restoredAnswers);
 }
 
@@ -2503,7 +2548,19 @@ function openPracticeQuiz(id, restoredAnswers) {
   const q = practiceQuizzes.find((qq) => qq.id === id);
   if (!q) return;
   isPracticeMode = true;
+  if (!restoredAnswers) restoredAnswers = getSavedQuizProgressFor(id, true);
   startQuizTake(q, restoredAnswers);
+}
+
+// Vrátí rozepsané odpovědi uložené v localStorage, pokud patří přesně
+// tomuto kvízu (stejné id) a stejnému režimu (ostrý/tréninkový) – jinak null.
+// Používá se jak při obnovení appky po pádu, tak při běžném odejití a
+// návratu do stejného kvízu v rámci appky.
+function getSavedQuizProgressFor(id, practice) {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem("forkit_quiz_progress") || "null"); } catch (e) {}
+  if (!saved || !saved.quiz || saved.quiz.id !== id || !!saved.practice !== !!practice) return null;
+  return saved.answers;
 }
 
 // Vrátí na seznam kvízů odpovídající aktuálnímu režimu (ostrý/tréninkový).
