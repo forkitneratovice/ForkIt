@@ -239,9 +239,9 @@
 
   /* Úspěchy (odznáčky) */
   .badge-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 4px; }
-  .badge-card { background: none; border-radius: 14px; text-align: center; perspective: 900px; min-height: 168px; cursor: pointer; }
+  .badge-card { background: none; border-radius: 14px; text-align: center; perspective: 900px; min-height: 150px; cursor: pointer; }
   .badge-card-inner {
-    position: relative; width: 100%; height: 100%; min-height: 168px;
+    position: relative; width: 100%; height: 100%; min-height: 150px;
     transition: transform 0.5s; transform-style: preserve-3d;
   }
   .badge-card.flipped .badge-card-inner { transform: rotateY(180deg); }
@@ -257,6 +257,7 @@
     background: #E4E0D6; filter: grayscale(1); opacity: 0.55; transition: all .2s ease;
   }
   .badge-card.earned .badge-icon { background: var(--lime); filter: none; opacity: 1; }
+  .badge-card-back .badge-icon { width: 34px; height: 34px; font-size: 16px; margin-bottom: 6px; }
   .badge-title { font-size: 12.5px; font-weight: 700; color: var(--dark); margin-bottom: 4px; }
   .badge-desc { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
   .badge-progress { font-size: 11px; color: var(--primary); font-weight: 700; margin-top: 4px; }
@@ -1703,28 +1704,24 @@ function closeNavDrawer() {
   document.getElementById("hamburgerBtn").classList.remove("open");
 }
 
-// Hlavní sekce appky pro odznáček "Objevitel" - jakmile student navštíví
-// všechny, pošle se to na server jen jednou (localStorage hlídá, ať to
-// nevoláme opakovaně při každé další návštěvě už objevené sekce).
+// Hlavní sekce appky pro odznáček "Objevitel". Dřív se "navštívil/a už
+// všechny" hlídalo přes localStorage, ale to je na mobilu nespolehlivé
+// (soukromé prohlížení, Safari občas úložiště samo smaže) a nedalo se to
+// zvenčí zkontrolovat, když si student stěžoval, že odznáček nedostal.
+// Teď se každá návštěva rovnou zapisuje na server (record_screen_visit) a
+// tam se i vyhodnocuje, jestli už jsou pohromadě všechny - jednoduché a
+// spolehlivé, klidně se to může volat opakovaně (na serveru je to idempotentní).
 const CORE_EXPLORER_SCREENS = ["home", "quizzes", "challenges", "practice-hub", "slovnik", "leaderboard", "achievements", "messages", "profile"];
 
 function trackExplorerVisit(name) {
   if (!user || user.role !== "student" || !CORE_EXPLORER_SCREENS.includes(name)) return;
-  const key = "forkit_visited_screens_" + user.id;
-  let visited;
-  try { visited = JSON.parse(localStorage.getItem(key) || "[]"); } catch (e) { visited = []; }
-  if (visited.includes(name) && visited.length >= CORE_EXPLORER_SCREENS.length) return;
-  if (!visited.includes(name)) visited.push(name);
-  try { localStorage.setItem(key, JSON.stringify(visited)); } catch (e) {}
-  if (CORE_EXPLORER_SCREENS.every((s) => visited.includes(s))) {
-    sb.rpc("award_explorer_badge").then(() => {
-      // Když je Úspěchy zrovna ta obrazovka, která odznáček odemkla, ta se
-      // stihne vykreslit dřív, než tenhle zápis doběhne na server (souběh
-      // dvou requestů) - proto ji po dokončení znovu překreslíme, ať se
-      // "Objevitel" objeví hned a ne až při dalším otevření.
-      if (name === "achievements") renderAchievements();
-    }).catch(() => {});
-  }
+  sb.rpc("record_screen_visit", { p_screen: name }).then(() => {
+    // Když je Úspěchy zrovna ta obrazovka, která odznáček odemkla, ta se
+    // stihne vykreslit dřív, než tenhle zápis doběhne na server (souběh
+    // dvou requestů) - proto ji po dokončení znovu překreslíme, ať se
+    // "Objevitel" objeví hned a ne až při dalším otevření.
+    if (name === "achievements") renderAchievements();
+  }).catch(() => {});
 }
 
 function showScreen(name) {
@@ -4690,24 +4687,27 @@ function renderBadgeCatalogInto(container, badges) {
     const grid = document.createElement("div");
     grid.className = "badge-grid";
     inSection.forEach((bd) => {
-      const backText = bd.earned
+      const backSubtitle = bd.earned
         ? "Získáno " + new Date(bd.earnedAt).toLocaleDateString("cs-CZ")
         : "Zatím nezískáno";
       const div = document.createElement("div");
       div.className = "badge-card" + (bd.earned ? " earned" : "");
       div.onclick = () => toggleBadgeFlip(div);
+      // Přední strana je záměrně stručná - jen ikonka, název a (u ještě
+      // nesplněných) drobný postup. Popisek a datum získání jsou až na
+      // zadní straně po kliknutí, ať se čtverečky nepřeplácají textem.
       div.innerHTML =
         "<div class='badge-card-inner'>" +
         "<div class='badge-card-front'>" +
         "<div class='badge-icon'>" + bd.icon + "</div>" +
         "<div class='badge-title'>" + esc(bd.title) + "</div>" +
-        "<div class='badge-desc'>" + esc(bd.desc) + "</div>" +
-        (bd.progress ? "<div class='badge-progress'>" + esc(bd.progress) + "</div>" : "") +
+        (bd.progress && !bd.earned ? "<div class='badge-progress'>" + esc(bd.progress) + "</div>" : "") +
         "</div>" +
         "<div class='badge-card-back'>" +
         "<div class='badge-icon'>" + bd.icon + "</div>" +
         "<div class='badge-title'>" + esc(bd.title) + "</div>" +
-        "<div class='badge-desc'>" + esc(backText) + "</div>" +
+        "<div class='badge-desc'>" + esc(bd.desc) + "</div>" +
+        "<div class='badge-progress'>" + esc(backSubtitle) + "</div>" +
         "</div>" +
         "</div>";
       grid.appendChild(div);
