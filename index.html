@@ -763,40 +763,76 @@
       <!-- KVIZY LIST -->
       <div class="screen hidden" id="screen-quizzes">
         <div id="studentQuizzesContent">
+          <button class="btn-secondary" onclick="openStudentQuizCreate()">+ Navrhnout vlastní kvíz</button>
+          <div id="myQuizSubmissionsWrap" class="hidden" style="margin-top:14px;">
+            <h2 class="section-title">Moje navržené kvízy</h2>
+            <div id="myQuizSubmissionsList"></div>
+          </div>
           <h2 class="section-title">Kvízy pro váš ročník</h2>
           <div id="quizListFull"></div>
         </div>
         <div id="teacherQuizzesContent" class="hidden">
           <button class="btn-primary" onclick="openQuizCreate()">+ Vytvořit nový kvíz</button>
+          <button class="btn-secondary" style="margin-top:10px;" onclick="showScreen('quiz-submissions-admin')">Návrhy od studentů</button>
           <h2 class="section-title">Vaše kvízy</h2>
           <div id="quizListAdmin"></div>
         </div>
       </div>
 
-      <!-- VYTVOŘENÍ KVÍZU (jen mistrová) -->
-      <div class="screen hidden" id="screen-quiz-create">
+      <!-- NÁVRHY KVÍZŮ OD STUDENTŮ (jen mistrová) -->
+      <div class="screen hidden" id="screen-quiz-submissions-admin">
         <span class="back-link" onclick="showScreen('quizzes')">&larr; Zpět na kvízy</span>
-        <h2 class="section-title">Nový kvíz</h2>
-        <div class="field">
-          <label>Název kvízu</label>
-          <input type="text" id="qcTitle" placeholder="např. Hygienické minimum">
-        </div>
-        <div class="field">
+        <h2 class="section-title">Návrhy od studentů</h2>
+        <div id="quizSubmissionsAdminList"></div>
+      </div>
+
+      <!-- VYTVOŘENÍ / NÁVRH / POSOUZENÍ KVÍZU (mistrová i student, podle režimu) -->
+      <div class="screen hidden" id="screen-quiz-create">
+        <span class="back-link" id="qcBackLink" onclick="showScreen('quizzes')">&larr; Zpět na kvízy</span>
+        <h2 class="section-title" id="qcHeading">Nový kvíz</h2>
+        <div class="field" id="qcRocnikField">
           <label>Ročník</label>
-          <select id="qcRocnik">
+          <select id="qcRocnik" onchange="checkQuizEditorDirty()">
             <option value="1">1. ročník</option>
             <option value="2">2. ročník</option>
             <option value="3">3. ročník</option>
+            <option value="all">Všechny ročníky</option>
+          </select>
+        </div>
+        <div class="field hidden" id="qcVisibilityField">
+          <label>Pro koho bude kvíz, až ho mistrová schválí</label>
+          <select id="qcVisibility">
+            <option value="rocnik">Jen pro můj ročník</option>
+            <option value="all">Pro všechny ročníky</option>
           </select>
         </div>
         <div class="field">
-          <label>Body za splnění</label>
-          <input type="number" id="qcPoints" min="0" value="5">
+          <label>Název kvízu</label>
+          <input type="text" id="qcTitle" placeholder="např. Hygienické minimum" oninput="checkQuizEditorDirty()">
         </div>
+        <div class="field" id="qcPointsField">
+          <label>Body za splnění</label>
+          <input type="number" id="qcPoints" min="0" value="5" oninput="checkQuizEditorDirty()">
+        </div>
+        <div class="hidden" id="qcAuthorNote" style="font-size:13px;color:var(--text-muted);margin-bottom:14px;"></div>
         <h2 class="section-title">Otázky</h2>
         <div id="qcQuestions"></div>
         <button class="btn-secondary" onclick="addQuizQuestion()">+ Přidat otázku</button>
+
+        <div class="hidden field" id="qcCommentField" style="margin-top:14px;">
+          <label>Komentář pro studenta (nepovinné)</label>
+          <textarea id="qcComment" rows="2" style="width:100%;padding:11px 12px;border-radius:10px;border:1px solid #E0DCD3;font-size:14px;font-family:inherit;"></textarea>
+        </div>
+
         <button class="btn-primary" style="margin-top:14px;" id="qcSaveBtn" onclick="saveQuizDraft()">Uložit kvíz</button>
+        <div class="hidden" id="qcReviewButtons" style="margin-top:14px;display:flex;flex-direction:column;gap:8px;">
+          <button class="btn-secondary" onclick="reviewStudentQuiz(quizEditorCurrentStatus)">Uložit změny</button>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-primary" style="flex:1;" onclick="reviewStudentQuiz('approved')">Schválit</button>
+            <button class="btn-secondary" style="flex:1;color:var(--red);" onclick="reviewStudentQuiz('rejected')">Zamítnout</button>
+          </div>
+        </div>
+        <button class="btn-primary hidden" style="margin-top:14px;" id="qcEditSaveBtn" onclick="saveQuizEdit()" disabled>Uložit</button>
         <div id="qcError"></div>
       </div>
 
@@ -1257,6 +1293,14 @@ let quizLockedTarget = null;
 let personalityResult = null; // { type_code, answers, completed_at } | null - z get_my_personality_result
 let personalityAnswers = [];  // pole "A"/"B" (20), jen během vyplňování testu
 let personalityReturnTo = "home";
+let myQuizSubmissions = [];       // studentovy vlastní navržené kvízy (jakýkoliv stav) - z get_my_quiz_submissions
+let quizSubmissionsAdmin = [];    // pro mistrovou - fronta všech studentských návrhů - z get_quiz_submissions_admin
+let quizEditorMode = "teacher-create"; // 'teacher-create' | 'student-create' | 'review' | 'teacher-edit'
+let quizEditorReviewId = null;
+let quizEditorReturnTo = "quiz-submissions-admin";
+let quizEditorCurrentStatus = "pending";
+let quizEditorOriginalSnapshot = ""; // 'teacher-edit': stav při otevření, pro poznání skutečné změny
+let quizEditorLoadedComment = null;  // 'teacher-edit': zachová dřívější komentář z posouzení, ať ho úprava nesmaže
 
 function initials(name) {
   return name.split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase();
@@ -1530,6 +1574,7 @@ async function completeLogin() {
   await loadQuizzes();
   await loadChallenges();
   await loadPersonalityResult();
+  await loadMyQuizSubmissions();
   renderHome();
   renderProfile();
   computeNavBadges();
@@ -1645,6 +1690,7 @@ function showScreen(name) {
     "quiz-review": ["Správné odpovědi", "Zkontroluj si odpovědi"],
     "quiz-locked": ["Kvíz zamčen", "Zkus to znovu později"],
     "quiz-create": ["Nový kvíz", "Vytvořit kvíz"],
+    "quiz-submissions-admin": ["Návrhy od studentů", "Kvízy čekající na posouzení"],
     "personality-take": ["Test osobnosti", "Pár otázek o tobě"],
     "personality-result": ["Test osobnosti", "Tvůj výsledek"],
     "quiz-students": ["Studenti", "Jak si vedli"],
@@ -1682,6 +1728,7 @@ function showScreen(name) {
   if (name === "profile") renderProfile();
   if (name === "home") renderHome();
   if (name === "quizzes") renderQuizList();
+  if (name === "quiz-submissions-admin") loadQuizSubmissionsAdmin();
   if (name === "quiz-review") renderQuizReview();
   if (name === "set-points") loadSetPoints();
   if (name === "challenges") renderChallenges();
@@ -1914,7 +1961,7 @@ function renderHomeLatestQuiz() {
   const div = document.createElement("div");
   div.className = "list-item " + quizStatusClass(q);
   div.innerHTML =
-    '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + q.questions.length + " otázky</div></div>" +
+    '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + q.questions.length + " otázky" + (q.author_name ? " &middot; Autor: " + esc(q.author_name) : "") + "</div></div>" +
     quizBadge(q);
   div.onclick = () => openQuiz(q.id);
   el.appendChild(div);
@@ -2229,7 +2276,7 @@ async function postAnnouncement() {
   errorEl.innerHTML = "<div class='demo-note'><b>Hotovo:</b> aktualita byla zveřejněna.</div>";
 }
 
-function renderQuizList() {
+async function renderQuizList() {
   if (!user) return;
 
   if (user.role === "mistrova") {
@@ -2263,7 +2310,7 @@ function renderQuizList() {
     const div = document.createElement("div");
     div.className = "list-item " + quizStatusClass(q);
     div.innerHTML =
-      '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + q.questions.length + " otázky · " + q.points + " bodů</div></div>" +
+      '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + q.questions.length + " otázky · " + q.points + " bodů" + (q.author_name ? " &middot; Autor: " + esc(q.author_name) : "") + "</div></div>" +
       quizBadge(q);
     div.onclick = () => openQuiz(q.id);
     list.appendChild(div);
@@ -2271,6 +2318,73 @@ function renderQuizList() {
 
   markSeen("forkit_seen_quiz_ids", quizzes.map((q) => q.id));
   setNavBadge("quizzes", 0);
+
+  await loadMyQuizSubmissions();
+  renderMyQuizSubmissions();
+}
+
+// ---------- VLASTNÍ NÁVRHY KVÍZŮ (studenti) ----------
+async function loadMyQuizSubmissions() {
+  if (!user || user.role !== "student") { myQuizSubmissions = []; return; }
+  const { data, error } = await sb.rpc("get_my_quiz_submissions");
+  myQuizSubmissions = error ? [] : (data || []);
+}
+
+function quizSubmissionDecisionKey(s) {
+  return s.id + "_" + (s.reviewed_at || "");
+}
+
+function renderMyQuizSubmissions() {
+  const wrap = document.getElementById("myQuizSubmissionsWrap");
+  const list = document.getElementById("myQuizSubmissionsList");
+  if (!wrap || !list) return;
+
+  const toShow = myQuizSubmissions.filter((s) => s.status !== "approved");
+  if (toShow.length === 0) {
+    wrap.classList.add("hidden");
+  } else {
+    wrap.classList.remove("hidden");
+    list.innerHTML = "";
+    toShow.forEach((s) => {
+      const div = document.createElement("div");
+      div.className = "list-item " + (s.status === "pending" ? "status-yellow" : "");
+      let meta = quizSubmissionStatusLabel(s.status);
+      if (s.status === "rejected" && s.review_comment) meta += ": " + s.review_comment;
+      div.innerHTML = "<div><div class='name'>" + esc(s.title) + "</div><div class='meta'>" + esc(meta) + "</div></div>";
+      list.appendChild(div);
+    });
+  }
+
+  // Poznámka: seen-stav se počítá ze všech rozhodnutých návrhů (i schválených),
+  // ne jen z těch zobrazených výše - schválené se totiž hned potom objeví v
+  // běžném seznamu kvízů, ale odznak "nové rozhodnutí" musí zmizet taky.
+  markSeen("forkit_seen_quiz_submission_decisions", myQuizSubmissions.filter((s) => s.status !== "pending" && s.reviewed_at).map(quizSubmissionDecisionKey));
+}
+
+// ---------- NÁVRHY OD STUDENTŮ (mistrová) ----------
+async function loadQuizSubmissionsAdmin() {
+  const list = document.getElementById("quizSubmissionsAdminList");
+  list.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const { data, error } = await sb.rpc("get_quiz_submissions_admin");
+  if (error) {
+    list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst: " + esc(error.message) + "</div>";
+    return;
+  }
+  quizSubmissionsAdmin = data || [];
+  if (quizSubmissionsAdmin.length === 0) {
+    list.innerHTML = "<div class='empty-note'>Zatím žádné návrhy od studentů.</div>";
+    return;
+  }
+  list.innerHTML = "";
+  quizSubmissionsAdmin.forEach((s) => {
+    const div = document.createElement("div");
+    div.className = "list-item " + (s.status === "pending" ? "status-yellow" : s.status === "approved" ? "status-green" : "");
+    div.innerHTML =
+      "<div><div class='name'>" + esc(s.title) + "</div><div class='meta'>Autor: " + esc(s.author_name) + " &middot; " + quizSubmissionStatusLabel(s.status) + "</div></div>" +
+      "<span class='badge-pts'>" + s.question_count + " ot.</span>";
+    div.onclick = () => openQuizReview(s.id, "quiz-submissions-admin");
+    list.appendChild(div);
+  });
 }
 
 // ---------- PROCVIČOVÁNÍ: KVÍZY NANEČISTO (oba typy uživatelů) ----------
@@ -2321,12 +2435,12 @@ async function loadQuizzesAdmin() {
     div.innerHTML =
       '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + q.rocnik + ". ročník · " + q.question_count + " otázky · " + q.points + " b.</div></div>" +
       '<span class="badge-pts">' + q.completed_count + "/" + q.total_students + "</span>";
-    const tryBtn = document.createElement("button");
-    tryBtn.className = "toggle-btn";
-    tryBtn.style.marginLeft = "8px";
-    tryBtn.textContent = "Vyzkoušet";
-    tryBtn.onclick = (e) => { e.stopPropagation(); openQuiz(q.id); };
-    div.appendChild(tryBtn);
+    const editBtn = document.createElement("button");
+    editBtn.className = "toggle-btn";
+    editBtn.style.marginLeft = "8px";
+    editBtn.textContent = "Upravit";
+    editBtn.onclick = (e) => { e.stopPropagation(); openQuizEdit(q.id, "quizzes"); };
+    div.appendChild(editBtn);
     div.onclick = () => openQuizStudents(q.id, q.title);
     list.appendChild(div);
   });
@@ -2377,7 +2491,28 @@ async function loadQuizStudents() {
 // ---------- VYTVOŘENÍ KVÍZU (jen mistrová) ----------
 let quizDraft = [];
 
+// Obrazovka "quiz-create" se používá ve třech režimech: mistrová vytváří
+// vlastní kvíz (teacher-create), student navrhuje kvíz ke schválení
+// (student-create), nebo mistrová posuzuje/upravuje studentův návrh
+// (review) - sdílejí stejný editor otázek, jen se liší pár polí a tlačítka.
+function setQuizEditorFieldsVisible({ rocnik, visibility, points, comment, saveBtn, reviewBtns, editSaveBtn }) {
+  document.getElementById("qcRocnikField").classList.toggle("hidden", !rocnik);
+  document.getElementById("qcVisibilityField").classList.toggle("hidden", !visibility);
+  document.getElementById("qcPointsField").classList.toggle("hidden", !points);
+  document.getElementById("qcCommentField").classList.toggle("hidden", !comment);
+  document.getElementById("qcSaveBtn").classList.toggle("hidden", !saveBtn);
+  document.getElementById("qcReviewButtons").classList.toggle("hidden", !reviewBtns);
+  document.getElementById("qcEditSaveBtn").classList.toggle("hidden", !editSaveBtn);
+}
+
 function openQuizCreate() {
+  quizEditorMode = "teacher-create";
+  quizEditorReviewId = null;
+  document.getElementById("qcHeading").textContent = "Nový kvíz";
+  document.getElementById("qcBackLink").onclick = () => showScreen("quizzes");
+  setQuizEditorFieldsVisible({ rocnik: true, visibility: false, points: true, comment: false, saveBtn: true, reviewBtns: false, editSaveBtn: false });
+  document.getElementById("qcAuthorNote").classList.add("hidden");
+  document.getElementById("qcSaveBtn").textContent = "Uložit kvíz";
   document.getElementById("qcTitle").value = "";
   document.getElementById("qcRocnik").value = "1";
   document.getElementById("qcPoints").value = "5";
@@ -2385,6 +2520,176 @@ function openQuizCreate() {
   quizDraft = [{ q: "", options: ["", ""], correct: 0 }];
   renderQuizDraft();
   showScreen("quiz-create");
+}
+
+// Student navrhne vlastní kvíz - bez bodování, to doplní mistrová při
+// schválení. Zvolí jen, jestli má platit pro jeho ročník nebo pro všechny.
+function openStudentQuizCreate() {
+  quizEditorMode = "student-create";
+  quizEditorReviewId = null;
+  document.getElementById("qcHeading").textContent = "Navrhnout kvíz";
+  document.getElementById("qcBackLink").onclick = () => showScreen("quizzes");
+  setQuizEditorFieldsVisible({ rocnik: false, visibility: true, points: false, comment: false, saveBtn: true, reviewBtns: false, editSaveBtn: false });
+  document.getElementById("qcAuthorNote").classList.add("hidden");
+  document.getElementById("qcSaveBtn").textContent = "Odeslat ke schválení";
+  document.getElementById("qcTitle").value = "";
+  document.getElementById("qcVisibility").value = "rocnik";
+  document.getElementById("qcError").innerHTML = "";
+  quizDraft = [{ q: "", options: ["", ""], correct: 0 }];
+  renderQuizDraft();
+  showScreen("quiz-create");
+  document.getElementById("topbarTitle").textContent = "Navrhnout kvíz";
+  document.getElementById("topbarSub").textContent = "Bez bodování - to doplní mistrová";
+}
+
+// Mistrová otevře studentův návrh - může upravit obsah, nastavit body a
+// viditelnost (ročník / všechny), a schválit nebo zamítnout (i opakovaně,
+// klidně i u už dřív rozhodnutého návrhu).
+async function openQuizReview(quizId, returnTo) {
+  quizEditorMode = "review";
+  quizEditorReviewId = quizId;
+  quizEditorReturnTo = returnTo || "quiz-submissions-admin";
+  document.getElementById("qcBackLink").onclick = () => showScreen(quizEditorReturnTo);
+  document.getElementById("qcHeading").textContent = "Posouzení návrhu";
+  setQuizEditorFieldsVisible({ rocnik: true, visibility: false, points: true, comment: true, saveBtn: false, reviewBtns: true, editSaveBtn: false });
+  document.getElementById("qcAuthorNote").classList.add("hidden");
+  document.getElementById("qcError").innerHTML = "<div class='empty-note'>Načítám...</div>";
+  document.getElementById("qcQuestions").innerHTML = "";
+  showScreen("quiz-create");
+  document.getElementById("topbarTitle").textContent = "Posouzení návrhu";
+  document.getElementById("topbarSub").textContent = "Uprav, schval nebo zamítni";
+
+  const { data, error } = await sb.rpc("get_quiz_submission_detail", { p_quiz_id: quizId });
+  document.getElementById("qcError").innerHTML = "";
+  if (error || !data || !data[0]) {
+    document.getElementById("qcError").innerHTML = "<div class='error-note'>Nepodařilo se načíst návrh.</div>";
+    return;
+  }
+  const s = data[0];
+  quizEditorCurrentStatus = s.status;
+  document.getElementById("qcTitle").value = s.title;
+  document.getElementById("qcRocnik").value = s.rocnik == null ? "all" : String(s.rocnik);
+  document.getElementById("qcPoints").value = s.points || 0;
+  document.getElementById("qcComment").value = s.review_comment || "";
+  const authorEl = document.getElementById("qcAuthorNote");
+  authorEl.classList.remove("hidden");
+  authorEl.textContent = "Autor: " + s.author_name + " · Stav: " + quizSubmissionStatusLabel(s.status);
+  quizDraft = (s.questions && s.questions.length ? s.questions : [{ q: "", options: ["", ""], correct: 0 }])
+    .map((q) => ({ q: q.q, options: q.options.slice(), correct: q.correct }));
+  renderQuizDraft();
+}
+
+function quizSubmissionStatusLabel(status) {
+  if (status === "pending") return "Čeká na schválení";
+  if (status === "approved") return "Schváleno";
+  return "Zamítnuto";
+}
+
+// Mistrová upraví existující (už živý) kvíz - svůj vlastní, nebo klidně i
+// dřív schválený studentský návrh. Na rozdíl od "review" (fronta ke
+// schválení) tu není komentář ani schválit/zamítnout - jen jedno tlačítko
+// Uložit, které je aktivní, teprve když se opravdu něco změnilo.
+async function openQuizEdit(quizId, returnTo) {
+  quizEditorMode = "teacher-edit";
+  quizEditorReviewId = quizId;
+  quizEditorReturnTo = returnTo || "quizzes";
+  quizEditorLoadedComment = null;
+  document.getElementById("qcBackLink").onclick = () => showScreen(quizEditorReturnTo);
+  document.getElementById("qcHeading").textContent = "Upravit kvíz";
+  setQuizEditorFieldsVisible({ rocnik: true, visibility: false, points: true, comment: false, saveBtn: false, reviewBtns: false, editSaveBtn: true });
+  document.getElementById("qcAuthorNote").classList.add("hidden");
+  document.getElementById("qcEditSaveBtn").disabled = true;
+  document.getElementById("qcEditSaveBtn").textContent = "Uložit";
+  document.getElementById("qcError").innerHTML = "<div class='empty-note'>Načítám...</div>";
+  document.getElementById("qcQuestions").innerHTML = "";
+  showScreen("quiz-create");
+  document.getElementById("topbarTitle").textContent = "Upravit kvíz";
+  document.getElementById("topbarSub").textContent = "Uprav a ulož změny";
+
+  const { data, error } = await sb.rpc("get_quiz_submission_detail", { p_quiz_id: quizId });
+  document.getElementById("qcError").innerHTML = "";
+  if (error || !data || !data[0]) {
+    document.getElementById("qcError").innerHTML = "<div class='error-note'>Nepodařilo se načíst kvíz.</div>";
+    return;
+  }
+  const s = data[0];
+  quizEditorLoadedComment = s.review_comment || null;
+  document.getElementById("qcTitle").value = s.title;
+  document.getElementById("qcRocnik").value = s.rocnik == null ? "all" : String(s.rocnik);
+  document.getElementById("qcPoints").value = s.points || 0;
+  if (s.author_name) {
+    const authorEl = document.getElementById("qcAuthorNote");
+    authorEl.classList.remove("hidden");
+    authorEl.textContent = "Autor: " + s.author_name;
+  }
+  quizDraft = (s.questions && s.questions.length ? s.questions : [{ q: "", options: ["", ""], correct: 0 }])
+    .map((q) => ({ q: q.q, options: q.options.slice(), correct: q.correct }));
+  renderQuizDraft();
+  quizEditorOriginalSnapshot = currentQuizEditorSnapshot();
+  checkQuizEditorDirty();
+}
+
+function currentQuizEditorSnapshot() {
+  return JSON.stringify({
+    title: document.getElementById("qcTitle").value.trim(),
+    rocnik: document.getElementById("qcRocnik").value,
+    points: document.getElementById("qcPoints").value,
+    questions: quizDraft,
+  });
+}
+
+// Zapíná/vypíná tlačítko Uložit v režimu "teacher-edit" podle toho, jestli
+// se obsah formuláře opravdu liší od stavu, se kterým se otevřel.
+function checkQuizEditorDirty() {
+  if (quizEditorMode !== "teacher-edit") return;
+  const btn = document.getElementById("qcEditSaveBtn");
+  if (!btn) return;
+  btn.disabled = currentQuizEditorSnapshot() === quizEditorOriginalSnapshot;
+}
+
+async function saveQuizEdit() {
+  const errorEl = document.getElementById("qcError");
+  errorEl.innerHTML = "";
+  const title = document.getElementById("qcTitle").value.trim();
+  const rocnikRaw = document.getElementById("qcRocnik").value;
+  const rocnik = rocnikRaw === "all" ? null : parseInt(rocnikRaw, 10);
+  const points = parseInt(document.getElementById("qcPoints").value, 10);
+
+  if (!title) {
+    errorEl.innerHTML = "<div class='error-note'>Zadejte prosím název kvízu.</div>";
+    return;
+  }
+  if (isNaN(points) || points < 0) {
+    errorEl.innerHTML = "<div class='error-note'>Zadejte platný počet bodů.</div>";
+    return;
+  }
+  if (!validateQuizDraftQuestions(errorEl)) return;
+
+  const btn = document.getElementById("qcEditSaveBtn");
+  btn.disabled = true;
+  btn.textContent = "Ukládám...";
+
+  const payload = quizDraft.map((q) => ({ q: q.q.trim(), options: q.options.map((o) => o.trim()), correct: q.correct }));
+  const { error } = await sb.rpc("review_student_quiz", {
+    p_quiz_id: quizEditorReviewId,
+    p_title: title,
+    p_questions: payload,
+    p_points: points,
+    p_rocnik: rocnik,
+    p_status: "approved",
+    p_comment: quizEditorLoadedComment,
+  });
+
+  btn.textContent = "Uložit";
+
+  if (error) {
+    btn.disabled = false;
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se uložit: " + esc(error.message) + "</div>";
+    return;
+  }
+
+  quizEditorOriginalSnapshot = currentQuizEditorSnapshot();
+  showScreen(quizEditorReturnTo);
 }
 
 function addQuizQuestion() {
@@ -2412,14 +2717,17 @@ function removeQuizOption(qi, oi) {
 
 function updateQuizQuestionText(qi, value) {
   quizDraft[qi].q = value;
+  checkQuizEditorDirty();
 }
 
 function updateQuizOptionText(qi, oi, value) {
   quizDraft[qi].options[oi] = value;
+  checkQuizEditorDirty();
 }
 
 function updateQuizCorrect(qi, oi) {
   quizDraft[qi].correct = oi;
+  checkQuizEditorDirty();
 }
 
 function renderQuizDraft() {
@@ -2490,13 +2798,33 @@ function renderQuizDraft() {
 
     container.appendChild(box);
   });
+  checkQuizEditorDirty();
+}
+
+function validateQuizDraftQuestions(errorEl) {
+  for (const q of quizDraft) {
+    if (!q.q.trim()) {
+      errorEl.innerHTML = "<div class='error-note'>Vyplňte prosím text u všech otázek.</div>";
+      return false;
+    }
+    if (q.options.some((o) => !o.trim())) {
+      errorEl.innerHTML = "<div class='error-note'>Vyplňte prosím všechny možnosti odpovědí.</div>";
+      return false;
+    }
+  }
+  return true;
 }
 
 async function saveQuizDraft() {
+  if (quizEditorMode === "student-create") {
+    return submitStudentQuizDraft();
+  }
+
   const errorEl = document.getElementById("qcError");
   errorEl.innerHTML = "";
   const title = document.getElementById("qcTitle").value.trim();
-  const rocnik = parseInt(document.getElementById("qcRocnik").value, 10);
+  const rocnikRaw = document.getElementById("qcRocnik").value;
+  const rocnik = rocnikRaw === "all" ? null : parseInt(rocnikRaw, 10);
   const points = parseInt(document.getElementById("qcPoints").value, 10);
 
   if (!title) {
@@ -2507,16 +2835,7 @@ async function saveQuizDraft() {
     errorEl.innerHTML = "<div class='error-note'>Zadejte platný počet bodů.</div>";
     return;
   }
-  for (const q of quizDraft) {
-    if (!q.q.trim()) {
-      errorEl.innerHTML = "<div class='error-note'>Vyplňte prosím text u všech otázek.</div>";
-      return;
-    }
-    if (q.options.some((o) => !o.trim())) {
-      errorEl.innerHTML = "<div class='error-note'>Vyplňte prosím všechny možnosti odpovědí.</div>";
-      return;
-    }
-  }
+  if (!validateQuizDraftQuestions(errorEl)) return;
 
   const btn = document.getElementById("qcSaveBtn");
   btn.disabled = true;
@@ -2539,6 +2858,82 @@ async function saveQuizDraft() {
   }
 
   showScreen("quizzes");
+}
+
+async function submitStudentQuizDraft() {
+  const errorEl = document.getElementById("qcError");
+  errorEl.innerHTML = "";
+  const title = document.getElementById("qcTitle").value.trim();
+  const visibility = document.getElementById("qcVisibility").value;
+
+  if (!title) {
+    errorEl.innerHTML = "<div class='error-note'>Zadejte prosím název kvízu.</div>";
+    return;
+  }
+  if (!validateQuizDraftQuestions(errorEl)) return;
+
+  const btn = document.getElementById("qcSaveBtn");
+  btn.disabled = true;
+  btn.textContent = "Odesílám...";
+
+  const payload = quizDraft.map((q) => ({ q: q.q.trim(), options: q.options.map((o) => o.trim()), correct: q.correct }));
+  const { error } = await sb.rpc("create_student_quiz", {
+    p_title: title,
+    p_questions: payload,
+    p_visibility: visibility,
+  });
+
+  btn.disabled = false;
+  btn.textContent = "Odeslat ke schválení";
+
+  if (error) {
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se odeslat: " + esc(error.message) + "</div>";
+    return;
+  }
+
+  await loadMyQuizSubmissions();
+  renderMyQuizSubmissions();
+  showScreen("quizzes");
+}
+
+// Mistrová uloží úpravy návrhu a zároveň rozhodne (nebo jen přeuloží
+// stávající stav přes tlačítko "Uložit změny", které posílá aktuální status).
+async function reviewStudentQuiz(status) {
+  const errorEl = document.getElementById("qcError");
+  errorEl.innerHTML = "";
+  const title = document.getElementById("qcTitle").value.trim();
+  const rocnikRaw = document.getElementById("qcRocnik").value;
+  const rocnik = rocnikRaw === "all" ? null : parseInt(rocnikRaw, 10);
+  const points = parseInt(document.getElementById("qcPoints").value, 10);
+  const comment = document.getElementById("qcComment").value.trim();
+
+  if (!title) {
+    errorEl.innerHTML = "<div class='error-note'>Zadejte prosím název kvízu.</div>";
+    return;
+  }
+  if (isNaN(points) || points < 0) {
+    errorEl.innerHTML = "<div class='error-note'>Zadejte platný počet bodů.</div>";
+    return;
+  }
+  if (!validateQuizDraftQuestions(errorEl)) return;
+
+  const payload = quizDraft.map((q) => ({ q: q.q.trim(), options: q.options.map((o) => o.trim()), correct: q.correct }));
+  const { error } = await sb.rpc("review_student_quiz", {
+    p_quiz_id: quizEditorReviewId,
+    p_title: title,
+    p_questions: payload,
+    p_points: points,
+    p_rocnik: rocnik,
+    p_status: status,
+    p_comment: comment || null,
+  });
+
+  if (error) {
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se uložit: " + esc(error.message) + "</div>";
+    return;
+  }
+
+  showScreen(quizEditorReturnTo);
 }
 
 // Vrátí nové pole se zamíchaným pořadím prvků (Fisher–Yates).
@@ -4307,7 +4702,12 @@ async function computeNavBadges() {
 
   if (user.role === "student") {
     const seenQuizIds = getSeenSet("forkit_seen_quiz_ids");
-    setNavBadge("quizzes", quizzes.filter((q) => !seenQuizIds.has(q.id)).length);
+    const seenSubmissionDecisions = getSeenSet("forkit_seen_quiz_submission_decisions");
+    const newQuizCount = quizzes.filter((q) => !seenQuizIds.has(q.id)).length;
+    const decidedSubmissionCount = myQuizSubmissions.filter(
+      (s) => s.status !== "pending" && s.reviewed_at && !seenSubmissionDecisions.has(quizSubmissionDecisionKey(s))
+    ).length;
+    setNavBadge("quizzes", newQuizCount + decidedSubmissionCount);
 
     const seenChallengeDecisionIds = getSeenSet("forkit_seen_challenge_decision_ids");
     setNavBadge(
@@ -4324,6 +4724,9 @@ async function computeNavBadges() {
   } else if (user.role === "mistrova") {
     const { data: pending } = await sb.rpc("get_pending_challenge_submissions");
     setNavBadge("challenges", pending ? pending.length : 0);
+
+    const { data: pendingQuizzes } = await sb.rpc("get_quiz_submissions_admin");
+    setNavBadge("quizzes", pendingQuizzes ? pendingQuizzes.filter((q) => q.status === "pending").length : 0);
   }
 
   await updateMessagesBadge();
