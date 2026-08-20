@@ -715,6 +715,12 @@
       <div class="screen hidden" id="screen-home">
         <div id="homeMessageBanner" class="hidden"></div>
         <div id="studentHomeContent">
+          <div id="personalityPrompt" class="hidden" style="margin-bottom:14px;">
+            <div class="list-item status-yellow" onclick="openPersonalityTest('home')">
+              <div><div class="name">Vyplň úvodní test osobnosti</div><div class="meta">Pomůže mistrové poznat, jak s tebou komunikovat &middot; zabere cca 5 minut</div></div>
+              <span class="badge-pts">Nový</span>
+            </div>
+          </div>
           <div class="card points-card" style="cursor:pointer;" onclick="openPointsBreakdown('home')">
             <div class="num" id="homePoints">0</div>
             <div class="label">celkem bodů &middot; klepni pro rozpis</div>
@@ -1000,6 +1006,22 @@
         <button class="btn-primary" onclick="backToQuizList()">Zpět na kvízy</button>
       </div>
 
+      <!-- TEST OSOBNOSTI: VYPLNĚNÍ (jen studenti, jednorázově) -->
+      <div class="screen hidden" id="screen-personality-take">
+        <span class="back-link" onclick="showScreen(personalityReturnTo)">&larr; Zpět</span>
+        <h2 class="section-title">Test osobnosti</h2>
+        <p class="lb-note">Vyber vždy tu možnost, která je ti bližší. Není tu žádná správná ani špatná odpověď. Zabere to asi 5 minut.</p>
+        <div id="personalityQuestions"></div>
+        <button class="btn-primary" id="submitPersonalityBtn" onclick="submitPersonalityTest()">Odeslat odpovědi</button>
+        <div id="personalityTakeError"></div>
+      </div>
+
+      <!-- TEST OSOBNOSTI: VÝSLEDEK (jen ke čtení, nejde vyplnit znovu) -->
+      <div class="screen hidden" id="screen-personality-result">
+        <span class="back-link" onclick="showScreen(personalityReturnTo)">&larr; Zpět</span>
+        <div id="personalityResultContent"></div>
+      </div>
+
       <!-- LEADERBOARD -->
       <div class="screen hidden" id="screen-leaderboard">
         <div id="studentLeaderboardContent">
@@ -1141,6 +1163,8 @@
           </div>
         </div>
 
+        <div id="compDetailPersonality"></div>
+
         <h2 class="section-title">Kvízy</h2>
         <div id="compDetailQuizList"><div class="empty-note">Načítám...</div></div>
 
@@ -1230,6 +1254,9 @@ let lastCorrectAnswers = [];
 let lbFilter = "all";
 let quizLockedTimer = null;
 let quizLockedTarget = null;
+let personalityResult = null; // { type_code, answers, completed_at } | null - z get_my_personality_result
+let personalityAnswers = [];  // pole "A"/"B" (20), jen během vyplňování testu
+let personalityReturnTo = "home";
 
 function initials(name) {
   return name.split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase();
@@ -1502,6 +1529,7 @@ async function completeLogin() {
 
   await loadQuizzes();
   await loadChallenges();
+  await loadPersonalityResult();
   renderHome();
   renderProfile();
   computeNavBadges();
@@ -1608,6 +1636,8 @@ function showScreen(name) {
     "quiz-review": ["Správné odpovědi", "Zkontroluj si odpovědi"],
     "quiz-locked": ["Kvíz zamčen", "Zkus to znovu později"],
     "quiz-create": ["Nový kvíz", "Vytvořit kvíz"],
+    "personality-take": ["Test osobnosti", "Pár otázek o tobě"],
+    "personality-result": ["Test osobnosti", "Tvůj výsledek"],
     "quiz-students": ["Studenti", "Jak si vedli"],
     "set-points": ["Body", "Nastavit body studentům"],
     challenges: ["Výzvy", "Praktické úkoly"],
@@ -1695,6 +1725,7 @@ function renderHome() {
   document.getElementById("studentHomeContent").classList.remove("hidden");
   document.getElementById("teacherHomeContent").classList.add("hidden");
 
+  renderHomePersonalityPrompt();
   document.getElementById("homePoints").textContent = user.points;
   loadRank();
   renderHomeNews();
@@ -1897,6 +1928,175 @@ function renderHomeLatestChallenge() {
   el.appendChild(div);
 }
 
+// ---------- TEST OSOBNOSTI (vstupní, jednorázový) ----------
+// 40 otázek po 10 na dichotomii E/I, S/N, T/F, J/P - odpověď "A" patří vždy
+// prvnímu písmenu dvojice, "B" druhému. Vyhodnocení (podle většiny v každé
+// desítce, při shodě 5:5 se přiklání k prvnímu písmenu) dělá DB funkce
+// submit_personality_test, appka jen sbírá A/B.
+const PERSONALITY_QUESTIONS = [
+  { q: "Po náročné směně si nejradši odpočineš:", a: "S partou lidí, někde venku", b: "Sama/sám doma, v klidu" },
+  { q: "Nové postupy se nejlíp naučíš, když:", a: "O nich s někým mluvíš nahlas", b: "Máš čas si je v tichu projít sama/sám" },
+  { q: "Na stáži v nové restauraci:", a: "Rychle oslovíš nové kolegy", b: "Nejdřív si je chvíli jen pozoruješ" },
+  { q: "Volný večer raději strávíš:", a: "S partou kamarádů", b: "Sama/sám, u filmu nebo knížky" },
+  { q: "Při skupinové práci ve škole:", a: "Rovnou nahlas přemýšlíš a reaguješ", b: "Nejdřív si to promyslíš, pak řekneš" },
+  { q: "Když řešíš problém, raději:", a: "Probereš ho nahlas s někým", b: "Srovnáš si ho nejdřív sama/sám v hlavě" },
+  { q: "Po prezentaci nebo vystoupení před ostatními se cítíš:", a: "Nabitá/ý energií", b: "Vyčerpaná/ý, potřebuješ chvíli klid" },
+  { q: "Na akci, kde skoro nikoho neznáš:", a: "Rychle se zapojíš do řeči", b: "Radši se držíš chvíli stranou" },
+  { q: "Když tě napadne nový nápad, nejdřív ho:", a: "Řekneš nahlas, ať to slyší i ostatní", b: "Necháš si ho chvíli pro sebe" },
+  { q: "O přestávce nebo v jídelně raději:", a: "Sedíš s velkou partou", b: "Sedíš jen s jedním nebo dvěma lidmi" },
+
+  { q: "Nový recept raději:", a: "Přesně odměříš a dodržíš postup", b: "Upravíš podle vlastního nápadu a citu" },
+  { q: "Víc tě zajímá:", a: "Jak se přesně co dělá, krok za krokem", b: "Proč to funguje a jak by se to dalo zlepšit" },
+  { q: "V receptu tě nejvíc zajímají:", a: "Konkrétní čísla, časy a teploty", b: "Celková myšlenka a možnosti obměny" },
+  { q: "Radši řešíš:", a: "Věci, co jsou tady a teď, prakticky", b: "Nápady a možnosti do budoucna" },
+  { q: "Když se ti něco povede, chceš to příště:", a: "Zopakovat přesně stejně", b: "Zkusit trochu jinak" },
+  { q: "Když ti někdo vysvětluje nový postup, potřebuješ hlavně:", a: "Konkrétní příklad, na kterém to uvidíš", b: "Nejdřív pochopit celkový princip" },
+  { q: "Raději věříš:", a: "Tomu, co sis sama/sám ověřil/a a vyzkoušel/a", b: "Svému tušení, i když to nejde přesně vysvětlit" },
+  { q: "Když popisuješ, jak se ti něco povedlo, mluvíš spíš:", a: "O konkrétních krocích, které jsi udělal/a", b: "O celkovém dojmu a pocitu z toho" },
+  { q: "Ve volném čase tě víc baví:", a: "Ověřené a osvědčené věci", b: "Zkoušet něco úplně nového" },
+  { q: "Při čtení zadání úkolu se soustředíš hlavně na:", a: "Přesné požadavky a detaily", b: "Celkovou hlavní myšlenku" },
+
+  { q: "Když kolega/kolegyně udělá chybu, nejdřív:", a: "Řekneš, co je špatně a jak to opravit", b: "Zeptáš se, jestli je v pořádku" },
+  { q: "Rozhodnutí děláš raději podle:", a: "Logiky a faktů", b: "Toho, jak se u toho cítíš ty i ostatní" },
+  { q: "Víc ti pomůže zpětná vazba, která je:", a: "Věcná a na rovinu, i když tvrdší", b: "Citlivá, s ohledem na to, jak ji podáš" },
+  { q: "Při hodnocení jídla je pro tebe důležitější:", a: "Jestli splňuje technické parametry", b: "Jestli lidem chutná a udělá radost" },
+  { q: "V konfliktu s kolegou raději:", a: "Vyřešíš to narovinu, i za cenu napětí", b: "Hledáš kompromis, aby byl klid" },
+  { q: "Když má tým nejlepší, ale nepříjemné řešení, raději:", a: "Prosadíš ho, i když se to někomu nebude líbit", b: "Hledáš variantu, se kterou budou spokojení všichni" },
+  { q: "Kritiku od ostatních:", a: "Bereš jako fakta k zlepšení, moc tě to nerozhodí", b: "Bereš si ji osobně, chvíli tě to mrzí" },
+  { q: "Při hodnocení spolužáka/spolužačky se řídíš hlavně:", a: "Tím, jestli splnil/a zadané parametry", b: "Tím, jak moc se snažil/a" },
+  { q: "Když je někdo smutný nebo pláče, spíš:", a: "Snažíš se najít praktické řešení problému", b: "Nejdřív ho/ji utěšíš a vyslechneš" },
+  { q: "Pravidla a předpisy jsou pro tebe:", a: "Důležitá a měla by platit pro všechny stejně", b: "Něco, co jde přizpůsobit podle situace a lidí" },
+
+  { q: "Práci na směně máš raději:", a: "Naplánovanou předem, krok za krokem", b: "Rozhodneš za pochodu, podle situace" },
+  { q: "Tvoje pracovní místo je obvykle:", a: "Uklizené a systematické", b: "Trochu chaotické, ale funkční" },
+  { q: "Úkoly a termíny:", a: "Plníš s předstihem", b: "Doděláváš na poslední chvíli" },
+  { q: "Když se plán na poslední chvíli změní:", a: "Je ti to nepříjemné", b: "Klidně se přizpůsobíš" },
+  { q: "Radši máš:", a: "Jasná pravidla a postupy", b: "Volnost a improvizaci" },
+  { q: "Než začneš vařit, obvykle:", a: "Máš připravené všechny suroviny a postup", b: "Začneš a doplňuješ za pochodu, co je potřeba" },
+  { q: "Rozhodnutí děláš raději:", a: "Rychle, ať to máš z krku", b: "Necháš si otevřené možnosti co nejdéle" },
+  { q: "Když máš na něčem dělat víc dní, raději si to:", a: "Rozvrhneš předem po částech", b: "Necháš plynout a doděláš, jak to půjde" },
+  { q: "Nedokončené úkoly ti:", a: "Dělají starosti, dokud je nemáš hotové", b: "Moc nevadí, klidně se k nim vrátíš později" },
+  { q: "Ve svém pokoji nebo skříňce máš:", a: "Věci uspořádané na svém místě", b: "Systém, který chápeš jen ty sama/sám" },
+];
+
+const PERSONALITY_TYPES = {
+  ISTJ: { title: "Spolehlivý organizátor", desc: "Systematický, zodpovědný typ, který se drží pravidel a osvědčených postupů. V kuchyni exceluje v přesnosti a dodržování receptur, nemá rád chaos ani zbytečnou improvizaci. Jak s ním/ní komunikovat: dávej mu/jí jasné, konkrétní zadání a dostatek času na přípravu. Ocení věcnou zpětnou vazbu bez emocí." },
+  ISFJ: { title: "Pečlivý pomocník", desc: "Klidný a ohleduplný typ, který rád pomáhá a stará se o pohodu ostatních. Nemá rád, když je středem pozornosti. Jak s ním/ní komunikovat: mluv s ním/ní v klidu a nejlépe v soukromí, ocenění řekni osobně, ne před celou třídou." },
+  INFJ: { title: "Tichý vizionář", desc: "Empatický a hloubavý typ, který hledá smysl v tom, co dělá, a umí dobře naslouchat druhým. Jak s ním/ní komunikovat: dej mu/jí prostor věci si promyslet, ocení upřímný a osobní rozhovor o tom, proč danou práci dělá." },
+  INTJ: { title: "Samostatný stratég", desc: "Analytický a nezávislý typ, který si rád věci promýšlí do detailu a hledá, jak postupy zlepšit. Jak s ním/ní komunikovat: argumentuj logikou a fakty, nech ho/ji pracovat samostatně – ocení věcnost před emocemi." },
+  ISTP: { title: "Praktický experimentátor", desc: "Klidný a zručný typ, který se nejlíp učí tím, že si věc sám/sama vyzkouší. Nemá rád zbytečné řeči kolem dokola. Jak s ním/ní komunikovat: ukaž mu/jí postup prakticky a nech ho/ji experimentovat." },
+  ISFP: { title: "Tichý tvůrce", desc: "Citlivý typ s výtvarným citem, který rád tvoří vlastním tempem. Nemá rád tlak ani kritiku před ostatními. Jak s ním/ní komunikovat: chval konkrétně, kritiku podávej v soukromí a jemně." },
+  INFP: { title: "Citlivý idealista", desc: "Hodnotově založený a empatický typ, který v práci hledá smysl a autenticitu. Občas si není jistý/á sám/sama sebou. Jak s ním/ní komunikovat: buď trpělivá, povzbuzuj a projev opravdový zájem o jeho/její pohled na věc." },
+  INTP: { title: "Zvídavý analytik", desc: "Logický a zvídavý typ, který rád zkoumá, proč věci fungují tak, jak fungují. Rutina ho/ji spíš unavuje. Jak s ním/ní komunikovat: nech prostor na otázky a vlastní řešení, argumentuj fakty." },
+  ESTP: { title: "Akční realista", desc: "Energický a pragmatický typ, který v provozu reaguje rychle a učí se přímo v akci. Dlouhé teoretizování ho/ji nebaví. Jak s ním/ní komunikovat: dávej krátké, jasné pokyny a rovnou ho/ji pusť do praxe." },
+  ESFP: { title: "Spontánní bavič", desc: "Přátelský a živý typ, který rád je součástí dění a baví ostatní kolem sebe. S dlouhou teorií rychle ztrácí trpělivost. Jak s ním/ní komunikovat: buď přátelská, dej mu/jí prostor se projevit, praktické úkoly ho/ji baví víc než výklad." },
+  ENFP: { title: "Nadšený objevitel", desc: "Kreativní a společenský typ, který se snadno nadchne pro nové nápady. Rutina ho/ji spíš unavuje. Jak s ním/ní komunikovat: nabídni pestrost a nové výzvy, ocení osobní vztah a povzbuzení." },
+  ENTP: { title: "Vynalézavý diskutér", desc: "Rychle přemýšlející typ, který rád zpochybňuje zavedené postupy a hledá nová řešení. Jak s ním/ní komunikovat: nech prostor k diskuzi a vlastním nápadům, neboj se s ním/ní zapříst debatu." },
+  ESTJ: { title: "Rozhodný organizátor", desc: "Praktický a přímočarý typ, který rád vede a drží pořádek. Očekává jasná pravidla. Jak s ním/ní komunikovat: buď konkrétní a věcná, ocení, když dostane odpovědnost." },
+  ESFJ: { title: "Vstřícný týmový hráč", desc: "Společenský a pečlivý typ, kterému záleží na dobré atmosféře v týmu. Rád pomáhá a potřebuje být oceňován. Jak s ním/ní komunikovat: chval klidně i veřejně, dbej na harmonii v kolektivu kolem něj/ní." },
+  ENFJ: { title: "Přirozený motivátor", desc: "Charismatický a empatický typ, který umí strhnout a povzbudit ostatní. Citlivě vnímá napětí v kolektivu. Jak s ním/ní komunikovat: dej mu/jí prostor pomáhat druhým, ocení smysluplnou a upřímnou zpětnou vazbu." },
+  ENTJ: { title: "Cílevědomý vůdce", desc: "Sebejistý a organizovaný typ, který rád přebírá vedení a posouvá věci dopředu. Netrpělivý s neefektivitou. Jak s ním/ní komunikovat: buď věcná a přímá, dej mu/jí odpovědnost a jasný cíl." },
+};
+
+async function loadPersonalityResult() {
+  if (!user || user.role !== "student") { personalityResult = null; return; }
+  const { data, error } = await sb.rpc("get_my_personality_result");
+  personalityResult = (!error && data && data[0]) ? data[0] : null;
+}
+
+function renderHomePersonalityPrompt() {
+  const el = document.getElementById("personalityPrompt");
+  if (!el) return;
+  el.classList.toggle("hidden", !!personalityResult);
+}
+
+function openPersonalityTest(returnTo) {
+  personalityReturnTo = returnTo || "home";
+  if (personalityResult) {
+    renderPersonalityResult();
+    showScreen("personality-result");
+  } else {
+    startPersonalityTake();
+  }
+}
+
+function startPersonalityTake() {
+  personalityAnswers = new Array(PERSONALITY_QUESTIONS.length).fill(null);
+  const container = document.getElementById("personalityQuestions");
+  container.innerHTML = "";
+  PERSONALITY_QUESTIONS.forEach((item, qi) => {
+    const box = document.createElement("div");
+    box.className = "quiz-question";
+    box.innerHTML =
+      "<p class='q'>" + (qi + 1) + ". " + esc(item.q) + "</p>" +
+      "<label class='quiz-option' id='popt-" + qi + "-A'><input type='radio' name='p" + qi + "' onclick='selectPersonalityAnswer(" + qi + ",\"A\")'>" + esc(item.a) + "</label>" +
+      "<label class='quiz-option' id='popt-" + qi + "-B'><input type='radio' name='p" + qi + "' onclick='selectPersonalityAnswer(" + qi + ",\"B\")'>" + esc(item.b) + "</label>";
+    container.appendChild(box);
+  });
+  document.getElementById("personalityTakeError").innerHTML = "";
+  showScreen("personality-take");
+}
+
+function selectPersonalityAnswer(qi, val) {
+  personalityAnswers[qi] = val;
+  document.getElementById("popt-" + qi + "-A").classList.toggle("selected", val === "A");
+  document.getElementById("popt-" + qi + "-B").classList.toggle("selected", val === "B");
+}
+
+async function submitPersonalityTest() {
+  const errorEl = document.getElementById("personalityTakeError");
+  errorEl.innerHTML = "";
+  if (personalityAnswers.includes(null)) {
+    errorEl.innerHTML = "<div class='error-note'>Odpověz prosím na všechny otázky.</div>";
+    return;
+  }
+  const btn = document.getElementById("submitPersonalityBtn");
+  btn.disabled = true;
+  const { data, error } = await sb.rpc("submit_personality_test", { p_answers: personalityAnswers });
+  btn.disabled = false;
+  if (error) {
+    if (error.message && error.message.includes("ALREADY_COMPLETED")) {
+      await loadPersonalityResult();
+      renderHomePersonalityPrompt();
+      renderPersonalityResult();
+      showScreen("personality-result");
+      return;
+    }
+    errorEl.innerHTML = "<div class='error-note'>Něco se nepovedlo: " + esc(error.message) + "</div>";
+    return;
+  }
+  personalityResult = { type_code: data, answers: personalityAnswers.slice(), completed_at: new Date().toISOString() };
+  renderHomePersonalityPrompt();
+  renderPersonalityResult();
+  showScreen("personality-result");
+}
+
+function renderPersonalityResult() {
+  const container = document.getElementById("personalityResultContent");
+  if (!personalityResult) {
+    container.innerHTML = "<div class='empty-note'>Zatím jsi test nevyplnil/a.</div>";
+    return;
+  }
+  const info = PERSONALITY_TYPES[personalityResult.type_code] || { title: "", desc: "" };
+  let html =
+    "<div class='card' style='text-align:center;'>" +
+    "<div style='font-size:30px;font-weight:800;color:var(--primary);font-family:\"Poppins\",sans-serif;'>" + esc(personalityResult.type_code) + "</div>" +
+    "<div style='font-size:15px;font-weight:700;margin-top:2px;'>" + esc(info.title) + "</div>" +
+    "<div style='font-size:13px;color:var(--text);margin-top:10px;line-height:1.5;text-align:left;'>" + esc(info.desc) + "</div>" +
+    "</div>";
+
+  html += "<h2 class='section-title'>Tvoje odpovědi</h2>";
+  const answers = personalityResult.answers || [];
+  PERSONALITY_QUESTIONS.forEach((item, qi) => {
+    const chosen = answers[qi] === "A" ? item.a : answers[qi] === "B" ? item.b : "—";
+    html +=
+      "<div class='comp-quiz-row'><div><div class='name'>" + esc(item.q) + "</div>" +
+      "<div class='sub'>" + esc(chosen) + "</div></div></div>";
+  });
+
+  container.innerHTML = html;
+}
+
 async function postAnnouncement() {
   const textEl = document.getElementById("newsTextInput");
   const text = textEl.value.trim();
@@ -1929,8 +2129,21 @@ function renderQuizList() {
 
   const list = document.getElementById("quizListFull");
   list.innerHTML = "";
+
+  const pdiv = document.createElement("div");
+  pdiv.className = "list-item " + (personalityResult ? "status-green" : "status-yellow");
+  pdiv.innerHTML =
+    "<div><div class='name'>Test osobnosti</div><div class='meta'>" +
+    (personalityResult ? "Tvůj výsledek: " + esc(personalityResult.type_code) : "Vyplň a zjisti svůj výsledek &middot; cca 5 minut") +
+    "</div></div><span class='badge-pts'>" + (personalityResult ? "Hotovo" : "Nový") + "</span>";
+  pdiv.onclick = () => openPersonalityTest("quizzes");
+  list.appendChild(pdiv);
+
   if (quizzes.length === 0) {
-    list.innerHTML = "<div class='empty-note'>Zatím tu pro váš ročník nejsou žádné kvízy.</div>";
+    const emptyDiv = document.createElement("div");
+    emptyDiv.className = "empty-note";
+    emptyDiv.textContent = "Zatím tu pro váš ročník nejsou žádné kvízy.";
+    list.appendChild(emptyDiv);
   }
   quizzes.forEach((q) => {
     const div = document.createElement("div");
@@ -3620,11 +3833,13 @@ async function openCompetitorDetail(id) {
   document.getElementById("compDetailQuizList").innerHTML = "<div class='empty-note'>Načítám...</div>";
   document.getElementById("compDetailChallengeList").innerHTML = "<div class='empty-note'>Načítám...</div>";
   document.getElementById("compDetailBadges").innerHTML = "";
+  document.getElementById("compDetailPersonality").innerHTML = "";
 
-  const [statsRes, quizRes, challengeRes] = await Promise.all([
+  const [statsRes, quizRes, challengeRes, persRes] = await Promise.all([
     sb.rpc("get_student_badges_stats", { p_student_id: id }),
     sb.rpc("get_student_quiz_results", { p_student_id: id }),
     sb.rpc("get_student_challenge_results", { p_student_id: id }),
+    sb.rpc("get_student_personality", { p_student_id: id }),
   ]);
 
   if (currentCompetitorId !== id) return; // mezitím otevřela detail jiného studenta
@@ -3637,6 +3852,20 @@ async function openCompetitorDetail(id) {
   } else {
     document.getElementById("compDetailQuizCount").textContent = "0";
     document.getElementById("compDetailChallengeCount").textContent = "0";
+  }
+
+  const persEl = document.getElementById("compDetailPersonality");
+  if (!persRes.error && persRes.data && persRes.data[0]) {
+    const p = persRes.data[0];
+    const info = PERSONALITY_TYPES[p.type_code] || { title: "", desc: "" };
+    persEl.innerHTML =
+      "<h2 class='section-title'>Test osobnosti</h2>" +
+      "<div class='card'>" +
+      "<div style='font-size:20px;font-weight:800;color:var(--primary);font-family:\"Poppins\",sans-serif;'>" + esc(p.type_code) + (info.title ? " &middot; " + esc(info.title) : "") + "</div>" +
+      "<div style='font-size:13px;color:var(--text);margin-top:8px;line-height:1.5;'>" + esc(info.desc) + "</div>" +
+      "</div>";
+  } else {
+    persEl.innerHTML = "<h2 class='section-title'>Test osobnosti</h2><div class='empty-note'>Zatím nevyplnil/a test osobnosti.</div>";
   }
 
   const quizListEl = document.getElementById("compDetailQuizList");
@@ -3800,7 +4029,11 @@ async function renderProfile() {
   } else {
     avatarEl.innerHTML = "<span id='profileInitials'>" + esc(initials(user.name)) + "</span>";
   }
-  document.getElementById("profileName").textContent = user.name;
+  let nameHtml = esc(user.name);
+  if (user.role === "student" && personalityResult && personalityResult.type_code) {
+    nameHtml += " <span style='display:inline-block;font-size:12px;font-weight:700;color:var(--primary);background:#FFF6D9;padding:2px 8px;border-radius:8px;vertical-align:middle;'>" + esc(personalityResult.type_code) + "</span>";
+  }
+  document.getElementById("profileName").innerHTML = nameHtml;
 
   const pointsSection = document.getElementById("profilePointsSection");
 
