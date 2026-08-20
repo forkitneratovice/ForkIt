@@ -1562,6 +1562,15 @@ async function afterLogin(event) {
   completeLogin();
 }
 
+// Zaznamená přihlášení pro odznáčky (streak, "první přihlášení", noční
+// sova/ranní ptáče podle lokální hodiny v telefonu) - pro mistrovou se na
+// serveru rovnou přeskočí, tady jen ať to nespadne, kdyby RPC chybělo.
+async function recordLoginActivity() {
+  try {
+    await sb.rpc("record_login_activity", { p_local_hour: new Date().getHours() });
+  } catch (e) {}
+}
+
 async function completeLogin() {
   document.getElementById("hamburgerBtn").classList.remove("hidden");
   document.getElementById("homeBtn").classList.remove("hidden");
@@ -1575,6 +1584,7 @@ async function completeLogin() {
   document.getElementById("navCompetitorsSidebar").classList.toggle("hidden", !showCompetitors);
   document.getElementById("navCompetitorsDrawer").classList.toggle("hidden", !showCompetitors);
 
+  await recordLoginActivity();
   await loadQuizzes();
   await loadChallenges();
   await loadPersonalityResult();
@@ -1667,8 +1677,27 @@ function closeNavDrawer() {
   document.getElementById("hamburgerBtn").classList.remove("open");
 }
 
+// Hlavní sekce appky pro odznáček "Objevitel" - jakmile student navštíví
+// všechny, pošle se to na server jen jednou (localStorage hlídá, ať to
+// nevoláme opakovaně při každé další návštěvě už objevené sekce).
+const CORE_EXPLORER_SCREENS = ["home", "quizzes", "challenges", "practice-hub", "slovnik", "leaderboard", "achievements", "messages", "profile"];
+
+function trackExplorerVisit(name) {
+  if (!user || user.role !== "student" || !CORE_EXPLORER_SCREENS.includes(name)) return;
+  const key = "forkit_visited_screens_" + user.id;
+  let visited;
+  try { visited = JSON.parse(localStorage.getItem(key) || "[]"); } catch (e) { visited = []; }
+  if (visited.includes(name) && visited.length >= CORE_EXPLORER_SCREENS.length) return;
+  if (!visited.includes(name)) visited.push(name);
+  try { localStorage.setItem(key, JSON.stringify(visited)); } catch (e) {}
+  if (CORE_EXPLORER_SCREENS.every((s) => visited.includes(s))) {
+    sb.rpc("award_explorer_badge").catch(() => {});
+  }
+}
+
 function showScreen(name) {
   closeNavDrawer();
+  trackExplorerVisit(name);
   if (name !== "quiz-locked" && quizLockedTimer) {
     clearInterval(quizLockedTimer);
     quizLockedTimer = null;
@@ -4283,6 +4312,9 @@ async function loadRank() {
   document.getElementById("homeRank").textContent = row.my_rank
     ? "Pozice v žebříčku: " + row.my_rank + ". z " + row.my_total
     : "Pozice v žebříčku: —";
+  // Odemyká odznáčky za 1. místo / postup v žebříčku - počítá se vždy znovu
+  // server-side (viz check_rank_badges), tady se to jen odpaluje na pozadí.
+  sb.rpc("check_rank_badges").catch(() => {});
 }
 
 // ---------- SOUTĚŽÍCÍ (přehled studentů, jen mistrová) ----------
@@ -4450,41 +4482,7 @@ async function openCompetitorDetail(id) {
 }
 
 function renderCompetitorBadges(b) {
-  const badges = [
-    {
-      icon: "&#127942;",
-      title: "10 kvízů na 100 %",
-      desc: "Dokončil/a 10 kvízů s plným počtem bodů (100 %).",
-      progress: Math.min(b.perfect_quizzes, 10) + " / 10",
-      earned: b.perfect_quizzes >= 10,
-    },
-    {
-      icon: "&#9989;",
-      title: "10 splněných kvízů",
-      desc: "Dokončil/a celkem 10 různých kvízů.",
-      progress: Math.min(b.completed_quizzes, 10) + " / 10",
-      earned: b.completed_quizzes >= 10,
-    },
-    {
-      icon: "&#128172;",
-      title: "20 reakcí",
-      desc: "Přidal/a 20 reakcí u aktualit nebo slova dne.",
-      progress: Math.min(b.reactions_count, 20) + " / 20",
-      earned: b.reactions_count >= 20,
-    },
-  ];
-  const list = document.getElementById("compDetailBadges");
-  list.innerHTML = "";
-  badges.forEach((bd) => {
-    const div = document.createElement("div");
-    div.className = "badge-card" + (bd.earned ? " earned" : "");
-    div.innerHTML =
-      "<div class='badge-icon'>" + bd.icon + "</div>" +
-      "<div class='badge-title'>" + esc(bd.title) + "</div>" +
-      "<div class='badge-desc'>" + esc(bd.desc) + "</div>" +
-      "<div class='badge-progress'>" + esc(bd.progress) + "</div>";
-    list.appendChild(div);
-  });
+  renderBadgeCatalogInto(document.getElementById("compDetailBadges"), buildBadgeCatalog(b));
 }
 
 function openAvatarLightbox(url) {
@@ -4588,6 +4586,82 @@ async function renderProfile() {
 }
 
 // ---------- ÚSPĚCHY (odznáčky) ----------
+// Jeden centrální katalog všech odznáčků, sdílený mezi vlastní obrazovkou
+// Úspěchy, detailem studenta pro mistrovou a výpočtem "kolik je nových
+// nepřečtených odznáčků" v navigaci - ať se prahy nikde nerozjedou.
+// `b` = řádek z get_my_badges()/get_student_badges_stats().
+function buildBadgeCatalog(b) {
+  const has = (code) => (b.earned_codes || []).includes(code);
+  return [
+    // ---- Aktivita ----
+    { section: "Aktivita", key: "first_login", icon: "&#128075;", title: "První přihlášení", desc: "Vítej ve ForkIt! Poprvé ses přihlásil/a do appky.", earned: has("first_login") },
+    { section: "Aktivita", key: "login_streak_7", icon: "&#128293;", title: "Věrný student", desc: "Přihlas se 7 dní po sobě.", earned: has("login_streak_7") },
+
+    // ---- Kvízy ----
+    { section: "Kvízy", key: "quiz_created1", icon: "&#128221;", title: "Vlastní tvorba", desc: "Navrhni svůj první vlastní kvíz.", earned: b.created_quizzes >= 1 },
+    { section: "Kvízy", key: "quiz_done1", icon: "&#9989;", title: "První kvíz", desc: "Dokonči svůj první kvíz.", earned: b.completed_quizzes >= 1 },
+    { section: "Kvízy", key: "quiz_done10", icon: "&#9989;", title: "10 splněných kvízů", desc: "Dokonči celkem 10 různých kvízů.", progress: Math.min(b.completed_quizzes, 10) + " / 10", earned: b.completed_quizzes >= 10 },
+    { section: "Kvízy", key: "quiz_done25", icon: "&#9989;", title: "25 splněných kvízů", desc: "Dokonči celkem 25 různých kvízů.", progress: Math.min(b.completed_quizzes, 25) + " / 25", earned: b.completed_quizzes >= 25 },
+    { section: "Kvízy", key: "quiz_done50", icon: "&#9989;", title: "50 splněných kvízů", desc: "Dokonči celkem 50 různých kvízů.", progress: Math.min(b.completed_quizzes, 50) + " / 50", earned: b.completed_quizzes >= 50 },
+    { section: "Kvízy", key: "quiz_perfect1", icon: "&#127919;", title: "Na jedničku", desc: "Dokonči kvíz na 100 %.", earned: b.perfect_quizzes >= 1 },
+    { section: "Kvízy", key: "quiz_perfect_streak5", icon: "&#129504;", title: "Mozek na baru", desc: "Zvládni 5 kvízů v řadě na 100 %.", progress: Math.min(b.perfect_streak, 5) + " / 5", earned: b.perfect_streak >= 5 },
+
+    // ---- Výzvy ----
+    { section: "Výzvy", key: "challenge_done1", icon: "&#127859;", title: "První výzva", desc: "Splň svou první výzvu.", earned: b.challenges_completed >= 1 },
+    { section: "Výzvy", key: "challenge_done5", icon: "&#127859;", title: "5 splněných výzev", desc: "Splň celkem 5 výzev.", progress: Math.min(b.challenges_completed, 5) + " / 5", earned: b.challenges_completed >= 5 },
+    { section: "Výzvy", key: "challenge_done10", icon: "&#127859;", title: "10 splněných výzev", desc: "Splň celkem 10 výzev.", progress: Math.min(b.challenges_completed, 10) + " / 10", earned: b.challenges_completed >= 10 },
+    { section: "Výzvy", key: "challenge_done25", icon: "&#127859;", title: "25 splněných výzev", desc: "Splň celkem 25 výzev.", progress: Math.min(b.challenges_completed, 25) + " / 25", earned: b.challenges_completed >= 25 },
+    { section: "Výzvy", key: "challenge_first_in_class", icon: "&#129351;", title: "Průkopník", desc: "Splň výzvu jako první ze svého ročníku.", earned: !!b.first_in_class_challenge },
+
+    // ---- Komunita ----
+    { section: "Komunita", key: "message1", icon: "&#128172;", title: "První zpráva", desc: "Napiš mistrové svou první zprávu.", earned: b.messages_sent >= 1 },
+    { section: "Komunita", key: "reaction1", icon: "&#128077;", title: "První reakce", desc: "Přidej svou první reakci u aktuality nebo slova dne.", earned: b.reactions_given >= 1 },
+    { section: "Komunita", key: "reaction10", icon: "&#128077;", title: "10 reakcí", desc: "Přidej celkem 10 reakcí.", progress: Math.min(b.reactions_given, 10) + " / 10", earned: b.reactions_given >= 10 },
+    { section: "Komunita", key: "reaction50", icon: "&#128077;", title: "50 reakcí", desc: "Přidej celkem 50 reakcí.", progress: Math.min(b.reactions_given, 50) + " / 50", earned: b.reactions_given >= 50 },
+
+    // ---- Žebříček ----
+    { section: "Žebříček", key: "rank1", icon: "&#128081;", title: "Král/Královna žebříčku", desc: "Dostaň se na 1. místo v celkovém žebříčku, byť jen na den.", earned: has("rank_1_ever") },
+    { section: "Žebříček", key: "rank_jump5", icon: "&#128640;", title: "Postup o 5 míst", desc: "Poskoč v žebříčku aspoň o 5 míst nahoru.", earned: has("rank_jump_5") },
+    { section: "Žebříček", key: "rank_jump10", icon: "&#128640;", title: "Postup o 10 míst", desc: "Poskoč v žebříčku aspoň o 10 míst nahoru.", earned: has("rank_jump_10") },
+
+    // ---- Různé ----
+    { section: "Různé", key: "personality", icon: "&#129504;", title: "Sebepoznání", desc: "Vyplň test osobnosti.", earned: !!b.personality_done },
+    { section: "Různé", key: "explorer", icon: "&#128506;", title: "Objevitel", desc: "Projdi si všechny hlavní sekce appky.", earned: has("explorer") },
+    { section: "Různé", key: "night_owl", icon: "&#127769;", title: "Noční sova", desc: "Buď v appce aktivní po 22:00.", earned: has("night_owl") },
+    { section: "Různé", key: "early_bird", icon: "&#127749;", title: "Ranní ptáče", desc: "Buď v appce aktivní před 7:00.", earned: has("early_bird") },
+
+    // ---- Výročí ----
+    { section: "Výročí", key: "anniversary1y", icon: "&#127881;", title: "1 rok v ForkIt", desc: "Buď zaregistrovaný/á celý rok.", progress: Math.min(b.days_since_registration || 0, 365) + " / 365 dní", earned: (b.days_since_registration || 0) >= 365 },
+  ];
+}
+
+const BADGE_SECTION_ORDER = ["Aktivita", "Kvízy", "Výzvy", "Komunita", "Žebříček", "Různé", "Výročí"];
+
+function renderBadgeCatalogInto(container, badges) {
+  container.innerHTML = "";
+  BADGE_SECTION_ORDER.forEach((section) => {
+    const inSection = badges.filter((bd) => bd.section === section);
+    if (!inSection.length) return;
+    const heading = document.createElement("h2");
+    heading.className = "section-title";
+    heading.textContent = section;
+    container.appendChild(heading);
+    const grid = document.createElement("div");
+    grid.className = "badge-grid";
+    inSection.forEach((bd) => {
+      const div = document.createElement("div");
+      div.className = "badge-card" + (bd.earned ? " earned" : "");
+      div.innerHTML =
+        "<div class='badge-icon'>" + bd.icon + "</div>" +
+        "<div class='badge-title'>" + esc(bd.title) + "</div>" +
+        "<div class='badge-desc'>" + esc(bd.desc) + "</div>" +
+        (bd.progress ? "<div class='badge-progress'>" + esc(bd.progress) + "</div>" : "");
+      grid.appendChild(div);
+    });
+    container.appendChild(grid);
+  });
+}
+
 async function renderAchievements() {
   const list = document.getElementById("achievementsList");
   list.innerHTML = "<div class='empty-note'>Načítám...</div>";
@@ -4604,41 +4678,7 @@ async function renderAchievements() {
   }
   const b = data[0];
 
-  const badges = [
-    {
-      icon: "&#127942;",
-      title: "10 kvízů na 100 %",
-      desc: "Dokonči 10 kvízů s plným počtem bodů (100 %).",
-      progress: Math.min(b.perfect_quizzes, 10) + " / 10",
-      earned: b.perfect_quizzes >= 10,
-    },
-    {
-      icon: "&#9989;",
-      title: "10 splněných kvízů",
-      desc: "Dokonči celkem 10 různých kvízů.",
-      progress: Math.min(b.completed_quizzes, 10) + " / 10",
-      earned: b.completed_quizzes >= 10,
-    },
-    {
-      icon: "&#128172;",
-      title: "20 reakcí",
-      desc: "Přidej 20 reakcí u aktualit nebo slova dne.",
-      progress: Math.min(b.reactions_count, 20) + " / 20",
-      earned: b.reactions_count >= 20,
-    },
-  ];
-
-  list.innerHTML = "";
-  badges.forEach((bd) => {
-    const div = document.createElement("div");
-    div.className = "badge-card" + (bd.earned ? " earned" : "");
-    div.innerHTML =
-      "<div class='badge-icon'>" + bd.icon + "</div>" +
-      "<div class='badge-title'>" + esc(bd.title) + "</div>" +
-      "<div class='badge-desc'>" + esc(bd.desc) + "</div>" +
-      "<div class='badge-progress'>" + esc(bd.progress) + "</div>";
-    list.appendChild(div);
-  });
+  renderBadgeCatalogInto(list, buildBadgeCatalog(b));
 
   markSeen("forkit_seen_badge_keys", earnedBadgeKeys(b));
   setNavBadge("achievements", 0);
@@ -4749,11 +4789,7 @@ async function computeNavBadges() {
 // Vrátí seznam klíčů odznáčků, které student aktuálně splňuje (podle stejných
 // prahů jako renderAchievements).
 function earnedBadgeKeys(b) {
-  const keys = [];
-  if (b.perfect_quizzes >= 10) keys.push("perfect10");
-  if (b.completed_quizzes >= 10) keys.push("completed10");
-  if (b.reactions_count >= 20) keys.push("reactions20");
-  return keys;
+  return buildBadgeCatalog(b).filter((bd) => bd.earned).map((bd) => bd.key);
 }
 
 // ---------- ZPRÁVY (chat) ----------
