@@ -1628,7 +1628,12 @@ function showScreen(name) {
     try { localStorage.setItem("forkit_last_screen", name); } catch (e) {}
   }
   document.querySelectorAll(".screen").forEach((el) => el.classList.add("hidden"));
-  document.getElementById("screen-" + name).classList.remove("hidden");
+  const targetScreen = document.getElementById("screen-" + name);
+  targetScreen.classList.remove("hidden");
+  // Každá obrazovka má vlastní scroll (viz .screen { overflow-y: auto }), takže
+  // se nestačí spolehnout na scroll okna - bez tohohle by třeba výsledek testu
+  // osobnosti/kvízu zůstal odscrollovaný tam, kde byla předchozí obrazovka.
+  targetScreen.scrollTop = 0;
   document.querySelectorAll(".nav-item").forEach((el) => el.classList.remove("active"));
   document.querySelectorAll('.nav-item[data-nav="' + name + '"]').forEach((el) => el.classList.add("active"));
 
@@ -1983,23 +1988,90 @@ const PERSONALITY_QUESTIONS = [
   { q: "Ve svém pokoji nebo skříňce máš:", a: "Věci uspořádané na svém místě", b: "Systém, který chápeš jen ty sama/sám" },
 ];
 
+// "desc" vidí student u svého výsledku - obecný popis typu, bez rad ke
+// komunikaci. "teacherTip" je jen pro mistrovou (Soutěžící - detail
+// studenta), aby věděla, jak se studentem nejlíp komunikovat.
 const PERSONALITY_TYPES = {
-  ISTJ: { title: "Spolehlivý organizátor", desc: "Systematický, zodpovědný typ, který se drží pravidel a osvědčených postupů. V kuchyni exceluje v přesnosti a dodržování receptur, nemá rád chaos ani zbytečnou improvizaci. Jak s ním/ní komunikovat: dávej mu/jí jasné, konkrétní zadání a dostatek času na přípravu. Ocení věcnou zpětnou vazbu bez emocí." },
-  ISFJ: { title: "Pečlivý pomocník", desc: "Klidný a ohleduplný typ, který rád pomáhá a stará se o pohodu ostatních. Nemá rád, když je středem pozornosti. Jak s ním/ní komunikovat: mluv s ním/ní v klidu a nejlépe v soukromí, ocenění řekni osobně, ne před celou třídou." },
-  INFJ: { title: "Tichý vizionář", desc: "Empatický a hloubavý typ, který hledá smysl v tom, co dělá, a umí dobře naslouchat druhým. Jak s ním/ní komunikovat: dej mu/jí prostor věci si promyslet, ocení upřímný a osobní rozhovor o tom, proč danou práci dělá." },
-  INTJ: { title: "Samostatný stratég", desc: "Analytický a nezávislý typ, který si rád věci promýšlí do detailu a hledá, jak postupy zlepšit. Jak s ním/ní komunikovat: argumentuj logikou a fakty, nech ho/ji pracovat samostatně – ocení věcnost před emocemi." },
-  ISTP: { title: "Praktický experimentátor", desc: "Klidný a zručný typ, který se nejlíp učí tím, že si věc sám/sama vyzkouší. Nemá rád zbytečné řeči kolem dokola. Jak s ním/ní komunikovat: ukaž mu/jí postup prakticky a nech ho/ji experimentovat." },
-  ISFP: { title: "Tichý tvůrce", desc: "Citlivý typ s výtvarným citem, který rád tvoří vlastním tempem. Nemá rád tlak ani kritiku před ostatními. Jak s ním/ní komunikovat: chval konkrétně, kritiku podávej v soukromí a jemně." },
-  INFP: { title: "Citlivý idealista", desc: "Hodnotově založený a empatický typ, který v práci hledá smysl a autenticitu. Občas si není jistý/á sám/sama sebou. Jak s ním/ní komunikovat: buď trpělivá, povzbuzuj a projev opravdový zájem o jeho/její pohled na věc." },
-  INTP: { title: "Zvídavý analytik", desc: "Logický a zvídavý typ, který rád zkoumá, proč věci fungují tak, jak fungují. Rutina ho/ji spíš unavuje. Jak s ním/ní komunikovat: nech prostor na otázky a vlastní řešení, argumentuj fakty." },
-  ESTP: { title: "Akční realista", desc: "Energický a pragmatický typ, který v provozu reaguje rychle a učí se přímo v akci. Dlouhé teoretizování ho/ji nebaví. Jak s ním/ní komunikovat: dávej krátké, jasné pokyny a rovnou ho/ji pusť do praxe." },
-  ESFP: { title: "Spontánní bavič", desc: "Přátelský a živý typ, který rád je součástí dění a baví ostatní kolem sebe. S dlouhou teorií rychle ztrácí trpělivost. Jak s ním/ní komunikovat: buď přátelská, dej mu/jí prostor se projevit, praktické úkoly ho/ji baví víc než výklad." },
-  ENFP: { title: "Nadšený objevitel", desc: "Kreativní a společenský typ, který se snadno nadchne pro nové nápady. Rutina ho/ji spíš unavuje. Jak s ním/ní komunikovat: nabídni pestrost a nové výzvy, ocení osobní vztah a povzbuzení." },
-  ENTP: { title: "Vynalézavý diskutér", desc: "Rychle přemýšlející typ, který rád zpochybňuje zavedené postupy a hledá nová řešení. Jak s ním/ní komunikovat: nech prostor k diskuzi a vlastním nápadům, neboj se s ním/ní zapříst debatu." },
-  ESTJ: { title: "Rozhodný organizátor", desc: "Praktický a přímočarý typ, který rád vede a drží pořádek. Očekává jasná pravidla. Jak s ním/ní komunikovat: buď konkrétní a věcná, ocení, když dostane odpovědnost." },
-  ESFJ: { title: "Vstřícný týmový hráč", desc: "Společenský a pečlivý typ, kterému záleží na dobré atmosféře v týmu. Rád pomáhá a potřebuje být oceňován. Jak s ním/ní komunikovat: chval klidně i veřejně, dbej na harmonii v kolektivu kolem něj/ní." },
-  ENFJ: { title: "Přirozený motivátor", desc: "Charismatický a empatický typ, který umí strhnout a povzbudit ostatní. Citlivě vnímá napětí v kolektivu. Jak s ním/ní komunikovat: dej mu/jí prostor pomáhat druhým, ocení smysluplnou a upřímnou zpětnou vazbu." },
-  ENTJ: { title: "Cílevědomý vůdce", desc: "Sebejistý a organizovaný typ, který rád přebírá vedení a posouvá věci dopředu. Netrpělivý s neefektivitou. Jak s ním/ní komunikovat: buď věcná a přímá, dej mu/jí odpovědnost a jasný cíl." },
+  ISTJ: {
+    title: "Spolehlivý organizátor",
+    desc: "Systematický, zodpovědný a spolehlivý typ, který se drží pravidel, řádu a osvědčených postupů. V kuchyni exceluje v přesnosti, dodržování receptur a hygienických standardů – na takového člověka je spolehnutí. Nemá rád chaos, unáhlené změny ani zbytečnou improvizaci, potřebuje jasně danou strukturu. Motivuje ho pocit, že dělá věci pořádně a že jeho práce má smysl a řád.",
+    teacherTip: "Dávej mu/jí jasné, konkrétní zadání a dostatek času na přípravu. Ocení věcnou zpětnou vazbu bez emocí.",
+  },
+  ISFJ: {
+    title: "Pečlivý pomocník",
+    desc: "Klidný, ohleduplný a pečlivý typ, kterému záleží na tom, aby se ostatní kolem něj cítili dobře. Rád pomáhá, je spolehlivý v drobné každodenní práci a nemá rád, když je středem pozornosti. V kolektivu je tichou, ale důležitou oporou – všimne si, když někdo potřebuje pomoct, i beze slov. Potřebuje cítit, že jeho snaha je vidět a že na jeho práci záleží.",
+    teacherTip: "Mluv s ním/ní v klidu a nejlépe v soukromí, ocenění řekni osobně, ne před celou třídou.",
+  },
+  INFJ: {
+    title: "Tichý vizionář",
+    desc: "Empatický a hloubavý typ, který hledá smysl v tom, co dělá, a snadno vycítí, jak se druzí cítí. Umí dobře naslouchat a přemýšlí do hloubky, i když navenek působí spíš tiše a zdrženlivě. V praxi ho baví, když může věci dělat po svém a s jasným účelem, ne jen mechanicky. Potřebuje prostor na rozmyšlenou a upřímný, autentický vztah s lidmi kolem sebe.",
+    teacherTip: "Dej mu/jí prostor věci si promyslet, ocení upřímný a osobní rozhovor o tom, proč danou práci dělá.",
+  },
+  INTJ: {
+    title: "Samostatný stratég",
+    desc: "Analytický, nezávislý a cílevědomý typ, který si rád věci promýšlí do detailu a hledá, jak postupy a systémy zlepšit. Nebojí se jít proti zavedeným zvyklostem, pokud má pocit, že existuje lepší způsob. Pracuje nejraději samostatně a soustředěně, dlouhé řeči kolem dokola ho/ji spíš unavují. Motivuje ho vlastní kompetence a viditelný pokrok, ne pochvala sama o sobě.",
+    teacherTip: "Argumentuj logikou a fakty, nech ho/ji pracovat samostatně – ocení věcnost před emocemi.",
+  },
+  ISTP: {
+    title: "Praktický experimentátor",
+    desc: "Klidný, zručný a praktický typ, který se nejlíp učí tím, že si věc sám/sama vyzkouší. V kuchyni bývá typicky šikovný na techniku a řemeslo, rychle pochopí, jak co funguje, když to má v rukou. Nemá rád zbytečnou teorii ani dlouhé vysvětlování, chce rovnou k věci. Potřebuje prostor experimentovat a najít si vlastní způsob, jak úkol zvládnout.",
+    teacherTip: "Ukaž mu/jí postup prakticky a nech ho/ji experimentovat.",
+  },
+  ISFP: {
+    title: "Tichý tvůrce",
+    desc: "Citlivý typ s výtvarným a estetickým citem, který rád tvoří vlastním tempem a podle svého vkusu. V kuchyni to může být vidět na tom, jak mu/jí záleží na vzhledu talíře nebo detailu, kterého si ostatní ani nevšimnou. Nemá rád tlak, spěch ani kritiku před ostatními, potřebuje klid na to, aby mohl/a ukázat, co v něm/ní je. Motivuje ho možnost vyjádřit se po svém, ne podle přísně daného vzoru.",
+    teacherTip: "Chval konkrétně, kritiku podávej v soukromí a jemně.",
+  },
+  INFP: {
+    title: "Citlivý idealista",
+    desc: "Hodnotově založený a empatický typ, který v práci hledá smysl, autenticitu a soulad s tím, čemu věří. Má bohatou vnitřní představivost, i když to navenek nemusí být hned vidět. Občas si není jistý/á sám/sama sebou a potřebuje víc povzbuzení než jiní. Nejvíc ho motivuje pocit, že to, co dělá, má hodnotu a že za tím opravdu stojí on/ona sám/sama.",
+    teacherTip: "Buď trpělivá, povzbuzuj a projev opravdový zájem o jeho/její pohled na věc.",
+  },
+  INTP: {
+    title: "Zvídavý analytik",
+    desc: "Logický a zvídavý typ, který rád zkoumá, proč věci fungují tak, jak fungují, a hledá souvislosti, které jiní přehlédnou. Rutina a opakování ho/ji spíš unavuje, potřebuje nové otázky a problémy k řešení. V týmu může působit trochu stranou, ale má rád, když může přispět nápadem nebo vylepšením postupu. Motivuje ho poznání a pochopení věci do hloubky, ne jen správný výsledek.",
+    teacherTip: "Nech prostor na otázky a vlastní řešení, argumentuj fakty.",
+  },
+  ESTP: {
+    title: "Akční realista",
+    desc: "Energický, pragmatický a přizpůsobivý typ, který v provozu reaguje rychle a učí se přímo v akci. Dlouhé teoretizování ho/ji nebaví, potřebuje rovnou vidět výsledek své práce. Má rád živý, rychlý provoz, kde se něco děje, a snadno se přizpůsobí změně plánu. Motivuje ho výzva a možnost ukázat, co umí, tady a teď.",
+    teacherTip: "Dávej krátké, jasné pokyny a rovnou ho/ji pusť do praxe.",
+  },
+  ESFP: {
+    title: "Spontánní bavič",
+    desc: "Přátelský, živý a spontánní typ, který rád je součástí dění a dokáže rozproudit náladu kolem sebe. S dlouhou teorií a čekáním rychle ztrácí trpělivost, potřebuje se hýbat a být v akci. Práce s lidmi a přímý kontakt s hosty by ho/ji typicky bavily víc než papírování v zázemí. Motivuje ho pozornost, zábava a pocit, že dělá radost druhým.",
+    teacherTip: "Buď přátelská, dej mu/jí prostor se projevit, praktické úkoly ho/ji baví víc než výklad.",
+  },
+  ENFP: {
+    title: "Nadšený objevitel",
+    desc: "Kreativní, společenský a nadšený typ, který se snadno rozjede pro nové nápady a lidi kolem sebe strhne s sebou. Rutina a striktní postupy ho/ji spíš unavují, potřebuje pestrost a prostor zkoušet věci jinak. Bývá citlivý na atmosféru v kolektivu a vnímá, jak se ostatní cítí. Motivuje ho novost, svoboda a osobní vztah s lidmi, se kterými pracuje.",
+    teacherTip: "Nabídni pestrost a nové výzvy, ocení osobní vztah a povzbuzení.",
+  },
+  ENTP: {
+    title: "Vynalézavý diskutér",
+    desc: "Rychle přemýšlející a vynalézavý typ, který rád zpochybňuje zavedené postupy a hledá nová, chytřejší řešení. Baví ho diskuze a intelektuální výzva, klidně se přihlásí o slovo i s nepohodlnou otázkou. Rutinní, mechanická práce ho/ji rychle omrzí, potřebuje prostor na vlastní nápady. Motivuje ho možnost něco vymyslet a zlepšit, ne jen opakovat, co už bylo.",
+    teacherTip: "Nech prostor k diskuzi a vlastním nápadům, neboj se s ním/ní zapříst debatu.",
+  },
+  ESTJ: {
+    title: "Rozhodný organizátor",
+    desc: "Praktický, přímočarý a organizovaný typ, který rád vede, drží pořádek a očekává jasná pravidla pro všechny. V provozu je spolehlivý a efektivní, rychle si zorganizuje práci i lidi kolem sebe. Nemá trpělivost s neefektivitou nebo chaosem, jde mu/jí hlavně o výsledek. Motivuje ho odpovědnost, viditelný pořádek a pocit, že věci fungují tak, jak mají.",
+    teacherTip: "Buď konkrétní a věcná, ocení, když dostane odpovědnost.",
+  },
+  ESFJ: {
+    title: "Vstřícný týmový hráč",
+    desc: "Společenský, pečlivý a starostlivý typ, kterému hodně záleží na dobré atmosféře v týmu. Rád pomáhá, organizuje a stará se, aby bylo všem kolem dobře, a potřebuje cítit, že si toho ostatní všímají. V provozu bývá spolehlivou, pečující oporou týmu. Motivuje ho ocenění, harmonie v kolektivu a pocit sounáležitosti.",
+    teacherTip: "Chval klidně i veřejně, dbej na harmonii v kolektivu kolem něj/ní.",
+  },
+  ENFJ: {
+    title: "Přirozený motivátor",
+    desc: "Charismatický a empatický typ, který umí strhnout a povzbudit ostatní kolem sebe. Citlivě vnímá napětí v kolektivu a často se ho snaží urovnat, i na úkor sebe sama. Baví ho pomáhat druhým růst a vidět jejich pokrok. Motivuje ho smysluplný vztah s lidmi a pocit, že svou prací pomáhá někomu jinému být lepší.",
+    teacherTip: "Dej mu/jí prostor pomáhat druhým, ocení smysluplnou a upřímnou zpětnou vazbu.",
+  },
+  ENTJ: {
+    title: "Cílevědomý vůdce",
+    desc: "Sebejistý, organizovaný a cílevědomý typ, který rád přebírá vedení a posouvá věci dopředu. Má jasnou představu, kam to má směřovat, a nerad ztrácí čas neefektivitou. V týmu bývá přirozenou vůdčí osobností, i když si to sám/sama nemusí uvědomovat. Motivuje ho viditelný pokrok, odpovědnost a možnost věci reálně ovlivnit.",
+    teacherTip: "Buď věcná a přímá, dej mu/jí odpovědnost a jasný cíl.",
+  },
 };
 
 async function loadPersonalityResult() {
@@ -3920,6 +3992,7 @@ async function openCompetitorDetail(id) {
       "<div class='card'>" +
       "<div style='font-size:20px;font-weight:800;color:var(--primary);font-family:\"Poppins\",sans-serif;'>" + esc(p.type_code) + (info.title ? " &middot; " + esc(info.title) : "") + "</div>" +
       "<div style='font-size:13px;color:var(--text);margin-top:8px;line-height:1.5;'>" + esc(info.desc) + "</div>" +
+      (info.teacherTip ? "<div style='font-size:13px;color:var(--text);margin-top:12px;padding-top:12px;border-top:1px solid #E0DCD3;line-height:1.5;'><b>Jak s ním/ní komunikovat:</b> " + esc(info.teacherTip) + "</div>" : "") +
       "</div>";
   } else {
     persEl.innerHTML = "<h2 class='section-title'>Test osobnosti</h2><div class='empty-note'>Zatím nevyplnil/a test osobnosti.</div>";
