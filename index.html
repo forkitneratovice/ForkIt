@@ -2595,6 +2595,34 @@ function openChallenge(id) {
   showScreen("challenge-detail");
 }
 
+// Rozepsaný, ještě neodeslaný text výzvy se ukládá do localStorage podle
+// id výzvy a uživatele - když student omylem vyleze na jinou obrazovku
+// (nebo appku zavře) a vrátí se zpátky do rozepsané výzvy, text zůstane.
+// Vybrané fotky/videa bohužel takhle uchovat nejde (prohlížeč z
+// bezpečnostních důvodů nedovolí obsah <input type="file"> znovu naplnit
+// sám od sebe) - ty je potřeba po návratu vybrat znovu.
+function challengeDraftStorageKey(challengeId) {
+  return "forkit_challenge_draft_" + (user ? user.id : "anon") + "_" + challengeId;
+}
+function persistChallengeTextDraft(challengeId, text) {
+  try {
+    if (text) localStorage.setItem(challengeDraftStorageKey(challengeId), text);
+    else localStorage.removeItem(challengeDraftStorageKey(challengeId));
+  } catch (e) {}
+}
+function readChallengeTextDraft(challengeId) {
+  try {
+    return localStorage.getItem(challengeDraftStorageKey(challengeId));
+  } catch (e) {
+    return null;
+  }
+}
+function clearChallengeTextDraft(challengeId) {
+  try {
+    localStorage.removeItem(challengeDraftStorageKey(challengeId));
+  } catch (e) {}
+}
+
 function renderChallengeDetail() {
   const c = currentChallenge;
   const container = document.getElementById("challengeDetailContent");
@@ -2623,15 +2651,20 @@ function renderChallengeDetail() {
         "<div style='font-size:12.5px;color:var(--text-muted);margin-top:6px;'>Zbývá ti " + c.attempts_left + " z 3 pokusů.</div>" +
         "</div>";
     }
+    const draftText = readChallengeTextDraft(c.id);
+    const textValue = draftText != null ? draftText : (c.last_text || "");
     container.innerHTML =
       "<h2 class='section-title'>" + esc(c.title) + "</h2>" +
       "<p style='font-size:13.5px;color:var(--text-muted);margin-bottom:14px;'>" + esc(c.description || "") + "</p>" +
       "<div class='card' style='text-align:center;margin-bottom:16px;'><span class='badge-pts'>" + c.points + " b. za splnění</span></div>" +
       noticeHtml +
-      "<div class='field'><label>Ingredience a postup</label><textarea id='challengeText' rows='6' style='width:100%;padding:11px 12px;border-radius:10px;border:1px solid #E0DCD3;font-size:14px;font-family:inherit;' placeholder='Napiš, co jsi použil/a a jak jsi postupoval/a...'>" + esc(c.last_text || "") + "</textarea></div>" +
+      "<div class='field'><label>Ingredience a postup</label><textarea id='challengeText' rows='6' style='width:100%;padding:11px 12px;border-radius:10px;border:1px solid #E0DCD3;font-size:14px;font-family:inherit;' placeholder='Napiš, co jsi použil/a a jak jsi postupoval/a...'>" + esc(textValue) + "</textarea></div>" +
       "<div class='field'><label>Fotky nebo videa hotového pokrmu</label><input type='file' id='challengeMediaInput' accept='image/*,video/*' multiple></div>" +
       "<div id='challengeSubmitError'></div>" +
       "<button class='btn-primary' id='challengeSubmitBtn' onclick='submitChallengeForm()'>" + (isRetry ? "Odeslat znovu ke schválení" : "Odeslat ke schválení") + "</button>";
+    document.getElementById("challengeText").addEventListener("input", (e) => {
+      persistChallengeTextDraft(c.id, e.target.value);
+    });
     return;
   }
 
@@ -2758,6 +2791,7 @@ async function submitChallengeForm() {
     currentChallenge.my_status = "pending";
     currentChallenge.can_resubmit = false;
     currentChallenge.last_text = text;
+    clearChallengeTextDraft(currentChallenge.id);
     renderChallengeDetail();
   } catch (e) {
     btn.disabled = false;
