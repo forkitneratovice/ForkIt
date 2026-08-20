@@ -217,6 +217,7 @@
   }
   .list-item.status-yellow { background: #fff6d9; }
   .list-item.status-green { background: #e3efe5; }
+  .list-item.status-red { background: #f8dcdc; }
   .news-card { background: var(--dark); color: white; border-radius: 14px; padding: 13px 14px; margin-bottom: 10px; }
   .news-card .news-text { font-size: 13px; line-height: 1.5; }
   .news-card .news-date { font-size: 11px; color: var(--lime); margin-top: 6px; font-weight: 700; }
@@ -275,6 +276,9 @@
   .comp-quiz-row .name { font-weight: 700; font-size: 13.5px; color: var(--dark); }
   .comp-quiz-row .sub { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
   .comp-quiz-row .pts { font-size: 14px; font-weight: 800; color: var(--primary); font-family: 'Poppins', sans-serif; white-space: nowrap; }
+  .comp-quiz-row.status-yellow { background: #fff6d9; }
+  .comp-quiz-row.status-green { background: #e3efe5; }
+  .comp-quiz-row.status-red { background: #f8dcdc; }
   .avatar-lightbox {
     position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 999;
     display: flex; align-items: center; justify-content: center; cursor: zoom-out;
@@ -2441,15 +2445,15 @@ async function loadQuizzesAdmin() {
     editBtn.textContent = "Upravit";
     editBtn.onclick = (e) => { e.stopPropagation(); openQuizEdit(q.id, "quizzes"); };
     div.appendChild(editBtn);
-    div.onclick = () => openQuizStudents(q.id, q.title);
+    div.onclick = () => openQuizStudents(q.id, q.title, q.points);
     list.appendChild(div);
   });
 }
 
 let currentQuizStudentsCtx = null;
 
-async function openQuizStudents(id, title) {
-  currentQuizStudentsCtx = { id, title };
+async function openQuizStudents(id, title, points) {
+  currentQuizStudentsCtx = { id, title, points };
   showScreen("quiz-students");
   await loadQuizStudents();
 }
@@ -2471,16 +2475,20 @@ async function loadQuizStudents() {
   }
   data.forEach((s) => {
     const div = document.createElement("div");
-    div.className = "comp-quiz-row";
-    let sub, pts;
+    let sub, pts, cls = "";
     if (s.attempts_count > 0) {
       const pct = s.best_total > 0 ? Math.round((s.best_score / s.best_total) * 100) : 0;
       sub = s.best_score + "/" + s.best_total + " (" + pct + " %) &middot; " + s.attempts_count + "× " + czPokusy(s.attempts_count);
       pts = s.best_earned_points + " b.";
+      // Stejná pravidla jako u studentského seznamu kvízů (quizStatusClass):
+      // zelená = 100 % nebo vyčerpané 3 pokusy (hotovo), jinak žlutá.
+      const isPerfect = (s.best_earned_points || 0) > (ctx.points || 0);
+      cls = (isPerfect || s.attempts_count >= 3) ? "status-green" : "status-yellow";
     } else {
       sub = "Nezkoušeno";
       pts = "—";
     }
+    div.className = "comp-quiz-row" + (cls ? " " + cls : "");
     div.innerHTML =
       "<div><div class='name'>" + esc(s.student_name) + "</div><div class='sub'>" + sub + "</div></div>" +
       "<div class='pts'>" + pts + "</div>";
@@ -3241,11 +3249,12 @@ function challengeDecisionKey(c) {
 
 function challengeStatusClass(c) {
   if (c.my_status === "pending") return "status-yellow";
-  // Zelená hned, jakmile mistrová schválí (i jen na část bodů) - nebo když
-  // dojdou všechny tři pokusy. Bílá zůstává jen pro "nová" a "zamítnuto,
-  // ještě to jde zkusit znovu" (na tom teď má být řada studenta).
+  // Zelená, jakmile mistrová schválí (i jen na část bodů) - schválení se
+  // nikdy neruší, i když se pak zkouší znovu na víc bodů. Červená, když
+  // dojdou všechny tři pokusy a nikdy to nebylo schváleno (samé zamítnutí).
+  // Bílá zůstává jen pro "nová" a "zamítnuto, ještě to jde zkusit znovu".
   if (c.my_status === "approved") return "status-green";
-  if (c.attempts_used >= 3) return "status-green";
+  if (c.my_status === "rejected" && !c.can_resubmit) return "status-red";
   return "";
 }
 function challengeStatusLabel(c) {
@@ -3268,6 +3277,7 @@ function challengeStatusBg(c) {
   const cls = challengeStatusClass(c);
   if (cls === "status-yellow") return "#fff6d9";
   if (cls === "status-green") return "#e3efe5";
+  if (cls === "status-red") return "#f8dcdc";
   return "";
 }
 
@@ -3678,7 +3688,11 @@ async function loadChallengeStudents() {
   }
   data.forEach((s) => {
     const div = document.createElement("div");
-    div.className = "list-item" + (s.status === "pending" ? " status-yellow" : s.status === "approved" ? " status-green" : "");
+    let cls = "";
+    if (s.status === "pending") cls = "status-yellow";
+    else if (s.status === "approved") cls = "status-green";
+    else if (s.status === "rejected" && s.attempts_used >= 3) cls = "status-red";
+    div.className = "list-item" + (cls ? " " + cls : "");
     const pts = "<span class='badge-pts'>" + (s.best_points != null ? s.best_points + " b." : "—") + "</span>";
     div.innerHTML =
       '<div><div class="name">' + esc(s.student_name) + '</div><div class="meta">' + challengeStudentStatusLabel(s) + "</div></div>" + pts;
