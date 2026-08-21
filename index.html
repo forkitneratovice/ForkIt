@@ -201,6 +201,7 @@
     background: var(--card); border-radius: 14px; padding: 13px 14px;
     display: flex; justify-content: space-between; align-items: center;
     margin-bottom: 10px; box-shadow: 0 1px 5px rgba(0,0,0,0.06);
+    cursor: pointer; user-select: none; -webkit-user-select: none;
   }
   .list-item .name { font-size: 14px; font-weight: 700; color: var(--dark); }
   .list-item .meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
@@ -525,15 +526,23 @@
   .back-link { font-size: 13px; color: var(--primary); font-weight: 700; margin-bottom: 14px; display: inline-block; }
 
   /* ---------- Desktop layout ---------- */
+  /* Fills the whole browser window instead of floating as a narrow "card" in the middle of the
+     screen - no body padding/margin, no rounded corners/shadow, app-shell simply IS the window.
+     zoom (not transform: scale, which would break every position:fixed overlay below) scales the
+     whole app - text, spacing, buttons - proportionally larger so a wide desktop window doesn't
+     look sparse/empty, without having to hand-tune every one of the ~90 individual font-size
+     rules used across the mobile-first design. Every full-viewport overlay explicitly resets
+     zoom back to 1 so it always covers the real screen at its originally authored size,
+     regardless of how the zoomed app-shell around it is laid out. */
   @media (min-width: 900px) {
-    body { padding: 40px 24px; align-items: flex-start; min-height: auto; }
+    body { padding: 0; margin: 0; align-items: stretch; min-height: 100vh; }
     .app-shell {
-      max-width: 1080px; min-height: 680px; border-radius: 26px; overflow: hidden;
-      flex-direction: row; box-shadow: 0 28px 80px rgba(0,0,0,0.4);
+      max-width: none; width: 100%; min-height: 100vh; border-radius: 0; overflow: visible;
+      flex-direction: row; box-shadow: none; zoom: 1.15;
     }
     .sidebar {
-      display: flex; flex-direction: column; width: 230px; flex-shrink: 0;
-      background: var(--dark); color: white; padding: 26px 18px;
+      display: flex; flex-direction: column; width: 250px; flex-shrink: 0;
+      background: var(--dark); color: white; padding: 30px 20px;
     }
     .sidebar-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 34px; padding: 0 6px; }
     .sidebar-brand .fork-logo { width: 30px; height: 30px; }
@@ -548,12 +557,15 @@
     .sidebar-footer { border-top: 1px solid #3a3a3d; padding-top: 14px; }
     .sidebar-footer .btn-secondary { color: #d9d6d1; text-decoration: none; font-size: 12.5px; text-align: left; }
 
-    .main { min-height: 680px; }
+    .main { min-height: 100vh; }
     .hamburger-btn { display: none !important; }
     .home-btn { display: none !important; }
     .nav-drawer { display: none !important; }
-    .screen { padding: 34px 46px 46px; max-width: 720px; }
-    .topbar { padding: 26px 46px 22px; padding-top: 26px; }
+    .screen { padding: 40px 60px 60px; max-width: 1040px; }
+    .topbar { padding: 30px 60px 24px; padding-top: 30px; }
+
+    /* full-viewport overlays: always render at the real, unzoomed screen size */
+    .avatar-lightbox, .terms-modal, .media-lightbox, .msg-reaction-picker { zoom: 1; }
   }
 </style>
 </head>
