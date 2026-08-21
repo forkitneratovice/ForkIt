@@ -2397,14 +2397,21 @@ async function renderTeacherFeedback() {
     div.innerHTML = html;
     wrap.appendChild(div);
     listEl.appendChild(wrap);
-    initFeedbackSwipe(div, f.id);
+    initFeedbackSwipe(div, f.id, "hide_feedback_for_teacher", async () => {
+      await renderTeacherFeedback();
+      await computeNavBadges();
+    });
   });
 }
 
 // Smazání zprávy tažením doleva (swipe) - běžné gesto z mailových appek. Táhne se jen
 // samotná karta (feedback-swipe-card), pod ní je celou dobu vidět červené "Smazat"
 // pozadí (feedback-swipe-delete). Přetažení přes práh kartu smaže, jinak se vrátí zpět.
-function initFeedbackSwipe(cardEl, feedbackId) {
+// "Smazat" tu ve skutečnosti znamená "schovat jen mně" - hide_feedback_for_teacher/
+// hide_feedback_for_student na serveru schová zprávu jen tomu, kdo smazal, druhá strana
+// (student, nebo mistrová) ji dál vidí beze změny. Použitá RPC (rpcName) a to, co se má
+// stát po úspěšném smazání (onDeleted), se liší podle toho, kde je karta zobrazená.
+function initFeedbackSwipe(cardEl, feedbackId, rpcName, onDeleted) {
   const threshold = -70;
   const maxDrag = -96;
   let startX = null;
@@ -2439,17 +2446,16 @@ function initFeedbackSwipe(cardEl, feedbackId) {
       currentX = 0;
       return;
     }
-    // přehoupnuto přes práh - smazat
+    // přehoupnuto přes práh - smazat (jen z tohoto pohledu)
     cardEl.style.transform = "translateX(-100%)";
-    const { error } = await sb.rpc("delete_feedback", { p_id: feedbackId });
+    const { error } = await sb.rpc(rpcName, { p_id: feedbackId });
     if (error) {
       alert("Nepodařilo se smazat zprávu: " + error.message);
       cardEl.style.transform = "translateX(0)";
       currentX = 0;
       return;
     }
-    await renderTeacherFeedback();
-    await computeNavBadges();
+    await onDeleted();
   });
 }
 
@@ -2487,9 +2493,12 @@ async function renderMyFeedback() {
   }
   el.innerHTML = "";
   data.forEach((f) => {
+    const wrap = document.createElement("div");
+    wrap.className = "feedback-swipe-wrap";
+    wrap.innerHTML = "<div class='feedback-swipe-delete'>Smazat</div>";
+
     const div = document.createElement("div");
-    div.className = "card";
-    div.style.marginBottom = "10px";
+    div.className = "card feedback-swipe-card";
     const dateStr = new Date(f.created_at).toLocaleString("cs-CZ");
     let html =
       "<div style='white-space:pre-wrap;font-size:14px;'>" + esc(f.message) + "</div>" +
@@ -2506,7 +2515,9 @@ async function renderMyFeedback() {
       html += "<div style='margin-top:8px;font-size:12px;color:var(--text-muted);'>Zatím bez odpovědi.</div>";
     }
     div.innerHTML = html;
-    el.appendChild(div);
+    wrap.appendChild(div);
+    el.appendChild(wrap);
+    initFeedbackSwipe(div, f.id, "hide_feedback_for_student", renderMyFeedback);
   });
 }
 
