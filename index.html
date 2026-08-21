@@ -235,6 +235,16 @@
   .chat-bubble-time { font-size: 10px; opacity: 0.65; margin-top: 4px; text-align: right; }
   .chat-bubble-status { font-size: 10px; opacity: 0.8; margin-top: 2px; text-align: right; font-weight: 700; }
   .chat-input-bar { position: sticky; bottom: 0; display: flex; gap: 8px; padding-top: 10px; background: var(--bg); }
+
+  /* Reakce na zprávy (dlouhý podržení -> smajlík) */
+  .chat-bubble { position: relative; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  .chat-bubble-reactions { display: flex; gap: 4px; margin-top: 6px; flex-wrap: wrap; }
+  .chat-reaction-chip { display: inline-block; background: rgba(255,255,255,0.9); border-radius: 10px; padding: 2px 6px; font-size: 13px; line-height: 1.3; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
+  .chat-bubble.mine .chat-reaction-chip { background: rgba(255,255,255,0.28); }
+  .msg-reaction-picker { position: fixed; z-index: 500; display: flex; gap: 2px; background: #fff; border-radius: 22px; padding: 6px 8px; box-shadow: 0 4px 18px rgba(0,0,0,0.2); }
+  .msg-reaction-picker.hidden { display: none; }
+  .msg-reaction-picker-btn { background: none; border: none; font-size: 22px; line-height: 1; padding: 5px; cursor: pointer; border-radius: 50%; }
+  .msg-reaction-picker-btn:active { background: #f0ede4; }
   .chat-input-bar input { flex: 1; padding: 11px 12px; border-radius: 20px; border: 1px solid #E0DCD3; font-size: 14px; font-family: inherit; }
 
   /* Úspěchy (odznáčky) */
@@ -5501,6 +5511,11 @@ async function openChatThread(studentId, studentName) {
   updateMessagesBadge();
 }
 
+// Reactions for the messages currently rendered in each chat container, keyed by message id -
+// {emoji, user_id}[]. Kept around so setMessageReaction() can decide toggle-off vs
+// replace-with-new-emoji without an extra round trip to the server.
+let lastLoadedMessageReactions = {};
+
 async function loadChatMessages(threadStudentId, containerId) {
   const el = document.getElementById(containerId);
   el.innerHTML = "<div class='empty-note'>Načítám...</div>";
@@ -5513,20 +5528,139 @@ async function loadChatMessages(threadStudentId, containerId) {
     el.innerHTML = "<div class='empty-note'>Zatím žádné zprávy. Napiš první!</div>";
     return;
   }
+
+  const messageIds = data.map((m) => m.id);
+  const { data: reactionRows } = await sb.from("message_reactions").select("message_id,user_id,emoji").in("message_id", messageIds);
+  const reactionsByMessage = {};
+  (reactionRows || []).forEach((r) => {
+    if (!reactionsByMessage[r.message_id]) reactionsByMessage[r.message_id] = [];
+    reactionsByMessage[r.message_id].push(r);
+  });
+  lastLoadedMessageReactions = reactionsByMessage;
+
   el.innerHTML = "";
   data.forEach((m) => {
     const isMine = m.sender_id === user.id;
     const bubble = document.createElement("div");
     bubble.className = "chat-bubble " + (isMine ? "mine" : "theirs");
+    bubble.dataset.messageId = m.id;
     const timeStr = new Date(m.created_at).toLocaleString("cs-CZ", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
     const statusHtml = isMine
       ? "<div class='chat-bubble-status'>" + (m.is_read ? "Přečteno" : "Odesláno") + "</div>"
       : "";
-    bubble.innerHTML = "<div class='chat-bubble-text'>" + esc(m.text) + "</div><div class='chat-bubble-time'>" + timeStr + "</div>" + statusHtml;
+    bubble.innerHTML = "<div class='chat-bubble-text'>" + esc(m.text) + "</div>" + messageReactionsHtml(reactionsByMessage[m.id]) + "<div class='chat-bubble-time'>" + timeStr + "</div>" + statusHtml;
     el.appendChild(bubble);
+    wireLongPressReaction(bubble, m.id, containerId, threadStudentId);
   });
   el.scrollTop = el.scrollHeight;
 }
+
+function messageReactionsHtml(reactions) {
+  if (!reactions || reactions.length === 0) return "";
+  return (
+    "<div class='chat-bubble-reactions'>" +
+    reactions.map((r) => "<span class='chat-reaction-chip" + (r.user_id === user.id ? " mine" : "") + "'>" + esc(r.emoji) + "</span>").join("") +
+    "</div>"
+  );
+}
+
+// Long-press (touch) or press-and-hold (mouse, for desktop testing) on a chat bubble opens a
+// small floating emoji picker, matching the familiar WhatsApp/iMessage-style reaction gesture.
+function wireLongPressReaction(bubble, messageId, containerId, threadStudentId) {
+  const LONG_PRESS_MS = 500;
+  let timer = null;
+  const start = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      showMessageReactionPicker(bubble, messageId, containerId, threadStudentId);
+    }, LONG_PRESS_MS);
+  };
+  const cancel = () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+  bubble.addEventListener("touchstart", start, { passive: true });
+  bubble.addEventListener("touchend", cancel);
+  bubble.addEventListener("touchmove", cancel);
+  bubble.addEventListener("touchcancel", cancel);
+  bubble.addEventListener("mousedown", start);
+  bubble.addEventListener("mouseup", cancel);
+  bubble.addEventListener("mouseleave", cancel);
+  // stops the browser's native text-selection/context menu from popping up alongside ours
+  bubble.addEventListener("contextmenu", (e) => e.preventDefault());
+}
+
+let msgReactionPickerTarget = null;
+
+function showMessageReactionPicker(bubbleEl, messageId, containerId, threadStudentId) {
+  let picker = document.getElementById("msgReactionPicker");
+  if (!picker) {
+    picker = document.createElement("div");
+    picker.id = "msgReactionPicker";
+    picker.className = "msg-reaction-picker hidden";
+    document.body.appendChild(picker);
+  }
+  picker.innerHTML = QUICK_REACTIONS.map(
+    (e) => "<button type='button' class='msg-reaction-picker-btn' onmousedown=\"event.preventDefault()\" onclick='pickMessageReaction(\"" + e + "\")'>" + e + "</button>"
+  ).join("");
+  msgReactionPickerTarget = { messageId, containerId, threadStudentId };
+  picker.classList.remove("hidden");
+
+  const rect = bubbleEl.getBoundingClientRect();
+  const pickerRect = picker.getBoundingClientRect();
+  let top = rect.top - pickerRect.height - 10;
+  if (top < 8) top = rect.bottom + 10;
+  let left = rect.left;
+  const maxLeft = document.documentElement.clientWidth - pickerRect.width - 8;
+  if (left > maxLeft) left = maxLeft;
+  if (left < 8) left = 8;
+  picker.style.top = top + "px";
+  picker.style.left = left + "px";
+
+  if (typeof navigator.vibrate === "function") {
+    try {
+      navigator.vibrate(15);
+    } catch (e) {}
+  }
+}
+
+function hideMessageReactionPicker() {
+  const picker = document.getElementById("msgReactionPicker");
+  if (picker) picker.classList.add("hidden");
+  msgReactionPickerTarget = null;
+}
+
+async function pickMessageReaction(emoji) {
+  if (!msgReactionPickerTarget) return;
+  const { messageId, containerId, threadStudentId } = msgReactionPickerTarget;
+  hideMessageReactionPicker();
+  await setMessageReaction(messageId, emoji, containerId, threadStudentId);
+}
+
+async function setMessageReaction(messageId, emoji, containerId, threadStudentId) {
+  const existing = (lastLoadedMessageReactions[messageId] || []).find((r) => r.user_id === user.id);
+  let error;
+  if (existing && existing.emoji === emoji) {
+    ({ error } = await sb.from("message_reactions").delete().eq("message_id", messageId).eq("user_id", user.id));
+  } else {
+    ({ error } = await sb.from("message_reactions").upsert({ message_id: messageId, user_id: user.id, emoji }, { onConflict: "message_id,user_id" }));
+  }
+  if (error) {
+    alert("Nepodařilo se uložit reakci: " + error.message);
+    return;
+  }
+  await loadChatMessages(threadStudentId, containerId);
+}
+
+document.addEventListener("click", (e) => {
+  const picker = document.getElementById("msgReactionPicker");
+  if (picker && !picker.classList.contains("hidden") && !picker.contains(e.target)) {
+    hideMessageReactionPicker();
+  }
+});
 
 async function markThreadRead(threadStudentId) {
   await sb.from("messages").update({ is_read: true }).eq("thread_student_id", threadStudentId).neq("sender_id", user.id).eq("is_read", false);
