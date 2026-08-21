@@ -528,28 +528,29 @@
   /* ---------- Desktop layout ---------- */
   /* Fills the whole browser window instead of floating as a narrow "card" in the middle of the
      screen - no body padding/margin, no rounded corners/shadow, app-shell simply IS the window.
-     zoom (not transform: scale, which would break every position:fixed overlay below) scales the
-     whole app - text, spacing, buttons - proportionally larger so a wide desktop window doesn't
-     look sparse/empty, without having to hand-tune every one of the ~90 individual font-size
-     rules used across the mobile-first design. Every full-viewport overlay explicitly resets
-     zoom back to 1 so it always covers the real screen at its originally authored size,
-     regardless of how the zoomed app-shell around it is laid out. */
+     The shell itself is capped to exactly the viewport height (not just min-height) so it can
+     never grow taller than the screen; only .screen (the actual content area) scrolls
+     internally. That's what keeps the dark sidebar background running the full height of the
+     window behind long screens, and what makes long screens (many quiz questions, the full
+     Nápověda text, etc.) actually reachable by scrolling instead of being cut off. */
   @media (min-width: 900px) {
-    body { padding: 0; margin: 0; align-items: stretch; min-height: 100vh; }
+    html, body { height: 100vh; overflow: hidden; }
+    body { padding: 0; margin: 0; align-items: stretch; }
     .app-shell {
-      max-width: none; width: 100%; min-height: 100vh; border-radius: 0; overflow: visible;
-      flex-direction: row; box-shadow: none; zoom: 1.15;
+      max-width: none; width: 100%; height: 100vh; min-height: 0; border-radius: 0; overflow: hidden;
+      flex-direction: row; box-shadow: none;
     }
     .sidebar {
       display: flex; flex-direction: column; width: 250px; flex-shrink: 0;
       background: var(--dark); color: white; padding: 30px 20px;
+      height: 100%; overflow-y: auto;
     }
     .sidebar-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 34px; padding: 0 6px; }
     .sidebar-brand .fork-logo { width: 30px; height: 30px; }
     .sidebar-brand .brand { font-size: 20px; font-weight: 800; color: white; }
     .sidebar .nav-item {
       display: flex; align-items: center; gap: 12px; text-align: left; padding: 12px 14px;
-      border-radius: 12px; font-size: 13.5px; margin-bottom: 6px; color: #b9b6b1;
+      border-radius: 12px; font-size: 14.5px; margin-bottom: 6px; color: #b9b6b1;
     }
     .sidebar .nav-item .nav-icon { margin-bottom: 0; }
     .sidebar .nav-item.active { background: var(--primary); color: white; }
@@ -557,15 +558,25 @@
     .sidebar-footer { border-top: 1px solid #3a3a3d; padding-top: 14px; }
     .sidebar-footer .btn-secondary { color: #d9d6d1; text-decoration: none; font-size: 12.5px; text-align: left; }
 
-    .main { min-height: 100vh; }
+    /* min-height: 0 overrides the mobile min-height: 100vh, which would otherwise force .main to
+       always be at least a full screen tall and defeat its own scrolling - a flex item needs
+       min-height: 0 for its overflow:auto descendant to actually be able to scroll instead of
+       just growing to fit all its content. */
+    .main { height: 100%; min-height: 0; display: flex; flex-direction: column; }
     .hamburger-btn { display: none !important; }
     .home-btn { display: none !important; }
     .nav-drawer { display: none !important; }
-    .screen { padding: 40px 60px 60px; max-width: 1040px; }
-    .topbar { padding: 30px 60px 24px; padding-top: 30px; }
+    .screen { flex: 1; min-height: 0; overflow-y: auto; padding: 40px 60px 60px; max-width: 1040px; font-size: 14.5px; }
+    .topbar { padding: 30px 60px 24px; padding-top: 30px; flex-shrink: 0; }
 
-    /* full-viewport overlays: always render at the real, unzoomed screen size */
-    .avatar-lightbox, .terms-modal, .media-lightbox, .msg-reaction-picker { zoom: 1; }
+    /* a modest, layout-safe size bump for the most common text - keeps things from looking
+       sparse on a wide screen without touching the many inline font-sizes set from JS */
+    h2.section-title { font-size: 14.5px; }
+    .list-item .name { font-size: 15.5px; }
+    .list-item .meta { font-size: 13px; }
+    .btn-primary, .btn-secondary { font-size: 16px; }
+    .empty-note { font-size: 14px; }
+    .help-text, .help-list { font-size: 14.5px; }
   }
 </style>
 </head>
