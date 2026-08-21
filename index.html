@@ -561,8 +561,11 @@
     /* min-height: 0 overrides the mobile min-height: 100vh, which would otherwise force .main to
        always be at least a full screen tall and defeat its own scrolling - a flex item needs
        min-height: 0 for its overflow:auto descendant to actually be able to scroll instead of
-       just growing to fit all its content. */
+       just growing to fit all its content. .app-wrap (.main's flex child that actually wraps all
+       the individual .screen elements) needs the same override, or IT just grows to fit its
+       visible screen's full content instead of handing scrolling down to that screen. */
     .main { height: 100%; min-height: 0; display: flex; flex-direction: column; }
+    .app-wrap { min-height: 0; }
     .hamburger-btn { display: none !important; }
     .home-btn { display: none !important; }
     .nav-drawer { display: none !important; }
