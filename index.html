@@ -2235,6 +2235,47 @@ function toggleFaq(btn) {
   item.classList.toggle("open", willOpen);
 }
 
+// Základní filtr sprostých/explicitních slov (česky i anglicky) pro anonymní zprávy.
+// Stejný seznam jako na serveru (BEFORE INSERT trigger na anonymous_feedback) - tohle
+// je jen pro rychlou zpětnou vazbu rovnou ve formuláři, skutečně to vynucuje server,
+// takže se to nedá obejít úpravou appky v prohlížeči. Seznam je záměrně jen rozumný
+// základ (jde ho kdykoliv rozšířit), ne dokonalý - a slova se hledají jako CELÉ tvary
+// (ne jako prefix), aby to omylem nechytlo běžná gastro slova jako "cocktail"/"koktejl"
+// nebo "shiitake" (houby) jen kvůli tomu, že začínají na "cock"/"shit".
+const BLOCKED_WORDS = [
+  "kurva", "kurvy", "kurvo", "kurvu", "zkurven", "vykurven",
+  "curak", "curaku", "curaci",
+  "pica", "pico", "picus", "picovin",
+  "kunda", "kundo",
+  "mrdka", "mrdat", "mrdam", "mrdej", "vymrdan", "zmrd",
+  "hovno", "hovna", "posranej", "posrana", "posranec",
+  "kokot", "kokote", "kokoti",
+  "srac",
+  "buzerant", "buzna",
+  "negr", "negro",
+  "kripl",
+  "fuck", "fucking", "fuckin", "fucker", "fuckers", "fuk", "fck",
+  "shit", "shitty", "shithead",
+  "bitch", "bitches",
+  "asshole", "assholes",
+  "cunt", "cunts",
+  "dick", "dicks", "dickhead",
+  "pussy",
+  "bastard", "bastards",
+  "whore", "whores",
+  "slut", "sluts",
+  "cock", "cocks",
+  "nigger", "nigga", "niggers",
+  "faggot", "faggots", "fag",
+  "retard", "retarded",
+];
+const BLOCKED_WORDS_RE = new RegExp("\\b(" + BLOCKED_WORDS.join("|") + ")\\b", "i");
+
+function containsProfanity(text) {
+  const normalized = (text || "").normalize("NFD").replace(/[̀-ͯ]/g, "");
+  return BLOCKED_WORDS_RE.test(normalized);
+}
+
 // Anonymní dotaz/zpětná vazba nahoře na obrazovce Časté otázky: studenti tam vidí
 // formulář na odeslání anonymní zprávy (+ odkaz na svoje starší zprávy a odpovědi),
 // mistrová místo toho vidí seznam došlých zpráv s možností na každou odpovědět.
@@ -2270,13 +2311,23 @@ async function submitFeedback() {
     statusEl.innerHTML = "<div class='error-note'>Napište prosím nějaký text.</div>";
     return;
   }
+  if (containsProfanity(text)) {
+    statusEl.innerHTML = "<div class='error-note'>Zpráva obsahuje nevhodný obsah. Upravte prosím text.</div>";
+    return;
+  }
   const btn = document.querySelector("#faqFeedbackSection .btn-primary");
   if (btn) btn.disabled = true;
   statusEl.innerHTML = "";
   const { error } = await sb.from("anonymous_feedback").insert({ message: text });
   if (btn) btn.disabled = false;
   if (error) {
-    statusEl.innerHTML = "<div class='error-note'>Nepodařilo se odeslat: " + esc(error.message) + "</div>";
+    // server (BEFORE INSERT trigger) je ta skutečná obrana - kdyby náš klientský
+    // filtr něco propustil a server to přesto odmítl, ukážeme stejnou přátelskou
+    // hlášku místo syrové chybové zprávy z databáze.
+    statusEl.innerHTML =
+      error.message && error.message.includes("inappropriate content")
+        ? "<div class='error-note'>Zpráva obsahuje nevhodný obsah. Upravte prosím text.</div>"
+        : "<div class='error-note'>Nepodařilo se odeslat: " + esc(error.message) + "</div>";
     return;
   }
   textEl.value = "";
