@@ -315,6 +315,20 @@
   .help-list { margin: 0 0 10px 18px; padding: 0; font-size: 13.5px; color: var(--dark); line-height: 1.6; }
   .help-list li { margin-bottom: 4px; }
 
+  /* Nápověda / Časté otázky (FAQ) - klik na otázku rozbalí/zabalí odpověď pod ní */
+  .faq-list { border-top: 1px solid #E0DCD3; }
+  .faq-item { border-bottom: 1px solid #E0DCD3; }
+  .faq-question {
+    width: 100%; background: none; border: none; padding: 13px 2px;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    text-align: left; font-family: inherit; font-size: 13.5px; font-weight: 700;
+    color: var(--dark); cursor: pointer;
+  }
+  .faq-arrow { flex-shrink: 0; color: var(--text-muted); font-size: 12px; transition: transform 0.2s ease; }
+  .faq-item.open .faq-arrow { transform: rotate(180deg); }
+  .faq-answer { padding: 0 2px 14px; }
+  .faq-answer p { font-size: 13.5px; color: var(--dark); line-height: 1.55; margin: 0; }
+
   /* Aktualita rich-text composer */
   .rt-toolbar { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
   .rt-btn { background: #fff; border: 1px solid #E0DCD3; border-radius: 8px; padding: 5px 10px; font-size: 13px; line-height: 1; cursor: pointer; color: var(--dark); min-width: 30px; }
@@ -643,6 +657,9 @@
     <button class="nav-item" data-nav="help" onclick="showScreen('help')">
       <span class="nav-icon">&#10067;</span>Nápověda
     </button>
+    <button class="nav-item" data-nav="faq" onclick="showScreen('faq')">
+      <span class="nav-icon">&#128203;</span>Časté otázky
+    </button>
     <div class="sidebar-spacer"></div>
     <div class="sidebar-footer">
       <button class="btn-secondary" onclick="logoutUser()">Odhlásit se</button>
@@ -697,6 +714,9 @@
       </button>
       <button class="nav-item" data-nav="help" onclick="showScreen('help')">
         <span class="nav-icon">&#10067;</span>Nápověda
+      </button>
+      <button class="nav-item" data-nav="faq" onclick="showScreen('faq')">
+        <span class="nav-icon">&#128203;</span>Časté otázky
       </button>
       <hr>
       <button class="nav-item" onclick="logoutUser()">
@@ -1461,6 +1481,96 @@
         </div>
       </div>
 
+      <!-- ČASTÉ OTÁZKY (FAQ) - samostatná obrazovka, ne součást Nápovědy -->
+      <div class="screen hidden" id="screen-faq">
+        <div class="help-section">
+          <p class="help-text">Odpovědi na to, na co se studenti ptají nejčastěji. Klikněte na otázku, odpověď se rozbalí pod ní.</p>
+          <div class="faq-list" id="faqList">
+            <div class="faq-item">
+              <button type="button" class="faq-question" onclick="toggleFaq(this)">
+                <span>Kolik mám pokusů na kvíz a proč musím čekat 24 hodin na další?</span>
+                <span class="faq-arrow">&#9662;</span>
+              </button>
+              <div class="faq-answer hidden">
+                <p>Na každý kvíz máte 3 pokusy a mezi jednotlivými pokusy musíte počkat 24 hodin – je to schválně, ať kvíz slouží i k učení, ne jen k opakovanému hádání. Do žebříčku se navíc vždy počítá váš nejlepší výsledek, ne poslední pokus.</p>
+              </div>
+            </div>
+            <div class="faq-item">
+              <button type="button" class="faq-question" onclick="toggleFaq(this)">
+                <span>Proč se mi nepřipsaly body za výzvu, i když jsem něco odevzdal/a?</span>
+                <span class="faq-arrow">&#9662;</span>
+              </button>
+              <div class="faq-answer hidden">
+                <p>Body za výzvu se připíšou až poté, co ji mistrová posoudí a schválí – samotné odevzdání ještě body nepřidává. Aktuální stav svého odevzdání vidíte přímo u zadání dané výzvy.</p>
+              </div>
+            </div>
+            <div class="faq-item">
+              <button type="button" class="faq-question" onclick="toggleFaq(this)">
+                <span>Jak dlouho bude trvat, než mi mistrová schválí výzvu nebo navržený kvíz?</span>
+                <span class="faq-arrow">&#9662;</span>
+              </button>
+              <div class="faq-answer hidden">
+                <p>Mistrová posuzuje odevzdané výzvy a navržené kvízy postupně, jakmile to jde – doba se může lišit podle toho, kolik jich zrovna čeká na posouzení. Jakmile se stav změní, uvidíte to rovnou u dané položky (a pokud máte zapnutá oznámení, přijde vám o tom i upozornění).</p>
+              </div>
+            </div>
+            <div class="faq-item">
+              <button type="button" class="faq-question" onclick="toggleFaq(this)">
+                <span>Vidí moje zprávy mistrové ještě někdo jiný?</span>
+                <span class="faq-arrow">&#9662;</span>
+              </button>
+              <div class="faq-answer hidden">
+                <p>Ne. Sekce Zprávy je přímá linka jen mezi vámi a mistrovou – nikdo jiný do ní nevidí.</p>
+              </div>
+            </div>
+            <div class="faq-item">
+              <button type="button" class="faq-question" onclick="toggleFaq(this)">
+                <span>Proč se mi kvíz nebo výzva nepočítá do žebříčku, i když jsem to dělal/a víckrát?</span>
+                <span class="faq-arrow">&#9662;</span>
+              </button>
+              <div class="faq-answer hidden">
+                <p>Do žebříčku se vždy počítá váš nejlepší dosažený výsledek u daného kvízu nebo výzvy, ne poslední pokus – takže si tím, že to zkusíte znovu, nemůžete výsledek zhoršit.</p>
+              </div>
+            </div>
+            <div class="faq-item">
+              <button type="button" class="faq-question" onclick="toggleFaq(this)">
+                <span>Jak zapnu oznámení a proč mi nechodí?</span>
+                <span class="faq-arrow">&#9662;</span>
+              </button>
+              <div class="faq-answer hidden">
+                <p>Oznámení zapnete v Profilu tlačítkem Zapnout oznámení – telefon nebo prohlížeč se zeptá na povolení, které je potřeba potvrdit. Pokud vám i tak nechodí, zkontrolujte, že jsou oznámení pro appku povolená i v nastavení telefonu nebo prohlížeče.</p>
+              </div>
+            </div>
+            <div class="faq-item">
+              <button type="button" class="faq-question" onclick="toggleFaq(this)">
+                <span>Zapomněl/a jsem heslo, co mám dělat?</span>
+                <span class="faq-arrow">&#9662;</span>
+              </button>
+              <div class="faq-answer hidden">
+                <p>Na přihlašovací obrazovce klikněte na Zapomenuté heslo? a zadejte svůj e-mail – přijde vám odkaz, kterým si nastavíte nové heslo.</p>
+              </div>
+            </div>
+            <div class="faq-item">
+              <button type="button" class="faq-question" onclick="toggleFaq(this)">
+                <span>Co znamená ten který odznáček a jak ho získám?</span>
+                <span class="faq-arrow">&#9662;</span>
+              </button>
+              <div class="faq-answer hidden">
+                <p>Přehled všech odznáčků, včetně těch, co vás teprve čekají, najdete v sekci Úspěchy – získávají se automaticky za různé aktivity v appce, například za první splněný kvíz, sérii splněných výzev nebo aktivitu u slova dne.</p>
+              </div>
+            </div>
+            <div class="faq-item">
+              <button type="button" class="faq-question" onclick="toggleFaq(this)">
+                <span>Můžu si kvíz zkusit nanečisto, aniž bych přišel/přišla o ostrý pokus?</span>
+                <span class="faq-arrow">&#9662;</span>
+              </button>
+              <div class="faq-answer hidden">
+                <p>Ano, v sekci Procvičování najdete stejné kvízy nanečisto – bez bodů a bez omezení počtu pokusů, takže se nemusíte bát to zkazit.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -2112,6 +2222,17 @@ function closeNavDrawer() {
   document.getElementById("hamburgerBtn").classList.remove("open");
 }
 
+// Nápověda → Časté otázky (FAQ): klik na otázku rozbalí odpověď pod ní, další klik na tu
+// samou otázku ji zase zabalí. Ostatní otázky se přitom nezavírají - každá se ovládá zvlášť.
+function toggleFaq(btn) {
+  const item = btn.closest(".faq-item");
+  if (!item) return;
+  const answer = item.querySelector(".faq-answer");
+  const willOpen = answer.classList.contains("hidden");
+  answer.classList.toggle("hidden", !willOpen);
+  item.classList.toggle("open", willOpen);
+}
+
 // Hlavní sekce appky pro odznáček "Objevitel". Dřív se "navštívil/a už
 // všechny" hlídalo přes localStorage, ale to je na mobilu nespolehlivé
 // (soukromé prohlížení, Safari občas úložiště samo smaže) a nedalo se to
@@ -2196,6 +2317,7 @@ function showScreen(name) {
     "avatar-crop": ["Profilovka", "Uprav výřez"],
     admin: ["Administrace", "Zápis docházky"],
     help: ["Nápověda", "Jak appka funguje"],
+    faq: ["Časté otázky", "Co se studenti ptají nejčastěji"],
   };
   if (titles[name]) {
     document.getElementById("topbarTitle").textContent = titles[name][0];
