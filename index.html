@@ -176,6 +176,13 @@
     background: var(--card); border-radius: 16px; padding: 16px;
     margin-bottom: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.06);
   }
+  .feedback-swipe-wrap { position: relative; overflow: hidden; border-radius: 16px; margin-bottom: 14px; }
+  .feedback-swipe-card { position: relative; margin-bottom: 0 !important; touch-action: pan-y; }
+  .feedback-swipe-delete {
+    position: absolute; inset: 0; background: #D64545; color: #fff;
+    display: flex; align-items: center; justify-content: flex-end;
+    padding-right: 26px; font-weight: 700; font-size: 13.5px; border-radius: 16px;
+  }
   .points-card {
     background: linear-gradient(135deg, var(--primary), var(--primary-dark));
     color: white; text-align: center; padding: 24px 16px;
@@ -2254,6 +2261,9 @@ const BLOCKED_WORDS = [
   "buzerant", "buzna",
   "negr", "negro",
   "kripl",
+  "prdel", "prdele", "prdeli", "prdelka", "prdelku", "prdelko", "prdelce", "prdelich", "prdelech", "prdelama",
+  "prcat", "prcam", "prcas", "prca", "prcame", "prcate", "prcaji", "prcal", "prcala", "prcanej", "prcana",
+  "sukat", "sukam", "sukas", "suka", "sukame", "sukate", "sukaji", "sukal", "sukala", "sukanej", "sukana", "vysukat", "osukat", "vysukana", "osukana",
   "fuck", "fucking", "fuckin", "fucker", "fuckers", "fuk", "fck",
   "shit", "shitty", "shithead",
   "bitch", "bitches",
@@ -2271,9 +2281,18 @@ const BLOCKED_WORDS = [
 ];
 const BLOCKED_WORDS_RE = new RegExp("\\b(" + BLOCKED_WORDS.join("|") + ")\\b", "i");
 
+// "péro" (slangově) se záměrně NEODMASKOVÁVÁ (unaccent) jako ostatní slova výše -
+// bez čárky nad "e" je "pero" úplně běžné slovo (psací pero/brk), takže se kontroluje
+// zvlášť, s diakritikou zachovanou, přes tokenizaci textu (ne \b, to s českými znaky
+// se čárkou nefunguje spolehlivě).
+const ACCENTED_BLOCKED_WORDS = ["péro", "péra", "pérem", "pérech", "pérama"];
+
 function containsProfanity(text) {
-  const normalized = (text || "").normalize("NFD").replace(/[̀-ͯ]/g, "");
-  return BLOCKED_WORDS_RE.test(normalized);
+  const raw = text || "";
+  const normalized = raw.normalize("NFD").replace(/[̀-ͯ]/g, "");
+  if (BLOCKED_WORDS_RE.test(normalized)) return true;
+  const tokens = raw.toLowerCase().split(/[^\p{L}]+/u);
+  return tokens.some((t) => ACCENTED_BLOCKED_WORDS.includes(t));
 }
 
 // Anonymní dotaz/zpětná vazba nahoře na obrazovce Časté otázky: studenti tam vidí
@@ -2350,9 +2369,12 @@ async function renderTeacherFeedback() {
   }
   listEl.innerHTML = "";
   data.forEach((f) => {
+    const wrap = document.createElement("div");
+    wrap.className = "feedback-swipe-wrap";
+    wrap.innerHTML = "<div class='feedback-swipe-delete'>Smazat</div>";
+
     const div = document.createElement("div");
-    div.className = "card";
-    div.style.marginBottom = "10px";
+    div.className = "card feedback-swipe-card";
     const dateStr = new Date(f.created_at).toLocaleString("cs-CZ");
     let html =
       "<div style='white-space:pre-wrap;font-size:14px;'>" + esc(f.message) + "</div>" +
@@ -2373,7 +2395,61 @@ async function renderTeacherFeedback() {
         "</div>";
     }
     div.innerHTML = html;
-    listEl.appendChild(div);
+    wrap.appendChild(div);
+    listEl.appendChild(wrap);
+    initFeedbackSwipe(div, f.id);
+  });
+}
+
+// Smazání zprávy tažením doleva (swipe) - běžné gesto z mailových appek. Táhne se jen
+// samotná karta (feedback-swipe-card), pod ní je celou dobu vidět červené "Smazat"
+// pozadí (feedback-swipe-delete). Přetažení přes práh kartu smaže, jinak se vrátí zpět.
+function initFeedbackSwipe(cardEl, feedbackId) {
+  const threshold = -70;
+  const maxDrag = -96;
+  let startX = null;
+  let currentX = 0;
+
+  cardEl.addEventListener(
+    "touchstart",
+    (e) => {
+      startX = e.touches[0].clientX;
+      cardEl.style.transition = "none";
+    },
+    { passive: true }
+  );
+
+  cardEl.addEventListener(
+    "touchmove",
+    (e) => {
+      if (startX === null) return;
+      const dx = e.touches[0].clientX - startX;
+      currentX = Math.max(maxDrag, Math.min(0, dx));
+      cardEl.style.transform = "translateX(" + currentX + "px)";
+    },
+    { passive: true }
+  );
+
+  cardEl.addEventListener("touchend", async () => {
+    if (startX === null) return;
+    startX = null;
+    cardEl.style.transition = "transform 0.2s ease";
+    if (currentX > threshold) {
+      cardEl.style.transform = "translateX(0)";
+      currentX = 0;
+      return;
+    }
+    // přehoupnuto přes práh - smazat
+    cardEl.style.transform = "translateX(-100%)";
+    const { error } = await sb.rpc("delete_feedback", { p_id: feedbackId });
+    if (error) {
+      alert("Nepodařilo se smazat zprávu: " + error.message);
+      cardEl.style.transform = "translateX(0)";
+      currentX = 0;
+      return;
+    }
+    await renderTeacherFeedback();
+    await computeNavBadges();
   });
 }
 
