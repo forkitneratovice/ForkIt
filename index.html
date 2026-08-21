@@ -304,6 +304,17 @@
   .help-list { margin: 0 0 10px 18px; padding: 0; font-size: 13.5px; color: var(--dark); line-height: 1.6; }
   .help-list li { margin-bottom: 4px; }
 
+  /* Aktualita rich-text composer */
+  .rt-toolbar { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+  .rt-btn { background: #fff; border: 1px solid #E0DCD3; border-radius: 8px; padding: 5px 10px; font-size: 13px; line-height: 1; cursor: pointer; color: var(--dark); min-width: 30px; }
+  .rt-btn:active { background: var(--lime); border-color: var(--lime); }
+  .rt-sep { width: 1px; height: 20px; background: #E0DCD3; margin: 0 2px; }
+  .rt-editor { width: 100%; min-height: 70px; padding: 11px 12px; border-radius: 10px; border: 1px solid #E0DCD3; font-size: 14px; font-family: inherit; line-height: 1.4; outline: none; }
+  .rt-editor:empty:before { content: attr(data-placeholder); color: var(--text-muted); }
+  .news-text b, .news-text strong { font-weight: 700; }
+  .news-text i, .news-text em { font-style: italic; }
+  .news-text u { text-decoration: underline; }
+
   /* Souhlas s podmínkami při registraci */
   .terms-check-row { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0; text-align: left; }
   .terms-check-row input[type=checkbox] { margin-top: 3px; width: 16px; height: 16px; flex-shrink: 0; }
@@ -812,7 +823,16 @@
         <div id="teacherHomeContent" class="hidden">
           <h2 class="section-title">Aktuality</h2>
           <div class="field">
-            <textarea id="newsTextInput" rows="3" style="width:100%;padding:11px 12px;border-radius:10px;border:1px solid #E0DCD3;font-size:14px;font-family:inherit;" placeholder="Napiš novinku pro studenty..."></textarea>
+            <div class="rt-toolbar">
+              <button type="button" class="rt-btn" onmousedown="event.preventDefault()" onclick="richExec('bold')"><b>B</b></button>
+              <button type="button" class="rt-btn" onmousedown="event.preventDefault()" onclick="richExec('italic')"><i>I</i></button>
+              <button type="button" class="rt-btn" onmousedown="event.preventDefault()" onclick="richExec('underline')"><u>U</u></button>
+              <span class="rt-sep"></span>
+              <button type="button" class="rt-btn" onmousedown="event.preventDefault()" onclick="richFontSize('12px')" title="Menší písmo">A-</button>
+              <button type="button" class="rt-btn" onmousedown="event.preventDefault()" onclick="richFontSize('14px')" title="Normální písmo">A</button>
+              <button type="button" class="rt-btn" onmousedown="event.preventDefault()" onclick="richFontSize('19px')" title="Větší písmo">A+</button>
+            </div>
+            <div id="newsTextInput" contenteditable="true" class="rt-editor" data-placeholder="Napiš novinku pro studenty..."></div>
           </div>
           <button class="btn-primary" onclick="postAnnouncement()">Zveřejnit aktualitu</button>
           <div id="newsPostError"></div>
@@ -1464,6 +1484,68 @@ function esc(str) {
   const div = document.createElement("div");
   div.textContent = str == null ? "" : String(str);
   return div.innerHTML;
+}
+
+// Allowlist HTML sanitizer for rich-text aktuality content (bold/italic/underline/font-size).
+// Only a fixed set of formatting tags survive; every other element is unwrapped (its tag is
+// dropped but its inner text/children are kept), all attributes are stripped except a
+// regex-validated font-size style on <span>. This runs both when saving an aktualita and again
+// at every render site, so even if something unexpected ends up stored, it's never trusted as-is.
+function sanitizeRichHtml(html) {
+  const allowedTags = new Set(["B", "STRONG", "I", "EM", "U", "SPAN", "BR"]);
+  // these are dropped along with their entire contents (not unwrapped) - their inner
+  // "text" is actually code/markup, not real content, so it should never surface as text either
+  const removeEntirely = new Set(["SCRIPT", "STYLE", "IFRAME", "OBJECT", "EMBED", "SVG", "NOSCRIPT", "TEMPLATE"]);
+  const root = document.createElement("div");
+  root.innerHTML = html == null ? "" : String(html);
+
+  function sanitizeAttrs(el) {
+    if (el.tagName === "SPAN") {
+      const style = el.getAttribute("style") || "";
+      const m = /font-size\s*:\s*(\d+(?:\.\d+)?px)/i.exec(style);
+      [...el.attributes].forEach((a) => el.removeAttribute(a.name));
+      if (m) el.setAttribute("style", "font-size:" + m[1]);
+    } else {
+      [...el.attributes].forEach((a) => el.removeAttribute(a.name));
+    }
+  }
+
+  function walk(node) {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      let child = node.firstChild;
+      while (child) {
+        const next = child.nextSibling;
+        if (child.nodeType === 1) {
+          if (removeEntirely.has(child.tagName)) {
+            node.removeChild(child);
+            changed = true;
+          } else if (!allowedTags.has(child.tagName)) {
+            while (child.firstChild) node.insertBefore(child.firstChild, child);
+            node.removeChild(child);
+            changed = true;
+          } else {
+            sanitizeAttrs(child);
+            walk(child);
+          }
+        } else if (child.nodeType !== 3) {
+          node.removeChild(child);
+          changed = true;
+        }
+        child = next;
+      }
+    }
+  }
+  walk(root);
+  return root.innerHTML;
+}
+
+// Plain-text version of a sanitized rich aktualita (used for short previews and push bodies).
+function richTextToPlain(html) {
+  const tmp = document.createElement("div");
+  tmp.innerHTML = sanitizeRichHtml(html);
+  return tmp.textContent || "";
 }
 
 // ---------- PŘIHLÁŠENÍ / REGISTRACE ----------
@@ -2236,7 +2318,7 @@ async function renderHomeNews() {
   div.className = "news-card";
   const dateStr = new Date(a.created_at).toLocaleDateString("cs-CZ");
   div.innerHTML =
-    "<div class='news-text'>" + esc(a.text) + "</div><div class='news-date'>" + dateStr + "</div>" +
+    "<div class='news-text'>" + sanitizeRichHtml(a.text) + "</div><div class='news-date'>" + dateStr + "</div>" +
     reactionBarHtml("announcement", a.id, myReaction ? myReaction.emoji : null, "home-news");
   el.appendChild(div);
 }
@@ -2254,7 +2336,8 @@ async function renderHomeNewsAdmin() {
     const div = document.createElement("div");
     div.className = "list-item";
     const dateStr = new Date(a.created_at).toLocaleDateString("cs-CZ");
-    const preview = a.text.length > 60 ? a.text.slice(0, 60) + "…" : a.text;
+    const plainText = richTextToPlain(a.text);
+    const preview = plainText.length > 60 ? plainText.slice(0, 60) + "…" : plainText;
     div.innerHTML = "<div><div class='name'>" + esc(preview) + "</div><div class='meta'>" + dateStr + "</div></div>";
     div.onclick = () => openAnnouncementDetail(a.id, a.text, a.created_at);
     el.appendChild(div);
@@ -2569,21 +2652,49 @@ function renderPersonalityResult() {
   container.innerHTML = html;
 }
 
+function richExec(cmd) {
+  const editor = document.getElementById("newsTextInput");
+  editor.focus();
+  if (typeof document.execCommand === "function") document.execCommand(cmd, false, null);
+}
+
+// Applies a fixed px font-size to the current selection inside the aktualita composer.
+// Uses execCommand("fontSize") as a sentinel (size "7") purely so the browser handles the
+// selection-aware wrapping/splitting correctly across partial/multi-node selections, then
+// immediately rewrites the resulting <font size="7"> tags into <span style="font-size:...">
+// so no legacy <font> tag (outside our sanitizer allowlist) ever survives.
+function richFontSize(px) {
+  const editor = document.getElementById("newsTextInput");
+  editor.focus();
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+  if (typeof document.execCommand !== "function") return;
+  document.execCommand("styleWithCSS", false, true);
+  document.execCommand("fontSize", false, "7");
+  editor.querySelectorAll('font[size="7"]').forEach((f) => {
+    const span = document.createElement("span");
+    span.style.fontSize = px;
+    while (f.firstChild) span.appendChild(f.firstChild);
+    f.replaceWith(span);
+  });
+}
+
 async function postAnnouncement() {
   const textEl = document.getElementById("newsTextInput");
-  const text = textEl.value.trim();
+  const plain = (textEl.textContent || "").trim();
   const errorEl = document.getElementById("newsPostError");
   errorEl.innerHTML = "";
-  if (!text) {
+  if (!plain) {
     errorEl.innerHTML = "<div class='error-note'>Napiš prosím text aktuality.</div>";
     return;
   }
-  const { error } = await sb.rpc("create_announcement", { p_text: text });
+  const html = sanitizeRichHtml(textEl.innerHTML);
+  const { error } = await sb.rpc("create_announcement", { p_text: html });
   if (error) {
     errorEl.innerHTML = "<div class='error-note'>Nepodařilo se zveřejnit: " + esc(error.message) + "</div>";
     return;
   }
-  textEl.value = "";
+  textEl.innerHTML = "";
   errorEl.innerHTML = "<div class='demo-note'><b>Hotovo:</b> aktualita byla zveřejněna.</div>";
 }
 
@@ -4214,7 +4325,7 @@ async function renderAnnouncementsFull() {
       const div = document.createElement("div");
       div.className = "news-card";
       const dateStr = new Date(a.created_at).toLocaleDateString("cs-CZ");
-      div.innerHTML = "<div class='news-text'>" + esc(a.text) + "</div><div class='news-date'>" + dateStr + "</div>";
+      div.innerHTML = "<div class='news-text'>" + sanitizeRichHtml(a.text) + "</div><div class='news-date'>" + dateStr + "</div>";
       el.appendChild(div);
     });
     return;
@@ -4225,7 +4336,7 @@ async function renderAnnouncementsFull() {
     const div = document.createElement("div");
     div.className = "list-item";
     const dateStr = new Date(a.created_at).toLocaleDateString("cs-CZ");
-    div.innerHTML = "<div><div class='name'>" + esc(a.text) + "</div><div class='meta'>" + dateStr + "</div></div>";
+    div.innerHTML = "<div><div class='name'>" + sanitizeRichHtml(a.text) + "</div><div class='meta'>" + dateStr + "</div></div>";
     div.onclick = () => openAnnouncementDetail(a.id, a.text, a.created_at);
     el.appendChild(div);
   });
@@ -4234,7 +4345,7 @@ async function renderAnnouncementsFull() {
 async function openAnnouncementDetail(id, text, createdAt) {
   const container = document.getElementById("announcementDetailContent");
   container.innerHTML =
-    "<div class='card'><div style='font-size:14px;'>" + esc(text) + "</div>" +
+    "<div class='card'><div style='font-size:14px;'>" + sanitizeRichHtml(text) + "</div>" +
     "<div style='font-size:11px;color:var(--text-muted);margin-top:8px;'>" + new Date(createdAt).toLocaleString("cs-CZ") + "</div></div>" +
     "<h2 class='section-title'>Reakce studentů</h2><div id='reactionListContainer'><div class='empty-note'>Načítám...</div></div>";
   showScreen("announcement-detail");
