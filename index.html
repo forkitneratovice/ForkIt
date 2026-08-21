@@ -2654,21 +2654,24 @@ function renderPersonalityResult() {
   container.innerHTML = html;
 }
 
-function richExec(cmd) {
-  const editor = document.getElementById("newsTextInput");
+// targetId defaults to the home-screen composer, but the same toolbar markup/functions are
+// reused for the "Upravit" inline edit box in openAnnouncementDetail (targetId "announcementEditInput").
+function richExec(cmd, targetId) {
+  const editor = document.getElementById(targetId || "newsTextInput");
   editor.focus();
   if (typeof document.execCommand === "function") document.execCommand(cmd, false, null);
 }
 
-// Applies an exact px font-size to the current selection inside the aktualita composer.
+// Applies an exact px font-size to the current selection inside a rich-text editor (the
+// aktualita composer, or the "Upravit" edit box - see richExec's note on targetId).
 // Deliberately does NOT use execCommand("fontSize") - that command only offers 7 fixed legacy
 // steps, tracks its own internal state, and (once a size was already applied) can get stuck and
 // refuse to size back down. Instead this wraps the selected range directly in a
 // <span style="font-size:...">, first stripping any font-size already present inside that
 // selection so repeated clicks (bigger, then smaller, then bigger again) always fully replace
 // the size rather than nesting/stacking spans.
-function richSetFontSize(px) {
-  const editor = document.getElementById("newsTextInput");
+function richSetFontSize(px, targetId) {
+  const editor = document.getElementById(targetId || "newsTextInput");
   editor.focus();
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
@@ -2710,6 +2713,54 @@ function richSetFontSize(px) {
   newRange.selectNodeContents(span);
   sel.removeAllRanges();
   sel.addRange(newRange);
+}
+
+// By default, pressing Enter inside a contenteditable wraps each new line in its own <div> or
+// <p> - browsers differ on which, and our sanitizer only allows inline formatting tags anyway,
+// so those block wrappers get unwrapped and every line collapses back into one continuous blob.
+// Handling Enter manually and always inserting a plain <br> keeps line breaks exactly where the
+// user put them, through both sanitizing and every render call site (<br> is already allowed).
+function handleRichEditorEnterKey(e) {
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return;
+  const range = sel.getRangeAt(0);
+  range.deleteContents();
+  const br = document.createElement("br");
+  range.insertNode(br);
+  range.setStartAfter(br);
+  range.setEndAfter(br);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+// Wires the Enter -> <br> behavior above onto any contenteditable rich-text box (the aktualita
+// composer, and the "Upravit" inline edit box built fresh each time in openAnnouncementDetail).
+function wireRichEditorEnterKey(targetId) {
+  const editor = document.getElementById(targetId);
+  if (editor && typeof editor.addEventListener === "function") {
+    editor.addEventListener("keydown", handleRichEditorEnterKey);
+  }
+}
+wireRichEditorEnterKey("newsTextInput");
+
+// Builds the same Bold/Italic/Underline + font-size toolbar markup used by the aktualita
+// composer, pointed at a different target editor id (used by the "Upravit" edit box).
+function richToolbarHtml(targetId) {
+  return (
+    "<div class='rt-toolbar'>" +
+    "<button type='button' class='rt-btn' onmousedown='event.preventDefault()' onclick=\"richExec('bold','" + targetId + "')\"><b>B</b></button>" +
+    "<button type='button' class='rt-btn' onmousedown='event.preventDefault()' onclick=\"richExec('italic','" + targetId + "')\"><i>I</i></button>" +
+    "<button type='button' class='rt-btn' onmousedown='event.preventDefault()' onclick=\"richExec('underline','" + targetId + "')\"><u>U</u></button>" +
+    "<span class='rt-sep'></span>" +
+    "<button type='button' class='rt-btn' style='font-size:11px;' onmousedown='event.preventDefault()' onclick=\"richSetFontSize('11px','" + targetId + "')\" title='Malé písmo'>A</button>" +
+    "<button type='button' class='rt-btn' style='font-size:13px;' onmousedown='event.preventDefault()' onclick=\"richSetFontSize('14px','" + targetId + "')\" title='Normální písmo'>A</button>" +
+    "<button type='button' class='rt-btn' style='font-size:15px;' onmousedown='event.preventDefault()' onclick=\"richSetFontSize('17px','" + targetId + "')\" title='Střední písmo'>A</button>" +
+    "<button type='button' class='rt-btn' style='font-size:17px;' onmousedown='event.preventDefault()' onclick=\"richSetFontSize('20px','" + targetId + "')\" title='Velké písmo'>A</button>" +
+    "<button type='button' class='rt-btn' style='font-size:19px;' onmousedown='event.preventDefault()' onclick=\"richSetFontSize('24px','" + targetId + "')\" title='Obří písmo'>A</button>" +
+    "</div>"
+  );
 }
 
 async function postAnnouncement() {
@@ -4375,12 +4426,15 @@ async function renderAnnouncementsFull() {
   });
 }
 
+let currentAnnouncementDetail = null;
+
 async function openAnnouncementDetail(id, text, createdAt) {
+  currentAnnouncementDetail = { id, text, createdAt };
   const container = document.getElementById("announcementDetailContent");
   container.innerHTML =
-    "<div class='card'><div style='font-size:14px;'>" + sanitizeRichHtml(text) + "</div>" +
-    "<div style='font-size:11px;color:var(--text-muted);margin-top:8px;'>" + new Date(createdAt).toLocaleString("cs-CZ") + "</div></div>" +
+    "<div class='card' id='announcementDetailCard'></div>" +
     "<h2 class='section-title'>Reakce studentů</h2><div id='reactionListContainer'><div class='empty-note'>Načítám...</div></div>";
+  renderAnnouncementDetailCard();
   showScreen("announcement-detail");
 
   const { data, error } = await sb.rpc("get_announcement_reactions", { p_announcement_id: id });
@@ -4402,6 +4456,77 @@ async function openAnnouncementDetail(id, text, createdAt) {
       "<div class='name'>" + esc(r.student_name) + "</div></div><span style='font-size:20px;'>" + esc(r.emoji) + "</span>";
     listEl.appendChild(row);
   });
+}
+
+// Read-only view of the announcement text + the Upravit/Smazat actions (teacher-only screen).
+function renderAnnouncementDetailCard() {
+  const a = currentAnnouncementDetail;
+  const card = document.getElementById("announcementDetailCard");
+  card.innerHTML =
+    "<div style='font-size:14px;'>" + sanitizeRichHtml(a.text) + "</div>" +
+    "<div style='font-size:11px;color:var(--text-muted);margin-top:8px;'>" + new Date(a.createdAt).toLocaleString("cs-CZ") + "</div>" +
+    "<div style='margin-top:12px;display:flex;gap:8px;'>" +
+    "<button class='btn-secondary' onclick='startEditAnnouncement()'>Upravit</button>" +
+    "<button class='btn-secondary' style='color:var(--red);' onclick='confirmDeleteAnnouncement()'>Smazat</button>" +
+    "</div>" +
+    "<div id='announcementDetailError'></div>";
+}
+
+function startEditAnnouncement() {
+  const a = currentAnnouncementDetail;
+  const card = document.getElementById("announcementDetailCard");
+  card.innerHTML =
+    richToolbarHtml("announcementEditInput") +
+    "<div id='announcementEditInput' contenteditable='true' class='rt-editor' data-placeholder='Text aktuality...'></div>" +
+    "<div style='margin-top:10px;display:flex;gap:8px;'>" +
+    "<button class='btn-primary' onclick='saveAnnouncementEdit()'>Uložit</button>" +
+    "<button class='btn-secondary' onclick='cancelAnnouncementEdit()'>Zrušit</button>" +
+    "</div>" +
+    "<div id='announcementDetailError'></div>";
+  document.getElementById("announcementEditInput").innerHTML = sanitizeRichHtml(a.text);
+  wireRichEditorEnterKey("announcementEditInput");
+}
+
+function cancelAnnouncementEdit() {
+  renderAnnouncementDetailCard();
+}
+
+async function saveAnnouncementEdit() {
+  const editor = document.getElementById("announcementEditInput");
+  const plain = (editor.textContent || "").trim();
+  const errorEl = document.getElementById("announcementDetailError");
+  errorEl.innerHTML = "";
+  if (!plain) {
+    errorEl.innerHTML = "<div class='error-note'>Text aktuality nemůže být prázdný.</div>";
+    return;
+  }
+  const html = sanitizeRichHtml(editor.innerHTML);
+  const { error } = await sb.rpc("edit_announcement", { p_id: currentAnnouncementDetail.id, p_text: html });
+  if (error) {
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se uložit: " + esc(error.message) + "</div>";
+    return;
+  }
+  currentAnnouncementDetail.text = html;
+  renderAnnouncementDetailCard();
+  refreshAnnouncementLists();
+}
+
+async function confirmDeleteAnnouncement() {
+  if (typeof window.confirm === "function" && !window.confirm("Opravdu chceš tuto aktualitu smazat? Tuto akci nelze vrátit zpět.")) return;
+  const errorEl = document.getElementById("announcementDetailError");
+  const { error } = await sb.rpc("delete_announcement", { p_id: currentAnnouncementDetail.id });
+  if (error) {
+    if (errorEl) errorEl.innerHTML = "<div class='error-note'>Nepodařilo se smazat: " + esc(error.message) + "</div>";
+    return;
+  }
+  showScreen("announcements");
+  refreshAnnouncementLists();
+}
+
+// Keeps the teacher's own home-screen preview list in sync right after an edit/delete,
+// without waiting for a future navigation to "home" to naturally refetch it.
+function refreshAnnouncementLists() {
+  renderHomeNewsAdmin();
 }
 
 // ---------- SLOVNÍK ----------
