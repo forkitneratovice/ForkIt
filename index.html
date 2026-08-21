@@ -514,20 +514,10 @@
   .profile-head .pname { font-size: 17px; font-weight: 700; color: var(--dark); }
   .profile-head .pmeta { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; font-weight: 600; }
 
-  /* Admin (mistrová) */
-  .admin-row {
-    display: flex; align-items: center; gap: 10px;
-    background: var(--card); border-radius: 14px; padding: 11px 13px; margin-bottom: 8px;
-    box-shadow: 0 1px 5px rgba(0,0,0,0.06);
-  }
-  .admin-row .aname { flex: 1; font-size: 13.5px; font-weight: 700; color: var(--dark); }
-  .admin-row .arocnik { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
   .toggle-btn {
     padding: 7px 12px; border-radius: 20px; font-size: 12px; font-weight: 700;
     border: 1px solid #E5E0D6; background: #fff; color: var(--text-muted);
   }
-  .toggle-btn.present.active { background: var(--green); border-color: var(--green); color: #fff; }
-  .toggle-btn.absent.active { background: var(--red); border-color: var(--red); color: #fff; }
 
   /* Nav item (base – přebíjí .sidebar .nav-item a .nav-drawer .nav-item) */
   .nav-item {
@@ -992,13 +982,6 @@
         <div id="qcError"></div>
       </div>
 
-      <!-- NASTAVENÍ BODŮ (jen mistrová) -->
-      <div class="screen hidden" id="screen-set-points">
-        <span class="back-link" onclick="showScreen('home')">&larr; Zpět domů</span>
-        <h2 class="section-title">Nastavit body studentům</h2>
-        <div id="spStudentList"></div>
-      </div>
-
       <!-- VÝZVY -->
       <div class="screen hidden" id="screen-challenges">
         <div id="studentChallengesContent">
@@ -1402,16 +1385,6 @@
           <input type="text" id="chatThreadInputText" placeholder="Napiš zprávu…" onkeydown="if(event.key==='Enter'){sendChatThreadMessage();}">
           <button class="btn-primary" style="width:auto;padding:11px 18px;" onclick="sendChatThreadMessage()">Odeslat</button>
         </div>
-      </div>
-
-      <!-- ADMIN (jen mistrová) -->
-      <div class="screen hidden" id="screen-admin">
-        <h2 class="section-title">Docházka – zápis</h2>
-        <div class="field">
-          <label>Datum</label>
-          <input type="date" id="adminDate" onchange="loadAdminData()">
-        </div>
-        <div id="adminStudentList"></div>
       </div>
 
       <!-- NÁPOVĚDA / O APLIKACI -->
@@ -2291,7 +2264,6 @@ function showScreen(name) {
     "personality-take": ["Test osobnosti", "Pár otázek o tobě"],
     "personality-result": ["Test osobnosti", "Tvůj výsledek"],
     "quiz-students": ["Studenti", "Jak si vedli"],
-    "set-points": ["Body", "Nastavit body studentům"],
     challenges: ["Výzvy", "Praktické úkoly"],
     "challenge-detail": ["Výzva", "Detail výzvy"],
     "challenge-create": ["Nová výzva", "Vytvořit výzvu"],
@@ -2329,14 +2301,12 @@ function showScreen(name) {
   if (name === "quizzes") renderQuizList();
   if (name === "quiz-submissions-admin") loadQuizSubmissionsAdmin();
   if (name === "quiz-review") renderQuizReview();
-  if (name === "set-points") loadSetPoints();
   if (name === "challenges") renderChallenges();
   if (name === "challenge-approvals") loadChallengesAdmin();
   if (name === "announcements") renderAnnouncementsFull();
   if (name === "slovnik") renderSlovnik();
   if (name === "achievements") renderAchievements();
   if (name === "messages") renderMessages();
-  if (name === "admin") loadAdminData();
   if (name === "competitors") renderCompetitors();
   if (name === "practice-quizzes") renderPracticeQuizzes();
   if (name === "flashcards") openFlashcards();
@@ -5852,65 +5822,6 @@ async function sendChatMessageCore(threadStudentId, inputId, containerId) {
   await loadChatMessages(threadStudentId, containerId);
 }
 
-// ---------- NASTAVENÍ BODŮ (jen mistrová) ----------
-async function loadSetPoints() {
-  const { data: students, error } = await sb.from("profiles").select("id,name,rocnik,points").eq("role", "student").order("rocnik").order("name");
-  const list = document.getElementById("spStudentList");
-  list.innerHTML = "";
-  if (error) {
-    list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst studenty: " + esc(error.message) + "</div>";
-    return;
-  }
-  if (!students || students.length === 0) {
-    list.innerHTML = "<div class='empty-note'>Zatím se nezaregistroval žádný student.</div>";
-    return;
-  }
-  students.forEach((s) => {
-    const row = document.createElement("div");
-    row.className = "admin-row";
-
-    const nameDiv = document.createElement("div");
-    nameDiv.style.flex = "1";
-    nameDiv.innerHTML = "<div class='aname'>" + esc(s.name) + "</div><div class='arocnik'>" + esc(s.rocnik) + ". ročník</div>";
-    row.appendChild(nameDiv);
-
-    const input = document.createElement("input");
-    input.type = "number";
-    input.min = "0";
-    input.value = s.points;
-    input.style.cssText = "width:70px;padding:8px;border-radius:8px;border:1px solid #E5E0D6;font-size:13px;text-align:center;font-family:inherit;";
-    row.appendChild(input);
-
-    const saveBtn = document.createElement("button");
-    saveBtn.className = "toggle-btn";
-    saveBtn.textContent = "Uložit";
-    saveBtn.onclick = () => saveStudentPoints(s.id, input, saveBtn);
-    row.appendChild(saveBtn);
-
-    list.appendChild(row);
-  });
-}
-
-async function saveStudentPoints(studentId, input, btn) {
-  const value = parseInt(input.value, 10);
-  if (isNaN(value) || value < 0) {
-    alert("Zadejte platný počet bodů (0 nebo více).");
-    return;
-  }
-  btn.disabled = true;
-  const originalText = btn.textContent;
-  btn.textContent = "...";
-  const { error } = await sb.rpc("set_student_points", { p_student_id: studentId, p_points: value });
-  btn.disabled = false;
-  if (error) {
-    btn.textContent = originalText;
-    alert("Nepodařilo se uložit body: " + error.message);
-    return;
-  }
-  btn.textContent = "Uloženo";
-  setTimeout(() => { btn.textContent = originalText; }, 1200);
-}
-
 // ---------- PROFILOVÁ FOTKA (výřez do kruhu) ----------
 const AVATAR_CROP_SIZE = 240; // px, velikost kruhového výřezu na obrazovce
 const AVATAR_OUTPUT_SIZE = 400; // px, výsledná uložená fotka (čtverec)
@@ -6103,52 +6014,6 @@ function resizeImageToBlob(file, maxDim, quality) {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
-}
-
-// ---------- ADMINISTRACE (jen mistrová) ----------
-async function loadAdminData() {
-  if (!user || user.role !== "mistrova") return;
-  const dateInput = document.getElementById("adminDate");
-  if (!dateInput.value) {
-    dateInput.value = new Date().toISOString().slice(0, 10);
-  }
-  const day = dateInput.value;
-
-  const { data: students } = await sb.from("profiles").select("id,name,rocnik").eq("role", "student").order("name");
-  const { data: attendanceRows } = await sb.from("attendance").select("user_id,present").eq("day", day);
-
-  const attByStudent = {};
-  (attendanceRows || []).forEach((a) => { attByStudent[a.user_id] = a.present; });
-
-  const list = document.getElementById("adminStudentList");
-  list.innerHTML = "";
-  if (!students || students.length === 0) {
-    list.innerHTML = "<div class='empty-note'>Zatím se nezaregistroval žádný student.</div>";
-    return;
-  }
-  students.forEach((s) => {
-    const state = attByStudent[s.id];
-    const row = document.createElement("div");
-    row.className = "admin-row";
-    row.innerHTML =
-      "<div><div class='aname'>" + esc(s.name) + "</div><div class='arocnik'>" + esc(s.rocnik) + ". ročník</div></div>" +
-      "<button class='toggle-btn present" + (state === true ? " active" : "") + "'>Přítomen</button>" +
-      "<button class='toggle-btn absent" + (state === false ? " active" : "") + "'>Nepřítomen</button>";
-    const [presentBtn, absentBtn] = row.querySelectorAll("button");
-    presentBtn.onclick = () => markAttendance(s.id, true);
-    absentBtn.onclick = () => markAttendance(s.id, false);
-    list.appendChild(row);
-  });
-}
-
-async function markAttendance(studentId, present) {
-  const day = document.getElementById("adminDate").value;
-  const { error } = await sb.rpc("mark_attendance", { p_student_id: studentId, p_day: day, p_present: present });
-  if (error) {
-    alert("Nepodařilo se zapsat docházku: " + error.message);
-    return;
-  }
-  loadAdminData();
 }
 
 // ---------- PWA: registrace service workeru ----------
