@@ -1565,6 +1565,14 @@
         </div>
       </div>
 
+      <!-- DOTAZY (jen mistrová) - všechny anonymní zprávy od studentů, staré i nové, s odpovědí -->
+      <div class="screen hidden" id="screen-teacher-feedback">
+        <span class="back-link" onclick="showScreen('faq')">&larr; Zpět na časté otázky</span>
+        <div class="help-section">
+          <div id="teacherFeedbackList"><div class="empty-note">Načítám...</div></div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -1908,7 +1916,7 @@ function logoutUser() {
   try {
     localStorage.removeItem("forkit_last_screen");
   } catch (e) {}
-  ["quizzes", "challenges", "achievements", "messages"].forEach((n) => setNavBadge(n, 0));
+  ["quizzes", "challenges", "achievements", "messages", "faq"].forEach((n) => setNavBadge(n, 0));
   document.getElementById("hamburgerBtn").classList.add("hidden");
   document.getElementById("homeBtn").classList.add("hidden");
   closeNavDrawer();
@@ -2241,45 +2249,7 @@ async function renderFaqFeedback() {
   if (user.role === "mistrova") {
     el.innerHTML =
       "<h2 class='section-title'>&#128229; Zprávy</h2>" +
-      "<p class='help-text'>Anonymní dotazy a zpětná vazba od studentů – nevíte, kdo kterou zprávu poslal. Na zprávu můžete odpovědět, odpověď se studentovi zobrazí v jeho Mých zprávách.</p>" +
-      "<div id='feedbackList'><div class='empty-note'>Načítám...</div></div>";
-    const listEl = document.getElementById("feedbackList");
-    const { data, error } = await sb.rpc("get_anonymous_feedback");
-    if (error) {
-      listEl.innerHTML = "<div class='empty-note'>Nepodařilo se načíst: " + esc(error.message) + "</div>";
-      return;
-    }
-    if (!data || data.length === 0) {
-      listEl.innerHTML = "<div class='empty-note'>Zatím žádná zpětná vazba.</div>";
-      return;
-    }
-    listEl.innerHTML = "";
-    data.forEach((f) => {
-      const div = document.createElement("div");
-      div.className = "card";
-      div.style.marginBottom = "10px";
-      const dateStr = new Date(f.created_at).toLocaleString("cs-CZ");
-      let html =
-        "<div style='white-space:pre-wrap;font-size:14px;'>" + esc(f.message) + "</div>" +
-        "<div style='margin-top:6px;font-size:12px;color:var(--text-muted);'>" + dateStr + "</div>";
-      if (f.reply) {
-        const replyDateStr = new Date(f.replied_at).toLocaleString("cs-CZ");
-        html +=
-          "<div style='margin-top:10px;padding-top:10px;border-top:1px solid #E0DCD3;'>" +
-          "<div style='font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:4px;'>Vaše odpověď:</div>" +
-          "<div style='white-space:pre-wrap;font-size:14px;'>" + esc(f.reply) + "</div>" +
-          "<div style='margin-top:6px;font-size:12px;color:var(--text-muted);'>" + replyDateStr + "</div>" +
-          "</div>";
-      } else {
-        html +=
-          "<div style='margin-top:10px;'>" +
-          "<textarea class='feedback-reply-text' rows='2' style='width:100%;padding:9px 11px;border-radius:10px;border:1px solid #E0DCD3;font-size:13.5px;font-family:inherit;' placeholder='Napište odpověď...'></textarea>" +
-          "<button class='btn-primary' style='margin-top:8px;padding:8px 14px;font-size:13px;' onclick='sendFeedbackReply(" + f.id + ", this)'>Odpovědět</button>" +
-          "</div>";
-      }
-      div.innerHTML = html;
-      listEl.appendChild(div);
-    });
+      "<button class='btn-primary' onclick=\"showScreen('teacher-feedback')\">Dotazy</button>";
     return;
   }
 
@@ -2313,8 +2283,51 @@ async function submitFeedback() {
   statusEl.innerHTML = "<div class='demo-note'><b>Odesláno:</b> díky za zprávu!</div>";
 }
 
+// "Dotazy" (jen mistrová) - všechny anonymní zprávy, staré i nové, s možností odpovědět.
+async function renderTeacherFeedback() {
+  const listEl = document.getElementById("teacherFeedbackList");
+  if (!listEl) return;
+  listEl.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const { data, error } = await sb.rpc("get_anonymous_feedback");
+  if (error) {
+    listEl.innerHTML = "<div class='empty-note'>Nepodařilo se načíst: " + esc(error.message) + "</div>";
+    return;
+  }
+  if (!data || data.length === 0) {
+    listEl.innerHTML = "<div class='empty-note'>Zatím žádná zpětná vazba.</div>";
+    return;
+  }
+  listEl.innerHTML = "";
+  data.forEach((f) => {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.style.marginBottom = "10px";
+    const dateStr = new Date(f.created_at).toLocaleString("cs-CZ");
+    let html =
+      "<div style='white-space:pre-wrap;font-size:14px;'>" + esc(f.message) + "</div>" +
+      "<div style='margin-top:6px;font-size:12px;color:var(--text-muted);'>" + dateStr + "</div>";
+    if (f.reply) {
+      const replyDateStr = new Date(f.replied_at).toLocaleString("cs-CZ");
+      html +=
+        "<div style='margin-top:10px;padding-top:10px;border-top:1px solid #E0DCD3;'>" +
+        "<div style='font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:4px;'>Vaše odpověď:</div>" +
+        "<div style='white-space:pre-wrap;font-size:14px;'>" + esc(f.reply) + "</div>" +
+        "<div style='margin-top:6px;font-size:12px;color:var(--text-muted);'>" + replyDateStr + "</div>" +
+        "</div>";
+    } else {
+      html +=
+        "<div style='margin-top:10px;'>" +
+        "<textarea class='feedback-reply-text' rows='2' style='width:100%;padding:9px 11px;border-radius:10px;border:1px solid #E0DCD3;font-size:13.5px;font-family:inherit;' placeholder='Napište odpověď...'></textarea>" +
+        "<button class='btn-primary' style='margin-top:8px;padding:8px 14px;font-size:13px;' onclick='sendFeedbackReply(" + f.id + ", this)'>Odpovědět</button>" +
+        "</div>";
+    }
+    div.innerHTML = html;
+    listEl.appendChild(div);
+  });
+}
+
 // Mistrová odpovídá na konkrétní anonymní zprávu - po odeslání se seznam překreslí,
-// takže zpráva rovnou naskočí do stavu "zodpovězeno".
+// takže zpráva rovnou naskočí do stavu "zodpovězeno", a smaže se jí odznáček na "Časté otázky".
 async function sendFeedbackReply(id, btn) {
   const card = btn.closest(".card");
   const textEl = card.querySelector(".feedback-reply-text");
@@ -2327,7 +2340,8 @@ async function sendFeedbackReply(id, btn) {
     alert("Nepodařilo se odeslat odpověď: " + error.message);
     return;
   }
-  await renderFaqFeedback();
+  await renderTeacherFeedback();
+  await computeNavBadges();
 }
 
 // "Moje zprávy" (jen studenti) - vlastní odeslané anonymní zprávy a odpovědi na ně.
@@ -2454,6 +2468,7 @@ function showScreen(name) {
     help: ["Nápověda", "Jak appka funguje"],
     faq: ["Časté otázky", "Co se studenti ptají nejčastěji"],
     "my-feedback": ["Moje zprávy", "Vaše odeslané zprávy"],
+    "teacher-feedback": ["Dotazy", "Zprávy od studentů"],
   };
   if (titles[name]) {
     document.getElementById("topbarTitle").textContent = titles[name][0];
@@ -2476,6 +2491,7 @@ function showScreen(name) {
   if (name === "flashcards") openFlashcards();
   if (name === "faq") renderFaqFeedback();
   if (name === "my-feedback") renderMyFeedback();
+  if (name === "teacher-feedback") renderTeacherFeedback();
 }
 
 // ---------- KVÍZY ----------
@@ -5700,6 +5716,9 @@ async function computeNavBadges() {
 
     const { data: pendingQuizzes } = await sb.rpc("get_quiz_submissions_admin");
     setNavBadge("quizzes", pendingQuizzes ? pendingQuizzes.filter((q) => q.status === "pending").length : 0);
+
+    const { data: feedback } = await sb.rpc("get_anonymous_feedback");
+    setNavBadge("faq", feedback ? feedback.filter((f) => !f.reply).length : 0);
   }
 
   await updateMessagesBadge();
