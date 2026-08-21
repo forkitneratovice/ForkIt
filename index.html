@@ -1920,18 +1920,32 @@ async function refreshPushStatus() {
 
 async function togglePushNotifications() {
   const errorEl = document.getElementById("pushError");
+  const statusEl = document.getElementById("pushStatusText");
   const btn = document.getElementById("pushToggleBtn");
   errorEl.innerHTML = "";
   if (!pushSupported()) return;
 
   btn.disabled = true;
+  let knownOutcome = false;
   try {
     const reg = await navigator.serviceWorker.ready;
     const existing = await reg.pushManager.getSubscription();
 
     if (existing) {
-      await sb.rpc("remove_push_subscription", { p_endpoint: existing.endpoint }).catch(() => {});
-      await existing.unsubscribe();
+      // Turning OFF: always drop the local subscription regardless of whether the server-side
+      // delete succeeds (a failed delete just leaves a harmless orphan row), and set the UI
+      // directly from this action instead of immediately re-querying getSubscription() - on some
+      // browsers that re-query can still briefly report the just-removed subscription, which is
+      // why "Vypnout oznámení" could look like it silently did nothing.
+      try {
+        await sb.rpc("remove_push_subscription", { p_endpoint: existing.endpoint });
+      } catch (e) {}
+      try {
+        await existing.unsubscribe();
+      } catch (e) {}
+      statusEl.textContent = "Oznámení jsou vypnutá.";
+      btn.textContent = "Zapnout oznámení";
+      knownOutcome = true;
     } else {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
@@ -1945,26 +1959,42 @@ async function togglePushNotifications() {
         btn.disabled = false;
         return;
       }
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidKey),
-      });
-      const json = sub.toJSON();
-      const { error: saveError } = await sb.rpc("save_push_subscription", {
-        p_endpoint: json.endpoint,
-        p_p256dh: json.keys.p256dh,
-        p_auth: json.keys.auth,
-      });
-      if (saveError) {
-        await sub.unsubscribe().catch(() => {});
-        errorEl.innerHTML = "<div class='error-note'>Nepodařilo se uložit oznámení, zkuste to prosím později.</div>";
+      // Subscribing and saving are wrapped together: if EITHER step fails or throws for any
+      // reason, we unsubscribe again so the device never ends up "on" locally while the server
+      // has no record of it (which is exactly what made the teacher's view show "no push" for a
+      // student whose own phone claimed notifications were already enabled).
+      let sub = null;
+      try {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidKey),
+        });
+        const json = sub.toJSON();
+        const { error: saveError } = await sb.rpc("save_push_subscription", {
+          p_endpoint: json.endpoint,
+          p_p256dh: json.keys.p256dh,
+          p_auth: json.keys.auth,
+        });
+        if (saveError) throw new Error(saveError.message || "save_push_subscription failed");
+        statusEl.textContent = "Oznámení jsou zapnutá.";
+        btn.textContent = "Vypnout oznámení";
+        knownOutcome = true;
+      } catch (innerErr) {
+        if (sub) await sub.unsubscribe().catch(() => {});
+        errorEl.innerHTML = "<div class='error-note'>Nepodařilo se zapnout oznámení, zkuste to prosím znovu.</div>";
+        // we know exactly where things ended up (rolled back to "off") - skip the refresh below,
+        // since refreshPushStatus() clears this error message as its very first step.
+        knownOutcome = true;
       }
     }
   } catch (e) {
     errorEl.innerHTML = "<div class='error-note'>Něco se nepovedlo. Zkuste to prosím znovu.</div>";
   }
   btn.disabled = false;
-  await refreshPushStatus();
+  // Only re-derive the UI from a fresh browser query when we don't already know the outcome
+  // (e.g. the whole thing failed before we could tell what state we're in) - otherwise trust
+  // the direct update above, since re-querying right away is exactly what could go stale.
+  if (!knownOutcome) await refreshPushStatus();
 }
 
 // Pozná, jestli v telefonu vůbec může být uložené přihlášení (Supabase si
