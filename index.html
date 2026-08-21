@@ -581,6 +581,16 @@
     .btn-primary, .btn-secondary { font-size: 16px; }
     .empty-note { font-size: 14px; }
     .help-text, .help-list { font-size: 14.5px; }
+
+    /* Přihlašovací/načítací obrazovka (bez sidebaru, bez potřeby scrollovat) - vycentrovaná
+       uprostřed okna místo zarovnané k levému hornímu rohu jako ostatní obrazovky. inset:0
+       ji natáhne přesně na celou plochu .app-wrap (ten je position:relative), takže se dá
+       spolehlivě vystředit přes flex bez ohledu na to, jak vysoký je zrovna topbar. */
+    #screen-login, #screen-loading {
+      position: absolute; inset: 0; margin: 0; max-width: none;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px; overflow-y: auto;
+    }
   }
 </style>
 </head>
