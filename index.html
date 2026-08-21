@@ -828,9 +828,11 @@
               <button type="button" class="rt-btn" onmousedown="event.preventDefault()" onclick="richExec('italic')"><i>I</i></button>
               <button type="button" class="rt-btn" onmousedown="event.preventDefault()" onclick="richExec('underline')"><u>U</u></button>
               <span class="rt-sep"></span>
-              <button type="button" class="rt-btn" onmousedown="event.preventDefault()" onclick="richFontSize('12px')" title="Menší písmo">A-</button>
-              <button type="button" class="rt-btn" onmousedown="event.preventDefault()" onclick="richFontSize('14px')" title="Normální písmo">A</button>
-              <button type="button" class="rt-btn" onmousedown="event.preventDefault()" onclick="richFontSize('19px')" title="Větší písmo">A+</button>
+              <button type="button" class="rt-btn" style="font-size:11px;" onmousedown="event.preventDefault()" onclick="richSetFontSize('11px')" title="Malé písmo">A</button>
+              <button type="button" class="rt-btn" style="font-size:13px;" onmousedown="event.preventDefault()" onclick="richSetFontSize('14px')" title="Normální písmo">A</button>
+              <button type="button" class="rt-btn" style="font-size:15px;" onmousedown="event.preventDefault()" onclick="richSetFontSize('17px')" title="Střední písmo">A</button>
+              <button type="button" class="rt-btn" style="font-size:17px;" onmousedown="event.preventDefault()" onclick="richSetFontSize('20px')" title="Velké písmo">A</button>
+              <button type="button" class="rt-btn" style="font-size:19px;" onmousedown="event.preventDefault()" onclick="richSetFontSize('24px')" title="Obří písmo">A</button>
             </div>
             <div id="newsTextInput" contenteditable="true" class="rt-editor" data-placeholder="Napiš novinku pro studenty..."></div>
           </div>
@@ -2658,25 +2660,56 @@ function richExec(cmd) {
   if (typeof document.execCommand === "function") document.execCommand(cmd, false, null);
 }
 
-// Applies a fixed px font-size to the current selection inside the aktualita composer.
-// Uses execCommand("fontSize") as a sentinel (size "7") purely so the browser handles the
-// selection-aware wrapping/splitting correctly across partial/multi-node selections, then
-// immediately rewrites the resulting <font size="7"> tags into <span style="font-size:...">
-// so no legacy <font> tag (outside our sanitizer allowlist) ever survives.
-function richFontSize(px) {
+// Applies an exact px font-size to the current selection inside the aktualita composer.
+// Deliberately does NOT use execCommand("fontSize") - that command only offers 7 fixed legacy
+// steps, tracks its own internal state, and (once a size was already applied) can get stuck and
+// refuse to size back down. Instead this wraps the selected range directly in a
+// <span style="font-size:...">, first stripping any font-size already present inside that
+// selection so repeated clicks (bigger, then smaller, then bigger again) always fully replace
+// the size rather than nesting/stacking spans.
+function richSetFontSize(px) {
   const editor = document.getElementById("newsTextInput");
   editor.focus();
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
-  if (typeof document.execCommand !== "function") return;
-  document.execCommand("styleWithCSS", false, true);
-  document.execCommand("fontSize", false, "7");
-  editor.querySelectorAll('font[size="7"]').forEach((f) => {
-    const span = document.createElement("span");
-    span.style.fontSize = px;
-    while (f.firstChild) span.appendChild(f.firstChild);
-    f.replaceWith(span);
-  });
+  const range = sel.getRangeAt(0);
+  if (!editor.contains(range.commonAncestorContainer)) return;
+
+  const frag = range.extractContents();
+  if (frag.querySelectorAll) {
+    frag.querySelectorAll("[style]").forEach((el) => {
+      const stripped = (el.getAttribute("style") || "").replace(/font-size\s*:[^;]+;?/gi, "").trim();
+      if (stripped) el.setAttribute("style", stripped);
+      else el.removeAttribute("style");
+    });
+  }
+
+  const span = document.createElement("span");
+  span.style.fontSize = px;
+  span.appendChild(frag);
+  range.insertNode(span);
+
+  // If the selection's boundaries sat exactly at the edge of an existing font-size span
+  // (e.g. the browser selected "the text inside the span" rather than the span itself, which
+  // is the normal case for a double/triple-click selection), the new span ends up nested INSIDE
+  // that now-redundant old wrapper instead of replacing it. Unwrap any such now-pointless
+  // ancestor wrappers so re-shrinking/re-growing never leaves stacked font-size spans behind.
+  let wrapper = span.parentNode;
+  while (
+    wrapper && wrapper !== editor && wrapper.tagName === "SPAN" &&
+    wrapper.childNodes.length === 1 && wrapper.firstChild === span &&
+    /font-size/i.test(wrapper.getAttribute("style") || "")
+  ) {
+    const grandparent = wrapper.parentNode;
+    grandparent.insertBefore(span, wrapper);
+    grandparent.removeChild(wrapper);
+    wrapper = grandparent;
+  }
+
+  const newRange = document.createRange();
+  newRange.selectNodeContents(span);
+  sel.removeAllRanges();
+  sel.addRange(newRange);
 }
 
 async function postAnnouncement() {
