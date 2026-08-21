@@ -797,7 +797,7 @@
             </div>
             <button class="btn-primary" id="registerBtn" onclick="registerAccount()">Zaregistrovat se</button>
             <div id="registerError"></div>
-            <div class="demo-note"><b>Jak to funguje:</b> po registraci vám přijde e-mail s ověřovacím odkazem. Po kliknutí si v appce rovnou nastavíte heslo – příště se už jen přihlásíte e-mailem a heslem.</div>
+            <div class="demo-note"><b>Jak to funguje:</b> po registraci vám přijde e-mail s ověřovacím odkazem (zkontrolujte prosím i spam/nevyžádanou poštu). Po kliknutí si v appce rovnou nastavíte heslo – příště se už jen přihlásíte e-mailem a heslem.</div>
           </div>
 
           <!-- ČEKÁNÍ NA E-MAIL (registrace i obnova hesla) -->
@@ -2996,11 +2996,11 @@ async function renderQuizList() {
     list.appendChild(div);
   });
 
-  markSeen("forkit_seen_quiz_ids", quizzes.map((q) => q.id));
+  await markSeen("forkit_seen_quiz_ids", quizzes.map((q) => q.id));
   setNavBadge("quizzes", 0);
 
   await loadMyQuizSubmissions();
-  renderMyQuizSubmissions();
+  await renderMyQuizSubmissions();
 }
 
 // ---------- VLASTNÍ NÁVRHY KVÍZŮ (studenti) ----------
@@ -3014,7 +3014,7 @@ function quizSubmissionDecisionKey(s) {
   return s.id + "_" + (s.reviewed_at || "");
 }
 
-function renderMyQuizSubmissions() {
+async function renderMyQuizSubmissions() {
   const wrap = document.getElementById("myQuizSubmissionsWrap");
   const list = document.getElementById("myQuizSubmissionsList");
   if (!wrap || !list) return;
@@ -3038,7 +3038,7 @@ function renderMyQuizSubmissions() {
   // Poznámka: seen-stav se počítá ze všech rozhodnutých návrhů (i schválených),
   // ne jen z těch zobrazených výše - schválené se totiž hned potom objeví v
   // běžném seznamu kvízů, ale odznak "nové rozhodnutí" musí zmizet taky.
-  markSeen("forkit_seen_quiz_submission_decisions", myQuizSubmissions.filter((s) => s.status !== "pending" && s.reviewed_at).map(quizSubmissionDecisionKey));
+  await markSeen("forkit_seen_quiz_submission_decisions", myQuizSubmissions.filter((s) => s.status !== "pending" && s.reviewed_at).map(quizSubmissionDecisionKey));
 }
 
 // ---------- NÁVRHY OD STUDENTŮ (mistrová) ----------
@@ -3576,7 +3576,7 @@ async function submitStudentQuizDraft() {
   }
 
   await loadMyQuizSubmissions();
-  renderMyQuizSubmissions();
+  await renderMyQuizSubmissions();
   showScreen("quizzes");
 }
 
@@ -4004,7 +4004,7 @@ async function renderChallenges() {
   // reviewed_at), ne podle id výzvy - díky tomu se odznáček objeví znovu i
   // po dalším pokusu, a taky když mistrová zpětně opraví hodnocení (což mění
   // reviewed_at, i když jde o stejný pokus).
-  markSeen(
+  await markSeen(
     "forkit_seen_challenge_decision_ids",
     challenges.filter((c) => (c.my_status === "approved" || c.my_status === "rejected") && c.last_submission_id).map(challengeDecisionKey)
   );
@@ -5430,7 +5430,7 @@ async function renderAchievements() {
 
   renderBadgeCatalogInto(list, buildBadgeCatalog(b));
 
-  markSeen("forkit_seen_badge_keys", earnedBadgeKeys(b));
+  await markSeen("forkit_seen_badge_keys", earnedBadgeKeys(b));
   setNavBadge("achievements", 0);
 }
 
@@ -5468,26 +5468,29 @@ async function updateMessagesBadge() {
 
 // Sady ID "už viděno" - kdy se v dané sekci naposledy něco zobrazilo studentovi,
 // aby odznáček zmizel po kliknutí a znovu se objevil jen u opravdu nových věcí.
-// Klíč je vždy vázaný na konkrétního uživatele (podle jeho id), aby se stav
-// zachoval i po odhlášení/přihlášení a nepletl se mezi různými účty na
-// stejném telefonu.
-function seenStorageKey(baseKey) {
-  return user ? baseKey + "_" + user.id : baseKey;
-}
-
-function getSeenSet(key) {
+// Ukládá se na serveru (tabulka student_seen_items), ne do localStorage - jinak
+// by "viděno" zmizelo z odznáčku jen na tom jednom telefonu/prohlížeči, kde na
+// to student klikl, a na jiném zařízení (např. na počítači) by odznáček dál
+// svítil, i když si student tu novinku už fakticky prohlédl.
+async function getSeenSet(category) {
+  if (!user) return new Set();
   try {
-    const raw = localStorage.getItem(seenStorageKey(key));
-    return new Set(raw ? JSON.parse(raw) : []);
+    const { data, error } = await sb.from("student_seen_items").select("item_key").eq("student_id", user.id).eq("category", category);
+    if (error || !data) return new Set();
+    return new Set(data.map((r) => r.item_key));
   } catch (e) {
     return new Set();
   }
 }
 
-function markSeen(key, ids) {
-  const set = getSeenSet(key);
-  ids.forEach((id) => set.add(id));
-  try { localStorage.setItem(seenStorageKey(key), JSON.stringify([...set])); } catch (e) {}
+async function markSeen(category, ids) {
+  if (!user || !ids || ids.length === 0) return;
+  const rows = ids.map((id) => ({ student_id: user.id, category, item_key: String(id) }));
+  try {
+    await sb.from("student_seen_items").upsert(rows, { onConflict: "student_id,category,item_key", ignoreDuplicates: true });
+  } catch (e) {
+    // best-effort bookkeeping - a failed write here shouldn't block the screen from rendering
+  }
 }
 
 function setNavBadge(navName, count) {
@@ -5505,15 +5508,15 @@ async function computeNavBadges() {
   if (!user) return;
 
   if (user.role === "student") {
-    const seenQuizIds = getSeenSet("forkit_seen_quiz_ids");
-    const seenSubmissionDecisions = getSeenSet("forkit_seen_quiz_submission_decisions");
-    const newQuizCount = quizzes.filter((q) => !seenQuizIds.has(q.id)).length;
+    const seenQuizIds = await getSeenSet("forkit_seen_quiz_ids");
+    const seenSubmissionDecisions = await getSeenSet("forkit_seen_quiz_submission_decisions");
+    const newQuizCount = quizzes.filter((q) => !seenQuizIds.has(String(q.id))).length;
     const decidedSubmissionCount = myQuizSubmissions.filter(
       (s) => s.status !== "pending" && s.reviewed_at && !seenSubmissionDecisions.has(quizSubmissionDecisionKey(s))
     ).length;
     setNavBadge("quizzes", newQuizCount + decidedSubmissionCount);
 
-    const seenChallengeDecisionIds = getSeenSet("forkit_seen_challenge_decision_ids");
+    const seenChallengeDecisionIds = await getSeenSet("forkit_seen_challenge_decision_ids");
     setNavBadge(
       "challenges",
       challenges.filter((c) => (c.my_status === "approved" || c.my_status === "rejected") && c.last_submission_id && !seenChallengeDecisionIds.has(challengeDecisionKey(c))).length
@@ -5522,7 +5525,7 @@ async function computeNavBadges() {
     const { data: badgeData } = await sb.rpc("get_my_badges");
     if (badgeData && badgeData[0]) {
       const earnedKeys = earnedBadgeKeys(badgeData[0]);
-      const seenBadgeKeys = getSeenSet("forkit_seen_badge_keys");
+      const seenBadgeKeys = await getSeenSet("forkit_seen_badge_keys");
       setNavBadge("achievements", earnedKeys.filter((k) => !seenBadgeKeys.has(k)).length);
     }
   } else if (user.role === "mistrova") {
