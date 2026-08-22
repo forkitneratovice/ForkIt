@@ -2385,6 +2385,16 @@ function toggleFaq(btn) {
   item.classList.toggle("open", willOpen);
 }
 
+// Na rozdíl od toggleFaq() vždy otevře (nikdy nezavře) - používá se při
+// příchodu z vyhledávání, kde chceme rovnou ukázat odpověď, ne ji omylem
+// zase schovat, kdyby už otevřená byla.
+function openFaqItem(btn) {
+  const item = btn.closest(".faq-item");
+  if (!item) return;
+  item.querySelector(".faq-answer").classList.remove("hidden");
+  item.classList.add("open");
+}
+
 // Základní filtr sprostých/explicitních slov (česky i anglicky) pro anonymní zprávy.
 // Stejný seznam jako na serveru (BEFORE INSERT trigger na anonymous_feedback) - tohle
 // je jen pro rychlou zpětnou vazbu rovnou ve formuláři, skutečně to vynucuje server,
@@ -2466,8 +2476,76 @@ function handleAppSearchInput() {
   appSearchDebounceTimer = setTimeout(() => runAppSearch(q), 300);
 }
 
-const APP_SEARCH_KIND_LABELS = { word: "Slovník", aktualita: "Aktualita", quiz: "Kvíz", challenge: "Výzva" };
-const APP_SEARCH_KIND_ICONS = { word: "&#128214;", aktualita: "&#128226;", quiz: "&#9999;&#65039;", challenge: "&#127919;" };
+const APP_SEARCH_KIND_LABELS = { word: "Slovník", aktualita: "Aktualita", quiz: "Kvíz", challenge: "Výzva", faq: "Časté otázky", help: "Nápověda" };
+const APP_SEARCH_KIND_ICONS = { word: "&#128214;", aktualita: "&#128226;", quiz: "&#9999;&#65039;", challenge: "&#127919;", faq: "&#10067;", help: "&#8505;&#65039;" };
+
+// Statický text přímo na obrazovce Nápověda (O aplikaci, Kvízy, Výzvy,
+// Zprávy, Odznáčky, Žebříček a body, Procvičování) - žije jen v HTML, ne v
+// DB. Na rozdíl od ostatních typů výsledků se tu po kliknutí nikam
+// nenaviguje (je to pořád ta samá obrazovka) - jen se k dané sekci
+// odscrolluje a krátce zvýrazní.
+function getHelpSections() {
+  return [...document.querySelectorAll("#appSearchDefaultContent .help-section")].map((el) => {
+    const heading = el.querySelector(".section-title");
+    const headingText = heading ? heading.textContent.trim() : "";
+    const bodyText = [...el.children]
+      .filter((c) => c !== heading)
+      .map((c) => c.textContent.trim())
+      .join(" ");
+    return { headingText, bodyText, el };
+  });
+}
+
+function searchHelpSections(q) {
+  const needle = q.toLowerCase();
+  return getHelpSections()
+    .filter((s) => s.headingText.toLowerCase().includes(needle) || s.bodyText.toLowerCase().includes(needle))
+    .map((s) => ({
+      kind: "help",
+      ref_id: null,
+      display_title: s.headingText,
+      display_text: s.bodyText,
+      extra_created_at: null,
+      extra_points: null,
+      helpSectionEl: s.el,
+    }));
+}
+
+function jumpToHelpSection(el) {
+  document.getElementById("appSearchResults").innerHTML = "";
+  document.getElementById("appSearchDefaultContent").classList.remove("hidden");
+  el.scrollIntoView({ block: "start" });
+  el.style.transition = "background-color 0.3s";
+  el.style.backgroundColor = "#FFF6D9";
+  setTimeout(() => { el.style.backgroundColor = ""; }, 1500);
+}
+
+// Statické FAQ otázky/odpovědi (obrazovka "Časté otázky") žijí jen v HTML,
+// ne v DB - pročesávají se přímo z DOM, ať se vždycky hledá přesně to, co
+// student uvidí, i kdyby se seznam otázek později upravil.
+function getFaqEntries() {
+  return [...document.querySelectorAll("#faqList .faq-item")].map((item) => {
+    const btn = item.querySelector(".faq-question");
+    const questionText = btn.querySelector("span").textContent.trim();
+    const answerText = item.querySelector(".faq-answer p").textContent.trim();
+    return { questionText, answerText, btn };
+  });
+}
+
+function searchFaqEntries(q) {
+  const needle = q.toLowerCase();
+  return getFaqEntries()
+    .filter((e) => e.questionText.toLowerCase().includes(needle) || e.answerText.toLowerCase().includes(needle))
+    .map((e) => ({
+      kind: "faq",
+      ref_id: null,
+      display_title: e.questionText,
+      display_text: e.answerText,
+      extra_created_at: null,
+      extra_points: null,
+      faqBtn: e.btn,
+    }));
+}
 
 async function runAppSearch(q) {
   const resultsEl = document.getElementById("appSearchResults");
@@ -2479,7 +2557,7 @@ async function runAppSearch(q) {
     resultsEl.innerHTML = "<div class='error-note'>Vyhledávání se nepodařilo: " + esc(error.message) + "</div>";
     return;
   }
-  appSearchResultsData = data || [];
+  appSearchResultsData = searchHelpSections(q).concat(searchFaqEntries(q)).concat(data || []);
   if (appSearchResultsData.length === 0) {
     resultsEl.innerHTML = "<div class='empty-note'>Nic jsme nenašli. Zkus jiné klíčové slovo.</div>";
     return;
@@ -2508,7 +2586,13 @@ function openAppSearchResult(i) {
   if (!r) return;
   const isTeacher = user && user.role === "mistrova";
 
-  if (r.kind === "word") {
+  if (r.kind === "help") {
+    jumpToHelpSection(r.helpSectionEl);
+  } else if (r.kind === "faq") {
+    showScreen("faq");
+    openFaqItem(r.faqBtn);
+    r.faqBtn.scrollIntoView({ block: "center" });
+  } else if (r.kind === "word") {
     openWordDetail(r.ref_id, r.display_title, r.display_text);
   } else if (r.kind === "aktualita") {
     openAnnouncementDetail(r.ref_id, r.display_text, r.extra_created_at);
