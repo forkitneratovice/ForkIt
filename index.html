@@ -226,6 +226,11 @@
   .list-item.status-yellow { background: #fff6d9; }
   .list-item.status-green { background: #e3efe5; }
   .list-item.status-red { background: #f8dcdc; }
+  .card.status-gray { background: #EAE7E1; }
+  .card.status-green { background: #e3efe5; }
+  .word-status-note { font-size: 12px; margin-top: 6px; font-weight: 700; }
+  .word-status-note.gray { color: #7A756D; }
+  .word-status-note.green { color: #2F7D4F; }
   .news-card { background: var(--dark); color: white; border-radius: 14px; padding: 13px 14px; margin-bottom: 10px; }
   .news-card .news-text { font-size: 13px; line-height: 1.5; }
   .news-card .news-date { font-size: 11px; color: var(--lime); margin-top: 6px; font-weight: 700; }
@@ -1099,6 +1104,7 @@
       <div class="screen hidden" id="screen-word-create">
         <span class="back-link" onclick="showScreen('slovnik')">&larr; Zpět na slovník</span>
         <h2 class="section-title">Nové slovo dne</h2>
+        <p class="help-text">Slovo se nezveřejní hned - přidá se do fronty ve slovníku (šedě) a studentům se automaticky ukáže až v pořadí, jedno slovo za pracovní den v 9:45.</p>
         <div class="field">
           <label>Slovo</label>
           <input type="text" id="wcWord" placeholder="např. Julienne">
@@ -2747,7 +2753,7 @@ function renderPointsBreakdown() {
 async function renderHomeLatestWord() {
   const el = document.getElementById("homeLatestWord");
   el.innerHTML = "<div class='empty-note'>Načítám...</div>";
-  const { data, error } = await sb.from("words").select("id,word,definition").order("created_at", { ascending: false }).limit(1);
+  const { data, error } = await sb.from("words").select("id,word,definition").eq("published", true).order("published_at", { ascending: false }).limit(1);
   if (error || !data || data.length === 0) {
     el.innerHTML = "<div class='empty-note'>Zatím tu není žádné slovo.</div>";
     return;
@@ -5033,7 +5039,10 @@ async function renderSlovnik() {
 
   const el = document.getElementById("wordList");
   el.innerHTML = "<div class='empty-note'>Načítám...</div>";
-  const { data, error } = await sb.from("words").select("id,word,definition,created_at").order("created_at", { ascending: false });
+  const { data, error } = await sb.from("words").select("id,word,definition,created_at,published,published_at")
+    .order("published", { ascending: false })
+    .order("published_at", { ascending: false })
+    .order("id", { ascending: true });
   if (error) {
     el.innerHTML = "<div class='empty-note'>Nepodařilo se načíst slovník: " + esc(error.message) + "</div>";
     return;
@@ -5051,10 +5060,18 @@ function renderWordList(words) {
   el.innerHTML = "";
   words.forEach((w) => {
     const div = document.createElement("div");
-    div.className = "card";
-    const html =
+    // Mistrová vidí i nezveřejněná (frontová) slova - odliší je šedou/zelenou
+    // barvou karty + krátkou poznámkou, jestli už je studenti vidí, nebo ještě
+    // čekají ve frontě. Studenti sami nezveřejněná slova vůbec nevidí (RLS).
+    div.className = "card" + (user.role === "mistrova" ? (w.published ? " status-green" : " status-gray") : "");
+    let html =
       "<div style=\"font-weight:800;font-size:15px;color:var(--dark);font-family:'Poppins',sans-serif;\">" + esc(w.word) + "</div>" +
       "<div style='font-size:13px;color:var(--text-muted);margin-top:4px;'>" + esc(w.definition) + "</div>";
+    if (user.role === "mistrova") {
+      html += w.published
+        ? "<div class='word-status-note green'>&#9989; Studenti už toto slovo vidí</div>"
+        : "<div class='word-status-note gray'>&#8987; Ve frontě - studenti to ještě neviděli</div>";
+    }
     div.innerHTML = html;
     if (user.role === "mistrova") {
       div.style.cursor = "pointer";
