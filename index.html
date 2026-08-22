@@ -5041,16 +5041,33 @@ async function renderSlovnik() {
 
   const el = document.getElementById("wordList");
   el.innerHTML = "<div class='empty-note'>Načítám...</div>";
-  const { data, error } = await sb.from("words").select("id,word,definition,created_at,published,published_at")
+  const { data, error } = await sb.from("words").select("id,word,definition,created_at,published,published_at,bumped_at")
     .order("published", { ascending: false })
     .order("published_at", { ascending: false })
-    .order("id", { ascending: true });
+    .order("bumped_at", { ascending: true, nullsFirst: false })
+    .order("queue_order", { ascending: true });
   if (error) {
     el.innerHTML = "<div class='empty-note'>Nepodařilo se načíst slovník: " + esc(error.message) + "</div>";
     return;
   }
   allWords = data || [];
   renderWordList(allWords);
+}
+
+// Pořadové číslo mezi "naplánovanými jako další" slovy (bumped_at not null) -
+// počítá se vždy z celého allWords (ne z aktuálně vykresleného/vyfiltrovaného
+// seznamu), aby číslo sedělo i při hledání. allWords už je seřazené přesně
+// tak, jak je bude fronta doopravdy zveřejňovat (viz řazení v renderSlovnik).
+function computeBumpedRanks() {
+  const ranks = new Map();
+  let rank = 0;
+  allWords.forEach((w) => {
+    if (!w.published && w.bumped_at) {
+      rank++;
+      ranks.set(w.id, rank);
+    }
+  });
+  return ranks;
 }
 
 function renderWordList(words) {
@@ -5060,6 +5077,7 @@ function renderWordList(words) {
     return;
   }
   el.innerHTML = "";
+  const bumpedRanks = computeBumpedRanks();
   words.forEach((w) => {
     const div = document.createElement("div");
     // Mistrová vidí i nezveřejněná (frontová) slova - odliší je šedou/zelenou
@@ -5070,17 +5088,53 @@ function renderWordList(words) {
       "<div style=\"font-weight:800;font-size:15px;color:var(--dark);font-family:'Poppins',sans-serif;\">" + esc(w.word) + "</div>" +
       "<div style='font-size:13px;color:var(--text-muted);margin-top:4px;'>" + esc(w.definition) + "</div>";
     if (user.role === "mistrova") {
-      html += w.published
-        ? "<div class='word-status-note green'>&#9989; Studenti už toto slovo vidí</div>"
-        : "<div class='word-status-note gray'>&#8987; Ve frontě - studenti to ještě neviděli</div>";
+      if (w.published) {
+        html += "<div class='word-status-note green'>&#9989; Studenti už toto slovo vidí</div>";
+      } else if (w.bumped_at) {
+        html +=
+          "<div class='word-status-note green'>&#128204; Naplánováno jako další (v pořadí " + bumpedRanks.get(w.id) + ".)</div>" +
+          "<button class='btn-secondary' style='width:auto;padding:6px 12px;font-size:12.5px;margin-top:4px;' data-unbump='" + w.id + "'>Zrušit naplánování</button>";
+      } else {
+        html +=
+          "<div class='word-status-note gray'>&#8987; Ve frontě - studenti to ještě neviděli</div>" +
+          "<button class='btn-secondary' style='width:auto;padding:6px 12px;font-size:12.5px;margin-top:4px;' data-bump='" + w.id + "'>Přidat jako další</button>";
+      }
     }
     div.innerHTML = html;
     if (user.role === "mistrova") {
       div.style.cursor = "pointer";
-      div.onclick = () => openWordDetail(w.id, w.word, w.definition);
+      div.onclick = (e) => {
+        if (e.target.closest("[data-bump],[data-unbump]")) return;
+        openWordDetail(w.id, w.word, w.definition);
+      };
+      const bumpBtn = div.querySelector("[data-bump]");
+      if (bumpBtn) bumpBtn.onclick = (e) => { e.stopPropagation(); bumpWordToFront(w.id); };
+      const unbumpBtn = div.querySelector("[data-unbump]");
+      if (unbumpBtn) unbumpBtn.onclick = (e) => { e.stopPropagation(); unbumpWord(w.id); };
     }
     el.appendChild(div);
   });
+}
+
+// "Přidat jako další" - slovo přeskočí zbytek (zamíchané) fronty a zveřejní se
+// hned další pracovní den v 9:45. Víc takhle označených slov jde za sebou přesně
+// v pořadí, v jakém na ně mistrová klikla, a pak fronta pokračuje jako dřív.
+async function bumpWordToFront(id) {
+  const { error } = await sb.rpc("bump_word_to_front", { p_id: id });
+  if (error) {
+    alert("Nepodařilo se přidat slovo jako další: " + error.message);
+    return;
+  }
+  await renderSlovnik();
+}
+
+async function unbumpWord(id) {
+  const { error } = await sb.rpc("unbump_word", { p_id: id });
+  if (error) {
+    alert("Nepodařilo se zrušit naplánování: " + error.message);
+    return;
+  }
+  await renderSlovnik();
 }
 
 function filterSlovnik() {
