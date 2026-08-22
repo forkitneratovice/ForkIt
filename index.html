@@ -681,7 +681,7 @@
     <button class="nav-item" data-nav="achievements" id="navAchievementsSidebar" onclick="showScreen('achievements')">
       <span class="nav-icon">&#127941;</span>Úspěchy
     </button>
-    <button class="nav-item" data-nav="messages" onclick="showScreen('messages')">
+    <button class="nav-item" data-nav="messages" id="navMessagesSidebar" onclick="showScreen('messages')">
       <span class="nav-icon">&#128172;</span>Zprávy
     </button>
     <button class="nav-item" data-nav="profile" onclick="showScreen('profile')">
@@ -700,6 +700,13 @@
   </nav>
 
   <div class="main">
+    <!-- NÁHLED OČIMA STUDENTA: viditelný pruh, dokud se prohlíží appka za
+         vybraného studenta - ať mistrová nikdy neztratí přehled, že to
+         nevidí za sebe. -->
+    <div class="hidden" id="previewBanner" style="position:sticky;top:0;z-index:500;background:var(--dark);color:#fff;padding:9px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;">
+      <span>&#128065; Prohlížíš jako <b id="previewBannerName"></b></span>
+      <button onclick="exitStudentPreview()" style="background:#fff;color:var(--dark);border:none;border-radius:8px;padding:6px 10px;font-weight:700;font-size:12px;white-space:nowrap;">Ukončit náhled</button>
+    </div>
     <div class="topbar" id="topbar">
       <div>
         <div class="title" id="topbarTitle">ForkIt</div>
@@ -739,7 +746,7 @@
       <button class="nav-item" data-nav="achievements" id="navAchievementsDrawer" onclick="showScreen('achievements')">
         <span class="nav-icon">&#127941;</span>Úspěchy
       </button>
-      <button class="nav-item" data-nav="messages" onclick="showScreen('messages')">
+      <button class="nav-item" data-nav="messages" id="navMessagesDrawer" onclick="showScreen('messages')">
         <span class="nav-icon">&#128172;</span>Zprávy
       </button>
       <button class="nav-item" data-nav="profile" onclick="showScreen('profile')">
@@ -1307,6 +1314,11 @@
             <div style="font-size:26px;font-weight:800;color:var(--primary);font-family:'Poppins',sans-serif;" id="profilePoints">0</div>
             <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">klepni pro rozpis</div>
           </div>
+          <div class="hidden" id="profileStreakCard" style="margin-top:10px;">
+            <div class="card" style="text-align:center;">
+              <div style="font-size:22px;font-weight:800;color:var(--dark);font-family:'Poppins',sans-serif;">&#128293; <span id="profileStreakText"></span></div>
+            </div>
+          </div>
         </div>
         <h2 class="section-title">Heslo</h2>
         <button class="btn-secondary" id="changePasswordToggleBtn" onclick="toggleChangePassword()">Změnit heslo</button>
@@ -1370,7 +1382,8 @@
       <!-- ADMIN (jen mistrová) -->
       <div class="screen hidden" id="screen-admin">
         <h2 class="section-title">Administrace</h2>
-        <button class="btn-secondary" onclick="showScreen('competitors')">&#128101; Soutěžící</button>
+        <button class="btn-secondary" onclick="showScreen('inactive-students')">&#128101; Soutěžící</button>
+        <button class="btn-secondary" style="margin-top:10px;" onclick="showScreen('preview-picker')">&#128065; Náhled očima studenta</button>
         <button class="btn-secondary" style="margin-top:10px;" onclick="exportAllStudentsExcel()">&#128202; Export všech studentů (Excel)</button>
         <button class="btn-secondary" style="margin-top:10px;" onclick="openEndYearModal()">&#127881; Ukončit školní rok</button>
         <div id="endYearSuccessMsg" style="font-size:12.5px;color:var(--primary);font-weight:700;margin-top:8px;"></div>
@@ -1419,8 +1432,29 @@
         </div>
       </div>
 
-      <div class="screen hidden" id="screen-competitors">
+      <!-- NÁHLED OČIMA STUDENTA: výběr studenta, jehož pohledem appku uvidíš. -->
+      <div class="screen hidden" id="screen-preview-picker">
         <span class="back-link" onclick="showScreen('admin')">&larr; Zpět do administrace</span>
+        <h2 class="section-title">Náhled očima studenta</h2>
+        <div class="help-text" style="margin-top:-8px;margin-bottom:12px;">Vyber studenta - appka se ti zobrazí přesně tak, jak ji vidí on/ona (bez zpráv a bez možnosti cokoliv odeslat).</div>
+        <div class="field" style="margin-bottom:12px;">
+          <input type="text" id="previewPickerSearch" placeholder="&#128269; Hledat jménem..." oninput="filterPreviewPicker()" style="width:100%;padding:11px 12px;border-radius:10px;border:1px solid #E0DCD3;font-size:14px;font-family:inherit;">
+        </div>
+        <div id="previewPickerList"><div class="empty-note">Načítám...</div></div>
+      </div>
+
+      <!-- "PODLOŽKA" před celým seznamem - kdo je dlouho neaktivní, ať mistrová
+           ví, koho popostrčit, dřív než to zjistí až na konci pololetí. -->
+      <div class="screen hidden" id="screen-inactive-students">
+        <span class="back-link" onclick="showScreen('admin')">&larr; Zpět do administrace</span>
+        <h2 class="section-title">Neaktivní studenti</h2>
+        <div class="help-text" style="margin-top:-8px;margin-bottom:12px;">Podle toho, kdy se naposledy přihlásili do appky - nejdéle neaktivní jsou nahoře.</div>
+        <div id="inactiveStudentsList"><div class="empty-note">Načítám...</div></div>
+        <button class="btn-secondary" style="margin-top:16px;" onclick="showScreen('competitors')">&#128101; Zobrazit všechny účastníky</button>
+      </div>
+
+      <div class="screen hidden" id="screen-competitors">
+        <span class="back-link" onclick="showScreen('inactive-students')">&larr; Zpět</span>
         <div class="comp-filter-row">
           <select id="compRocnikFilter" onchange="filterCompetitors()">
             <option value="all">Všechny</option>
@@ -1458,7 +1492,7 @@
             <div class="comp-stat-label">pořadí v ročníku</div>
           </div>
         </div>
-        <div class="comp-stat-grid" style="grid-template-columns: repeat(2, 1fr);">
+        <div class="comp-stat-grid" style="grid-template-columns: repeat(3, 1fr);">
           <div class="comp-stat-card">
             <div class="comp-stat-num" id="compDetailQuizCount">0</div>
             <div class="comp-stat-label">splněných kvízů</div>
@@ -1466,6 +1500,10 @@
           <div class="comp-stat-card">
             <div class="comp-stat-num" id="compDetailChallengeCount">0</div>
             <div class="comp-stat-label">splněných výzev</div>
+          </div>
+          <div class="comp-stat-card">
+            <div class="comp-stat-num" id="compDetailStreak">0</div>
+            <div class="comp-stat-label">dní v řadě &#128293;</div>
           </div>
         </div>
 
@@ -1756,6 +1794,25 @@ const isRecoveryLink = /type=recovery/.test(window.location.hash) || /type=recov
 // ---------- STAV ----------
 let session = null;
 let user = null;        // profil z tabulky "profiles"
+
+// ---------- NÁHLED OČIMA STUDENTA (jen mistrová) ----------
+// Dokud je previewStudentId nastavené, appka zůstává přihlášená jako
+// mistrová (session i "user" pod tím se nemění), ale "user" proměnná se
+// dočasně nahradí syntetickým studentským profilem a příslušné RPC volání
+// (viz previewAware* helpery níž) se přesměrují na teacher-only "preview_*"
+// varianty parametrizované konkrétním studentem - mistrová tak vidí appku
+// přesně tak, jak ji vidí on/ona, beze změny vlastního přihlášení.
+let previewStudentId = null;
+let previewRealUser = null; // sem se schová skutečný "user" (mistrová) po dobu náhledu
+
+// Náhled je čistě pro PROHLÍŽENÍ - žádná akce, co by něco zapisovala nebo
+// odesílala (kvíz, výzva, zpráva, reakce, test osobnosti...), se v něm
+// nesmí provést. Zavolej na začátku každé takové funkce.
+function blockedInPreview() {
+  if (!previewStudentId) return false;
+  alert("Tohle je jen náhled - v něm nejde nic odesílat ani ukládat.");
+  return true;
+}
 let quizzes = [];        // z RPC get_quizzes_for_my_rocnik (bez správných odpovědí)
 let currentQuiz = null;
 let currentAnswers = [];
@@ -2942,13 +2999,17 @@ function showScreen(name) {
   if (name === "flashcards") openFlashcards();
   if (name === "faq") renderFaqFeedback();
   if (name === "help") resetAppSearch();
+  if (name === "inactive-students") renderInactiveStudents();
+  if (name === "preview-picker") renderPreviewPicker();
   if (name === "my-feedback") renderMyFeedback();
   if (name === "teacher-feedback") renderTeacherFeedback();
 }
 
 // ---------- KVÍZY ----------
 async function loadQuizzes() {
-  const { data, error } = await sb.rpc("get_quizzes_for_my_rocnik");
+  const { data, error } = previewStudentId
+    ? await sb.rpc("preview_get_quizzes_for_rocnik", { p_student_id: previewStudentId })
+    : await sb.rpc("get_quizzes_for_my_rocnik");
   quizzes = error ? [] : data || [];
 }
 
@@ -2973,7 +3034,10 @@ function quizBadge(q) {
 
 function renderHome() {
   if (!user) return;
-  renderHomeMessageBanner();
+  // Zprávy jsou v náhledu očima studenta záměrně mimo rozsah (soukromá
+  // komunikace) - banner by navíc ukazoval nepřečtené zprávy MISTROVÉ
+  // (session se v náhledu nemění), ne studenta, takže by byl zavádějící.
+  if (!previewStudentId) renderHomeMessageBanner();
 
   if (user.role === "mistrova") {
     document.getElementById("studentHomeContent").classList.add("hidden");
@@ -2985,7 +3049,14 @@ function renderHome() {
   document.getElementById("studentHomeContent").classList.remove("hidden");
   document.getElementById("teacherHomeContent").classList.add("hidden");
 
-  renderHomePersonalityPrompt();
+  // Test osobnosti v náhledu nepočítáme (viz loadPersonalityResult) - radši
+  // banner úplně schovat, než ukázat zavádějící "ještě nevyplněno".
+  if (previewStudentId) {
+    const promptEl = document.getElementById("personalityPrompt");
+    if (promptEl) promptEl.classList.add("hidden");
+  } else {
+    renderHomePersonalityPrompt();
+  }
   document.getElementById("homePoints").textContent = user.points;
   loadRank();
   renderHomeNews();
@@ -3162,6 +3233,7 @@ function reactionBarHtml(type, id, myReaction, context) {
 }
 
 async function setReaction(type, id, emoji, context) {
+  if (blockedInPreview()) return;
   emoji = (emoji || "").trim();
   if (!emoji) return;
   const table = type === "announcement" ? "announcement_reactions" : "word_reactions";
@@ -3474,6 +3546,7 @@ function tryResumePersonality() {
 }
 
 async function submitPersonalityTest() {
+  if (blockedInPreview()) return;
   const errorEl = document.getElementById("personalityTakeError");
   errorEl.innerHTML = "";
   if (personalityAnswers.includes(null)) {
@@ -4504,6 +4577,12 @@ function startQuizTake(q, restoredAnswers) {
     ? restoredAnswers.slice()
     : new Array(currentQuiz.questions.length).fill(null);
   saveQuizProgress();
+  // Ať appka ví i na serveru, že je kvíz rozdělaný - když si to zaslouží,
+  // ale student se nevrátí, pošleme mu později připomínku. Tréninkové kvízy
+  // (Procvičování) záměrně nesledujeme, tam žádný "termín" nehrozí.
+  if (!isPracticeMode) {
+    sb.rpc("mark_activity_started", { p_kind: "quiz", p_ref_id: q.id }).catch(() => {});
+  }
 
   const container = document.getElementById("quizQuestions");
   container.innerHTML = "<h2 class='section-title'>" + esc(currentQuiz.title) + "</h2>";
@@ -4569,6 +4648,7 @@ function selectAnswer(qi, oi) {
 }
 
 async function submitQuiz() {
+  if (blockedInPreview()) return;
   if (currentAnswers.includes(null)) {
     alert("Odpověz prosím na všechny otázky.");
     return;
@@ -4588,9 +4668,11 @@ async function submitQuiz() {
     if (error.message && error.message.includes("MAX_ATTEMPTS")) {
       alert("U tohoto kvízu jsi už vyčerpal/a všechny 3 pokusy.");
       clearQuizProgress();
+      if (!isPracticeMode) sb.rpc("mark_activity_finished", { p_kind: "quiz", p_ref_id: currentQuiz.id }).catch(() => {});
     } else if (error.message && error.message.includes("COOLDOWN_ACTIVE")) {
       alert("Tento kvíz můžeš zkusit znovu až za 24 hodin od posledního pokusu.");
       clearQuizProgress();
+      if (!isPracticeMode) sb.rpc("mark_activity_finished", { p_kind: "quiz", p_ref_id: currentQuiz.id }).catch(() => {});
     } else {
       alert("Něco se nepovedlo: " + error.message);
     }
@@ -4599,6 +4681,7 @@ async function submitQuiz() {
   }
 
   clearQuizProgress();
+  if (!isPracticeMode) sb.rpc("mark_activity_finished", { p_kind: "quiz", p_ref_id: currentQuiz.id }).catch(() => {});
   const result = data[0];
   lastCorrectAnswers = result.correct_answers || [];
   document.getElementById("quizScoreText").textContent = result.score + " / " + result.total;
@@ -4741,7 +4824,9 @@ async function loadChallenges() {
     challenges = [];
     return;
   }
-  const { data, error } = await sb.rpc("get_my_challenges");
+  const { data, error } = previewStudentId
+    ? await sb.rpc("preview_get_my_challenges", { p_student_id: previewStudentId })
+    : await sb.rpc("get_my_challenges");
   challenges = error ? [] : (data || []);
 }
 
@@ -4757,7 +4842,9 @@ async function renderChallenges() {
   document.getElementById("studentChallengesContent").classList.remove("hidden");
   document.getElementById("teacherChallengesContent").classList.add("hidden");
 
-  const { data, error } = await sb.rpc("get_my_challenges");
+  const { data, error } = previewStudentId
+    ? await sb.rpc("preview_get_my_challenges", { p_student_id: previewStudentId })
+    : await sb.rpc("get_my_challenges");
   const list = document.getElementById("challengeListStudent");
   list.innerHTML = "";
   if (error) {
@@ -4825,6 +4912,18 @@ function clearChallengeTextDraft(challengeId) {
   } catch (e) {}
 }
 
+// Stejně jako u kvízů (viz startQuizTake) - jakmile student začne psát
+// rozepsanou výzvu, dáme to vědět serveru, ať mu můžeme případně poslat
+// připomínku, pokud se nevrátí a neodešle to. Volá se jen jednou na výzvu
+// (a session), díky challengeActivityMarked - opakované volání by bylo jen
+// zbytečný síťový provoz navíc (server si stejně drží jen jeden started_at).
+const challengeActivityMarked = new Set();
+function markChallengeStartedOnce(challengeId) {
+  if (challengeActivityMarked.has(challengeId)) return;
+  challengeActivityMarked.add(challengeId);
+  sb.rpc("mark_activity_started", { p_kind: "challenge", p_ref_id: challengeId }).catch(() => {});
+}
+
 function renderChallengeDetail() {
   const c = currentChallenge;
   const container = document.getElementById("challengeDetailContent");
@@ -4864,8 +4963,10 @@ function renderChallengeDetail() {
       "<div class='field'><label>Fotky nebo videa hotového pokrmu</label><input type='file' id='challengeMediaInput' accept='image/*,video/*' multiple></div>" +
       "<div id='challengeSubmitError'></div>" +
       "<button class='btn-primary' id='challengeSubmitBtn' onclick='submitChallengeForm()'>" + (isRetry ? "Odeslat znovu ke schválení" : "Odeslat ke schválení") + "</button>";
+    if (textValue && textValue.trim()) markChallengeStartedOnce(c.id);
     document.getElementById("challengeText").addEventListener("input", (e) => {
       persistChallengeTextDraft(c.id, e.target.value);
+      if (e.target.value.trim()) markChallengeStartedOnce(c.id);
     });
     return;
   }
@@ -4895,6 +4996,7 @@ function renderChallengeDetail() {
 const CHALLENGE_MEDIA_MAX = 20;
 
 async function submitChallengeForm() {
+  if (blockedInPreview()) return;
   const text = document.getElementById("challengeText").value.trim();
   const fileInput = document.getElementById("challengeMediaInput");
   const files = fileInput.files ? Array.from(fileInput.files) : [];
@@ -4994,6 +5096,8 @@ async function submitChallengeForm() {
     currentChallenge.can_resubmit = false;
     currentChallenge.last_text = text;
     clearChallengeTextDraft(currentChallenge.id);
+    challengeActivityMarked.delete(currentChallenge.id);
+    sb.rpc("mark_activity_finished", { p_kind: "challenge", p_ref_id: currentChallenge.id }).catch(() => {});
     renderChallengeDetail();
   } catch (e) {
     btn.disabled = false;
@@ -5838,9 +5942,13 @@ async function renderLeaderboard() {
   document.getElementById("teacherLeaderboardContent").classList.add("hidden");
 
   const isMetric = lbFilter === "quizzes" || lbFilter === "challenges" || lbFilter === "badges";
-  const { data, error } = isMetric
-    ? await sb.rpc("get_leaderboard_metric", { p_metric: lbFilter })
-    : await sb.rpc("get_leaderboard", { p_scope: lbFilter });
+  const { data, error } = previewStudentId
+    ? isMetric
+      ? await sb.rpc("preview_get_leaderboard_metric", { p_student_id: previewStudentId, p_metric: lbFilter })
+      : await sb.rpc("preview_get_leaderboard", { p_student_id: previewStudentId, p_scope: lbFilter })
+    : isMetric
+      ? await sb.rpc("get_leaderboard_metric", { p_metric: lbFilter })
+      : await sb.rpc("get_leaderboard", { p_scope: lbFilter });
   const unit = lbFilter === "badges" ? " odznáčků" : " b.";
   const top3El = document.getElementById("lbTop3");
   const myPosEl = document.getElementById("lbMyPosition");
@@ -5897,7 +6005,9 @@ async function renderLeaderboard() {
 }
 
 async function loadRank() {
-  const { data, error } = await sb.rpc("get_leaderboard", { p_scope: "all" });
+  const { data, error } = previewStudentId
+    ? await sb.rpc("preview_get_leaderboard", { p_student_id: previewStudentId, p_scope: "all" })
+    : await sb.rpc("get_leaderboard", { p_scope: "all" });
   if (error || !data || !data[0]) return;
   const row = data[0];
   document.getElementById("homeRank").textContent = row.my_rank
@@ -5905,13 +6015,165 @@ async function loadRank() {
     : "Pozice v žebříčku: —";
   // Odemyká odznáčky za 1. místo / postup v žebříčku - počítá se vždy znovu
   // server-side (viz check_rank_badges), tady se to jen odpaluje na pozadí.
-  sb.rpc("check_rank_badges").catch(() => {});
+  // V náhledu se nic neodpaluje - je to jen prohlížení, ne skutečná aktivita.
+  if (!previewStudentId) sb.rpc("check_rank_badges").catch(() => {});
+}
+
+// ---------- NÁHLED OČIMA STUDENTA (jen mistrová) ----------
+// Seznam studentů k výběru se natáhne jednou při vstupu na obrazovku a dál
+// se jen filtruje v paměti podle vyhledávacího textu (viz filterPreviewPicker) -
+// ať se při psaní nevolá server znovu a znovu.
+let previewPickerRoster = null;
+
+async function renderPreviewPicker() {
+  document.getElementById("previewPickerSearch").value = "";
+  const listEl = document.getElementById("previewPickerList");
+  listEl.innerHTML = "<div class='empty-note'>Načítám...</div>";
+
+  const { data, error } = await sb.rpc("get_leaderboard_admin");
+  if (error) {
+    listEl.innerHTML = "<div class='error-note'>Nepodařilo se načíst studenty: " + esc(error.message) + "</div>";
+    return;
+  }
+  previewPickerRoster = (data || []).slice().sort((a, b) => a.name.localeCompare(b.name, "cs"));
+  renderPreviewPickerList(previewPickerRoster);
+}
+
+function filterPreviewPicker() {
+  if (!previewPickerRoster) return;
+  const q = document.getElementById("previewPickerSearch").value.trim().toLowerCase();
+  renderPreviewPickerList(q ? previewPickerRoster.filter((s) => s.name.toLowerCase().includes(q)) : previewPickerRoster);
+}
+
+function renderPreviewPickerList(list) {
+  const listEl = document.getElementById("previewPickerList");
+  if (list.length === 0) {
+    listEl.innerHTML = "<div class='empty-note'>Nikdo takový se nenašel.</div>";
+    return;
+  }
+  listEl.innerHTML = "";
+  list.forEach((s) => {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.style.cursor = "pointer";
+    div.innerHTML =
+      "<div style='display:flex;justify-content:space-between;align-items:center;gap:10px;'>" +
+      "<div><div style='font-weight:700;color:var(--dark);'>" + esc(s.name) + "</div>" +
+      "<div style='font-size:12px;color:var(--text-muted);'>" + rocnikLabel(s.rocnik) + "</div></div>" +
+      "<span style='font-size:13px;color:var(--primary);font-weight:700;white-space:nowrap;'>Zobrazit &rarr;</span>" +
+      "</div>";
+    div.onclick = () => startStudentPreview(s.id);
+    listEl.appendChild(div);
+  });
+}
+
+// Vstup do náhledu: session i skutečný "user" (mistrová) zůstávají beze
+// změny - jen se dočasně nahradí "user" syntetickým studentským profilem a
+// data-loading funkce (loadQuizzes/loadChallenges/loadRank/...) se
+// přesměrují na teacher-only "preview_*" RPC (viz previewStudentId výše).
+async function startStudentPreview(studentId) {
+  const { data, error } = await sb.rpc("get_student_preview_profile", { p_student_id: studentId });
+  if (error || !data || !data[0]) {
+    alert("Nepodařilo se načíst profil tohoto studenta.");
+    return;
+  }
+  const p = data[0];
+
+  previewRealUser = user;
+  previewStudentId = studentId;
+  user = {
+    id: p.id,
+    name: p.name,
+    rocnik: p.rocnik,
+    points: p.points,
+    role: "student",
+    avatar_url: p.avatar_url,
+    last_year_rank_overall: p.last_year_rank_overall,
+    last_year_rank_in_rocnik: p.last_year_rank_in_rocnik,
+    last_year_points: p.last_year_points,
+    last_year_rocnik: p.last_year_rocnik,
+    last_year_label: p.last_year_label,
+    pending_celebration: null, // v náhledu se oslavná cedulka neukazuje - patří skutečnému přihlášení
+  };
+
+  document.getElementById("previewBannerName").textContent = p.name + " (" + rocnikLabel(p.rocnik) + ")";
+  document.getElementById("previewBanner").classList.remove("hidden");
+
+  // Přepnutí navigace na to, co vidí student - schovej Admin, ukaž Úspěchy,
+  // a schovej Zprávy (soukromá komunikace mistrové zůstává mimo náhled).
+  document.getElementById("navAdminSidebar").classList.add("hidden");
+  document.getElementById("navAdminDrawer").classList.add("hidden");
+  document.getElementById("navAchievementsSidebar").classList.remove("hidden");
+  document.getElementById("navAchievementsDrawer").classList.remove("hidden");
+  document.getElementById("navMessagesSidebar").classList.add("hidden");
+  document.getElementById("navMessagesDrawer").classList.add("hidden");
+
+  personalityResult = null; // test osobnosti v náhledu záměrně nepočítáme (viz renderHome)
+  myQuizSubmissions = []; // vlastní navržené kvízy studenta nejsou v rozsahu náhledu v1
+
+  await loadQuizzes();
+  await loadChallenges();
+  showScreen("home");
+}
+
+// Konec náhledu: vrátí skutečného přihlášeného uživatele (mistrovou) a
+// obnoví normální navigaci.
+function exitStudentPreview() {
+  if (!previewRealUser) return;
+  user = previewRealUser;
+  previewRealUser = null;
+  previewStudentId = null;
+
+  document.getElementById("previewBanner").classList.add("hidden");
+  document.getElementById("navAdminSidebar").classList.remove("hidden");
+  document.getElementById("navAdminDrawer").classList.remove("hidden");
+  document.getElementById("navAchievementsSidebar").classList.add("hidden");
+  document.getElementById("navAchievementsDrawer").classList.add("hidden");
+  document.getElementById("navMessagesSidebar").classList.remove("hidden");
+  document.getElementById("navMessagesDrawer").classList.remove("hidden");
+
+  quizzes = [];
+  challenges = [];
+  showScreen("admin");
 }
 
 // ---------- SOUTĚŽÍCÍ (přehled studentů, jen mistrová) ----------
 let allCompetitors = [];
 let currentCompetitorId = null;
 let currentCompetitorExportData = null;
+
+// "Podložka" před celým seznamem účastníků - kdo je dlouho neaktivní (nebo
+// se ještě vůbec nepřihlásil), ať to mistrová vidí hned, ne až náhodou.
+async function renderInactiveStudents() {
+  const listEl = document.getElementById("inactiveStudentsList");
+  listEl.innerHTML = "<div class='empty-note'>Načítám...</div>";
+
+  const { data, error } = await sb.rpc("get_inactive_students");
+  if (error) {
+    listEl.innerHTML = "<div class='error-note'>Nepodařilo se načíst: " + esc(error.message) + "</div>";
+    return;
+  }
+  if (!data || data.length === 0) {
+    listEl.innerHTML = "<div class='empty-note'>Zatím nejsou žádní studenti.</div>";
+    return;
+  }
+
+  listEl.innerHTML = "";
+  data.forEach((s) => {
+    const never = s.days_inactive == null;
+    const color = never || s.days_inactive >= 7 ? "var(--red)" : s.days_inactive >= 3 ? "#B8860B" : "var(--primary)";
+    const statusText = never ? "Ještě se nikdy nepřihlásil/a" : s.days_inactive === 0 ? "Dnes aktivní" : czDny(s.days_inactive) + " neaktivní";
+    const div = document.createElement("div");
+    div.className = "card";
+    div.innerHTML =
+      "<div style='display:flex;justify-content:space-between;align-items:center;gap:10px;'>" +
+      "<div><div style='font-size:14px;font-weight:700;color:var(--dark);'>" + esc(s.name) + "</div>" +
+      "<div style='font-size:12px;color:var(--text-muted);'>" + rocnikLabel(s.rocnik) + "</div></div>" +
+      "<div style='font-size:12.5px;font-weight:700;color:" + color + ";text-align:right;'>" + statusText + "</div>" +
+      "</div>";
+    listEl.appendChild(div);
+  });
+}
 
 async function renderCompetitors() {
   const list = document.getElementById("competitorsList");
@@ -5973,6 +6235,12 @@ function czPokusy(n) {
   return "pokusů";
 }
 
+function czDny(n) {
+  if (n === 1) return "1 den";
+  if (n >= 2 && n <= 4) return n + " dny";
+  return n + " dní";
+}
+
 async function openCompetitorDetail(id) {
   currentCompetitorId = id;
   const r = allCompetitors.find((c) => c.id === id);
@@ -6016,6 +6284,7 @@ async function openCompetitorDetail(id) {
 
   document.getElementById("compDetailQuizCount").textContent = "…";
   document.getElementById("compDetailChallengeCount").textContent = "…";
+  document.getElementById("compDetailStreak").textContent = "…";
   document.getElementById("compDetailQuizList").innerHTML = "<div class='empty-note'>Načítám...</div>";
   document.getElementById("compDetailChallengeList").innerHTML = "<div class='empty-note'>Načítám...</div>";
   document.getElementById("compDetailBadges").innerHTML = "";
@@ -6043,10 +6312,12 @@ async function openCompetitorDetail(id) {
     const b = statsRes.data[0];
     document.getElementById("compDetailQuizCount").textContent = b.completed_quizzes;
     document.getElementById("compDetailChallengeCount").textContent = b.challenges_completed;
+    document.getElementById("compDetailStreak").textContent = b.login_streak || 0;
     renderCompetitorBadges(b);
   } else {
     document.getElementById("compDetailQuizCount").textContent = "0";
     document.getElementById("compDetailChallengeCount").textContent = "0";
+    document.getElementById("compDetailStreak").textContent = "0";
   }
 
   const persEl = document.getElementById("compDetailPersonality");
@@ -6495,6 +6766,30 @@ async function renderProfile() {
     lyEl.classList.add("hidden");
   }
   document.getElementById("profileDiplomaBtn").classList.toggle("hidden", !user.last_year_label);
+  loadProfileStreak();
+}
+
+// Odznáčky/streak jednoho studenta - buď toho skutečně přihlášeného
+// (get_my_badges, čte se z auth.uid()), nebo v náhledu očima studenta toho
+// vybraného (get_student_badges_stats - stejný tvar výstupu, jen parametrizovaný).
+async function loadStudentBadgesData() {
+  if (previewStudentId) return await sb.rpc("get_student_badges_stats", { p_student_id: previewStudentId });
+  return await sb.rpc("get_my_badges");
+}
+
+// Ukáže "X dní v řadě" jen pokud je student v aktivní sérii (den 0 nebo -1) -
+// jinak by nulový/přerušený streak akorát demotivoval, tak se karta radši
+// úplně schová.
+async function loadProfileStreak() {
+  const card = document.getElementById("profileStreakCard");
+  const { data, error } = await loadStudentBadgesData();
+  if (error || !data || !data[0] || !data[0].login_streak) {
+    card.classList.add("hidden");
+    return;
+  }
+  const streak = data[0].login_streak;
+  document.getElementById("profileStreakText").textContent = czDny(streak) + " v řadě";
+  card.classList.remove("hidden");
 }
 
 // ---------- ÚSPĚCHY (odznáčky) ----------
@@ -6607,7 +6902,7 @@ async function renderAchievements() {
     return;
   }
 
-  const { data, error } = await sb.rpc("get_my_badges");
+  const { data, error } = await loadStudentBadgesData();
   if (error || !data || !data[0]) {
     list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst úspěchy.</div>";
     return;
@@ -6692,6 +6987,11 @@ function setNavBadge(navName, count) {
 
 async function computeNavBadges() {
   if (!user) return;
+  // V náhledu očima studenta nedává smysl počítat "nové/neviděné" odznaky -
+  // ty se odvíjí od "seen" stavu uloženého v localStorage TOHOTO zařízení
+  // (mistrové), ne studenta, takže by číslo bylo zavádějící. Prostě se
+  // v náhledu nezobrazují.
+  if (previewStudentId) return;
 
   if (user.role === "student") {
     const seenQuizIds = await getSeenSet("forkit_seen_quiz_ids");
@@ -6967,6 +7267,7 @@ async function pickMessageReaction(emoji) {
 }
 
 async function setMessageReaction(messageId, emoji, containerId, threadStudentId) {
+  if (blockedInPreview()) return;
   const existing = (lastLoadedMessageReactions[messageId] || []).find((r) => r.user_id === user.id);
   let error;
   if (existing && existing.emoji === emoji) {
@@ -7002,6 +7303,7 @@ async function sendChatThreadMessage() {
 }
 
 async function sendChatMessageCore(threadStudentId, inputId, containerId) {
+  if (blockedInPreview()) return;
   const inputEl = document.getElementById(inputId);
   const text = inputEl.value.trim();
   if (!text) return;
