@@ -703,7 +703,7 @@
     <!-- NÁHLED OČIMA STUDENTA: viditelný pruh, dokud se prohlíží appka za
          vybraného studenta - ať mistrová nikdy neztratí přehled, že to
          nevidí za sebe. -->
-    <div class="hidden" id="previewBanner" style="position:sticky;top:0;z-index:500;background:var(--dark);color:#fff;padding:9px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;">
+    <div class="hidden" id="previewBanner" style="position:sticky;top:0;z-index:500;background:var(--dark);color:#fff;padding:9px 14px;padding-top:calc(9px + env(safe-area-inset-top));display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;flex-wrap:wrap;">
       <span>&#128065; Prohlížíš jako <b id="previewBannerName"></b></span>
       <button onclick="exitStudentPreview()" style="background:#fff;color:var(--dark);border:none;border-radius:8px;padding:6px 10px;font-weight:700;font-size:12px;white-space:nowrap;">Ukončit náhled</button>
     </div>
