@@ -21,6 +21,7 @@
 
 <!-- Supabase client -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <style>
   :root {
@@ -649,8 +650,8 @@
     <button class="nav-item" data-nav="leaderboard" onclick="showScreen('leaderboard')">
       <span class="nav-icon">&#127942;</span>Žebříček
     </button>
-    <button class="nav-item hidden" data-nav="competitors" id="navCompetitorsSidebar" onclick="showScreen('competitors')">
-      <span class="nav-icon">&#128101;</span>Soutěžící
+    <button class="nav-item hidden" data-nav="admin" id="navAdminSidebar" onclick="showScreen('admin')">
+      <span class="nav-icon">&#128736;</span>Admin
     </button>
     <button class="nav-item" data-nav="achievements" id="navAchievementsSidebar" onclick="showScreen('achievements')">
       <span class="nav-icon">&#127941;</span>Úspěchy
@@ -707,8 +708,8 @@
       <button class="nav-item" data-nav="leaderboard" onclick="showScreen('leaderboard')">
         <span class="nav-icon">&#127942;</span>Žebříček
       </button>
-      <button class="nav-item hidden" data-nav="competitors" id="navCompetitorsDrawer" onclick="showScreen('competitors')">
-        <span class="nav-icon">&#128101;</span>Soutěžící
+      <button class="nav-item hidden" data-nav="admin" id="navAdminDrawer" onclick="showScreen('admin')">
+        <span class="nav-icon">&#128736;</span>Admin
       </button>
       <button class="nav-item" data-nav="achievements" id="navAchievementsDrawer" onclick="showScreen('achievements')">
         <span class="nav-icon">&#127941;</span>Úspěchy
@@ -993,6 +994,7 @@
           <input type="number" id="qcPoints" min="0" value="5" oninput="checkQuizEditorDirty()">
         </div>
         <div class="hidden" id="qcAuthorNote" style="font-size:13px;color:var(--text-muted);margin-bottom:14px;"></div>
+        <div class="hidden" id="qcQuestionStats"></div>
         <h2 class="section-title">Otázky</h2>
         <div id="qcQuestions"></div>
         <button class="btn-secondary" onclick="addQuizQuestion()">+ Přidat otázku</button>
@@ -1249,6 +1251,7 @@
             <div class="lb-tab" id="lbATabR1" onclick="setLbAdminFilter('1')">1. ročník</div>
             <div class="lb-tab" id="lbATabR2" onclick="setLbAdminFilter('2')">2. ročník</div>
             <div class="lb-tab" id="lbATabR3" onclick="setLbAdminFilter('3')">3. ročník</div>
+            <div class="lb-tab" id="lbATabR4" onclick="setLbAdminFilter('4')">Vyučení</div>
           </div>
           <div id="lbAdminList"></div>
         </div>
@@ -1264,6 +1267,7 @@
           <button class="btn-secondary" style="width:auto;padding:4px 10px;font-size:12px;" onclick="document.getElementById('avatarFileInput').click()">Změnit profilovku</button>
           <div class="pname" id="profileName" style="margin-top:10px;">—</div>
           <div class="pmeta" id="profileMeta">—</div>
+          <div class="hidden" id="profileLastYear" style="font-size:13px;color:var(--text);background:#F3F0E9;border-radius:10px;padding:10px 12px;margin-top:10px;"></div>
           <div id="avatarError"></div>
         </div>
         <div id="profilePointsSection">
@@ -1332,13 +1336,55 @@
       </div>
 
       <!-- SOUTĚŽÍCÍ (přehled studentů, jen mistrová) -->
+      <!-- ADMIN (jen mistrová) -->
+      <div class="screen hidden" id="screen-admin">
+        <h2 class="section-title">Administrace</h2>
+        <div class="card" style="cursor:pointer;" onclick="showScreen('competitors')">
+          <div style="font-weight:800;font-size:15px;color:var(--dark);font-family:'Poppins',sans-serif;">&#128101; Soutěžící</div>
+          <div class="help-text" style="margin:4px 0 0;">Seznam studentů, jejich body, pořadí a podrobnosti o jednotlivých profilech.</div>
+        </div>
+
+        <h2 class="section-title" style="margin-top:22px;">Export dat</h2>
+        <div class="card">
+          <div style="font-weight:800;font-size:15px;color:var(--dark);font-family:'Poppins',sans-serif;">&#128202; Export všech studentů (Excel)</div>
+          <div class="help-text" style="margin:4px 0 10px;">Stáhne přehled všech studentů - body, pořadí v ročníku i celkově, minulý rok.</div>
+          <button class="btn-secondary" onclick="exportAllStudentsExcel()">Stáhnout XLSX</button>
+        </div>
+
+        <h2 class="section-title" style="margin-top:22px;color:var(--red);">Nový školní rok</h2>
+        <div class="card">
+          <div class="help-text" style="margin:0 0 10px;">
+            Všem studentům se vynulují body (začnou od nuly) a posunou se o ročník výš. Studenti ze 3. ročníku se přesunou do "Vyučení" - už se nepočítají do žebříčku, ale zůstávají v Soutěžících, kdyby někdo dělal reparát nebo opakoval ročník (jde je odtamtud kdykoliv přesunout zpět). Jinak je pak smažeš jednotlivě u jejich profilu. Každému se u profilu uloží, kolikátí skončil v minulém roce ve svém ročníku a celkově - uvidíte to jak vy, tak student.
+          </div>
+          <button class="btn-secondary" style="color:var(--red);" onclick="openNewYearModal()">Spustit nový školní rok</button>
+          <div id="newYearSuccessMsg" style="font-size:12.5px;color:var(--primary);font-weight:700;margin-top:8px;"></div>
+        </div>
+      </div>
+
+      <!-- MODAL: potvrzení nového školního roku -->
+      <div class="terms-modal hidden" id="newYearModal" onclick="if(event.target===this) closeNewYearModal()">
+        <div class="terms-modal-box" style="max-height:none;">
+          <h3 style="color:var(--red);">Jste si jistá?</h3>
+          <div class="terms-modal-body" style="overflow-y:visible;">
+            <p>Všem studentům se <b>vynulují body</b> a posunou se o ročník výš. Studenti ze 3. ročníku se přesunou do <b>Vyučení</b> (ne smažou - jde je kdykoliv přesunout zpět, např. při reparátu). U každého se uloží jeho umístění z tohoto roku. Tuto akci <b>nelze vrátit zpět</b>.</p>
+          </div>
+          <div id="newYearError"></div>
+          <div style="display:flex;gap:10px;margin-top:6px;">
+            <button class="btn-secondary" style="flex:1;" onclick="closeNewYearModal()">Zrušit</button>
+            <button class="btn-primary" style="flex:1;background:var(--red);" id="newYearConfirmBtn" onclick="newYearConfirmed()">Ano, spustit</button>
+          </div>
+        </div>
+      </div>
+
       <div class="screen hidden" id="screen-competitors">
+        <span class="back-link" onclick="showScreen('admin')">&larr; Zpět do administrace</span>
         <div class="comp-filter-row">
           <select id="compRocnikFilter" onchange="filterCompetitors()">
             <option value="all">Všechny</option>
             <option value="1">1. ročník</option>
             <option value="2">2. ročník</option>
             <option value="3">3. ročník</option>
+            <option value="4">Vyučení</option>
           </select>
           <input type="text" id="compSearchInput" placeholder="Hledat studenta…" oninput="filterCompetitors()">
         </div>
@@ -1354,6 +1400,7 @@
           <div class="comp-meta" id="compDetailMeta">—</div>
           <div class="comp-meta" id="compDetailPush">—</div>
         </div>
+        <div class="hidden" id="compDetailLastYear" style="font-size:13px;color:var(--text);background:#F3F0E9;border-radius:10px;padding:10px 12px;margin-bottom:12px;"></div>
         <div class="comp-stat-grid">
           <div class="comp-stat-card">
             <div class="comp-stat-num" id="compDetailPoints">0</div>
@@ -1378,6 +1425,22 @@
             <div class="comp-stat-label">splněných výzev</div>
           </div>
         </div>
+
+        <div class="field" style="margin-top:14px;">
+          <label>Přesunout do ročníku (např. při opakování ročníku nebo reparátu z Vyučení)</label>
+          <div style="display:flex;gap:8px;">
+            <select id="compDetailRocnikMove" style="flex:1;">
+              <option value="1">1. ročník</option>
+              <option value="2">2. ročník</option>
+              <option value="3">3. ročník</option>
+              <option value="4">Vyučení</option>
+            </select>
+            <button class="btn-secondary" style="width:auto;padding:11px 16px;" onclick="moveCompetitorRocnik()">Přesunout</button>
+          </div>
+          <div id="compDetailRocnikMoveMsg" style="font-size:12.5px;margin-top:6px;"></div>
+        </div>
+
+        <button class="btn-secondary" style="margin-top:14px;" onclick="exportCompetitorExcel()">&#128202; Exportovat záznamy (Excel)</button>
 
         <div id="compDetailPersonality"></div>
 
@@ -2025,9 +2088,9 @@ async function completeLogin() {
   document.getElementById("navAchievementsSidebar").classList.toggle("hidden", !showAchievements);
   document.getElementById("navAchievementsDrawer").classList.toggle("hidden", !showAchievements);
 
-  const showCompetitors = user.role === "mistrova";
-  document.getElementById("navCompetitorsSidebar").classList.toggle("hidden", !showCompetitors);
-  document.getElementById("navCompetitorsDrawer").classList.toggle("hidden", !showCompetitors);
+  const showAdmin = user.role === "mistrova";
+  document.getElementById("navAdminSidebar").classList.toggle("hidden", !showAdmin);
+  document.getElementById("navAdminDrawer").classList.toggle("hidden", !showAdmin);
 
   await recordLoginActivity();
   await loadQuizzes();
@@ -2629,7 +2692,7 @@ function showScreen(name) {
     profile: ["Profil", "Tvoje statistiky"],
     "points-breakdown": ["Body", "Za co je máš"],
     "avatar-crop": ["Profilovka", "Uprav výřez"],
-    admin: ["Administrace", "Zápis docházky"],
+    admin: ["Administrace", "Nástroje pro mistrovou"],
     help: ["Nápověda", "Jak appka funguje"],
     faq: ["Časté otázky", "Co se studenti ptají nejčastěji"],
     "my-feedback": ["Moje zprávy", "Vaše odeslané zprávy"],
@@ -3548,6 +3611,8 @@ function openQuizCreate() {
   document.getElementById("qcRocnik").value = "1";
   document.getElementById("qcPoints").value = "5";
   document.getElementById("qcError").innerHTML = "";
+  document.getElementById("qcQuestionStats").classList.add("hidden");
+  document.getElementById("qcQuestionStats").innerHTML = "";
   quizDraft = [{ q: "", options: ["", ""], correct: 0 }];
   renderQuizDraft();
   showScreen("quiz-create");
@@ -3566,6 +3631,8 @@ function openStudentQuizCreate() {
   document.getElementById("qcTitle").value = "";
   document.getElementById("qcVisibility").value = "rocnik";
   document.getElementById("qcError").innerHTML = "";
+  document.getElementById("qcQuestionStats").classList.add("hidden");
+  document.getElementById("qcQuestionStats").innerHTML = "";
   quizDraft = [{ q: "", options: ["", ""], correct: 0 }];
   renderQuizDraft();
   showScreen("quiz-create");
@@ -3584,6 +3651,8 @@ async function openQuizReview(quizId, returnTo) {
   document.getElementById("qcHeading").textContent = "Posouzení návrhu";
   setQuizEditorFieldsVisible({ rocnik: true, visibility: false, points: true, comment: true, saveBtn: false, reviewBtns: true, editSaveBtn: false });
   document.getElementById("qcAuthorNote").classList.add("hidden");
+  document.getElementById("qcQuestionStats").classList.add("hidden");
+  document.getElementById("qcQuestionStats").innerHTML = "";
   document.getElementById("qcError").innerHTML = "<div class='empty-note'>Načítám...</div>";
   document.getElementById("qcQuestions").innerHTML = "";
   showScreen("quiz-create");
@@ -3633,9 +3702,13 @@ async function openQuizEdit(quizId, returnTo) {
   document.getElementById("qcEditSaveBtn").textContent = "Uložit";
   document.getElementById("qcError").innerHTML = "<div class='empty-note'>Načítám...</div>";
   document.getElementById("qcQuestions").innerHTML = "";
+  document.getElementById("qcQuestionStats").classList.add("hidden");
+  document.getElementById("qcQuestionStats").innerHTML = "";
   showScreen("quiz-create");
   document.getElementById("topbarTitle").textContent = "Upravit kvíz";
   document.getElementById("topbarSub").textContent = "Uprav a ulož změny";
+
+  loadQuizQuestionStats(quizId);
 
   const { data, error } = await sb.rpc("get_quiz_submission_detail", { p_quiz_id: quizId });
   document.getElementById("qcError").innerHTML = "";
@@ -3658,6 +3731,29 @@ async function openQuizEdit(quizId, returnTo) {
   renderQuizDraft();
   quizEditorOriginalSnapshot = currentQuizEditorSnapshot();
   checkQuizEditorDirty();
+}
+
+// Ukáže mistrové, u kterých otázek studenti nejčastěji chybují (podle
+// dosavadních skutečných pokusů) - ať ví, co ještě víc probrat/vysvětlit.
+async function loadQuizQuestionStats(quizId) {
+  const el = document.getElementById("qcQuestionStats");
+  const { data, error } = await sb.rpc("get_quiz_question_stats", { p_quiz_id: quizId });
+  if (error || !data || data.length === 0 || !data.some((r) => r.total_attempts > 0)) {
+    el.classList.add("hidden");
+    el.innerHTML = "";
+    return;
+  }
+  el.classList.remove("hidden");
+  let html = "<h2 class='section-title'>Úspěšnost otázek</h2><div class='help-text' style='margin-top:-8px;margin-bottom:10px;'>Podle dosavadních pokusů studentů - kolik % z nich otázku zodpovědělo špatně.</div>";
+  data.forEach((r) => {
+    const pct = Number(r.wrong_percent) || 0;
+    const color = pct >= 50 ? "var(--red)" : pct >= 25 ? "#B8860B" : "var(--primary)";
+    html += "<div class='card' style='padding:10px 14px;'>" +
+      "<div style='font-size:13.5px;color:var(--dark);'>" + esc(r.question_text) + "</div>" +
+      "<div style='font-size:12.5px;color:" + color + ";font-weight:700;margin-top:4px;'>" + pct + " % špatně (" + r.wrong_count + "/" + r.total_attempts + " pokusů)</div>" +
+      "</div>";
+  });
+  el.innerHTML = html;
 }
 
 function currentQuizEditorSnapshot() {
@@ -5353,6 +5449,7 @@ function setLbAdminFilter(f) {
   document.getElementById("lbATabR1").classList.toggle("active", f === "1");
   document.getElementById("lbATabR2").classList.toggle("active", f === "2");
   document.getElementById("lbATabR3").classList.toggle("active", f === "3");
+  document.getElementById("lbATabR4").classList.toggle("active", f === "4");
   renderLeaderboardAdmin();
 }
 
@@ -5365,7 +5462,11 @@ async function renderLeaderboardAdmin() {
     return;
   }
   let rows = data || [];
-  if (lbAdminFilter !== "overall") {
+  // "Celkově" soutěží jen aktivní ročníky 1.-3. (Vyučení tam nemají co dělat -
+  // řadit se ale mezi sebou, ve své vlastní záložce "Vyučení", dál mohou).
+  if (lbAdminFilter === "overall") {
+    rows = rows.filter((r) => r.rank_overall != null);
+  } else {
     rows = rows.filter((r) => String(r.rocnik) === lbAdminFilter);
   }
   if (rows.length === 0) {
@@ -5379,7 +5480,7 @@ async function renderLeaderboardAdmin() {
     div.innerHTML =
       "<div class='lb-rank'>#" + rank + "</div>" +
       miniAvatarHtml(r.avatar_url, r.name) +
-      "<div><div class='lb-name'>" + esc(r.name) + "</div><div class='lb-sub'>" + esc(r.rocnik) + ". ročník</div></div>" +
+      "<div><div class='lb-name'>" + esc(r.name) + "</div><div class='lb-sub'>" + rocnikLabel(r.rocnik) + "</div></div>" +
       "<div class='lb-points' style='margin-left:auto;'>" + r.points + " b.</div>";
     list.appendChild(div);
   });
@@ -5418,7 +5519,7 @@ async function renderLeaderboard() {
     div.innerHTML =
       "<div class='medal medal-" + (i + 1) + "'>" + (i + 1) + "</div>" +
       miniAvatarHtml(p.avatar_url, p.name) +
-      "<div><div class='lb-name'>" + esc(p.name) + "</div><div class='lb-sub'>" + esc(p.rocnik) + ". ročník</div></div>" +
+      "<div><div class='lb-name'>" + esc(p.name) + "</div><div class='lb-sub'>" + rocnikLabel(p.rocnik) + "</div></div>" +
       "<div class='lb-points' style='margin-left:auto;'>" + p.points + " b.</div>";
     top3El.appendChild(div);
   });
@@ -5453,6 +5554,7 @@ async function loadRank() {
 // ---------- SOUTĚŽÍCÍ (přehled studentů, jen mistrová) ----------
 let allCompetitors = [];
 let currentCompetitorId = null;
+let currentCompetitorExportData = null;
 
 async function renderCompetitors() {
   const list = document.getElementById("competitorsList");
@@ -5494,11 +5596,18 @@ function renderCompetitorsList(rows) {
     div.innerHTML =
       "<div style='display:flex;align-items:center;gap:10px;'>" + miniAvatarHtml(r.avatar_url, r.name) +
       "<div><div class='name'>" + esc(r.name) + pushBadge + "</div>" +
-      "<div class='meta'>" + esc(r.rocnik) + ". ročník · " + r.points + " b.</div></div></div>" +
-      "<div class='lb-points'>#" + r.rank_overall + "</div>";
+      "<div class='meta'>" + rocnikLabel(r.rocnik) + " · " + r.points + " b.</div></div></div>" +
+      "<div class='lb-points'>" + (r.rank_overall != null ? "#" + r.rank_overall : "—") + "</div>";
     div.onclick = () => openCompetitorDetail(r.id);
     list.appendChild(div);
   });
+}
+
+// Ročník 4 se v DB používá jako "Vyučení" (absolvoval/a, škola skončila) -
+// tahle funkce to na jednom místě promítne do zobrazovaného textu.
+function rocnikLabel(rocnik, short) {
+  if (rocnik === 4) return "Vyučení";
+  return short ? rocnik + ". roč." : rocnik + ". ročník";
 }
 
 function czPokusy(n) {
@@ -5529,11 +5638,23 @@ async function openCompetitorDetail(id) {
     avatarWrap.appendChild(span);
   }
   document.getElementById("compDetailName").textContent = r.name;
-  document.getElementById("compDetailMeta").textContent = r.rocnik + ". ročník · Kuchař/Číšník";
+  document.getElementById("compDetailMeta").textContent = rocnikLabel(r.rocnik) + " · Kuchař/Číšník";
   document.getElementById("compDetailPush").textContent = r.has_push ? "🔔 Push oznámení zapnuto" : "🔕 Push oznámení vypnuto";
   document.getElementById("compDetailPoints").textContent = r.points;
-  document.getElementById("compDetailRankOverall").textContent = "#" + r.rank_overall;
-  document.getElementById("compDetailRankRocnik").textContent = "#" + r.rank_in_rocnik;
+  document.getElementById("compDetailRankOverall").textContent = r.rank_overall != null ? "#" + r.rank_overall : "—";
+  document.getElementById("compDetailRankRocnik").textContent = r.rank_in_rocnik != null ? "#" + r.rank_in_rocnik : "—";
+
+  const lyEl = document.getElementById("compDetailLastYear");
+  if (r.last_year_rank_overall != null) {
+    lyEl.classList.remove("hidden");
+    lyEl.innerHTML = "&#127942; Minulý školní rok (" + esc(r.last_year_label) + ") skončil/a ve " + r.last_year_rocnik + ". ročníku na <b>" +
+      r.last_year_rank_in_rocnik + ". místě</b> a celkově na <b>" + r.last_year_rank_overall + ". místě</b> (" + r.last_year_points + " b.).";
+  } else {
+    lyEl.classList.add("hidden");
+    lyEl.innerHTML = "";
+  }
+  document.getElementById("compDetailRocnikMove").value = String(r.rocnik);
+  document.getElementById("compDetailRocnikMoveMsg").textContent = "";
 
   document.getElementById("compDetailQuizCount").textContent = "…";
   document.getElementById("compDetailChallengeCount").textContent = "…";
@@ -5550,6 +5671,15 @@ async function openCompetitorDetail(id) {
   ]);
 
   if (currentCompetitorId !== id) return; // mezitím otevřela detail jiného studenta
+
+  // Uloženo pro exportCompetitorExcel() - ať export nemusí data tahat znovu.
+  currentCompetitorExportData = {
+    student: r,
+    stats: (!statsRes.error && statsRes.data && statsRes.data[0]) ? statsRes.data[0] : null,
+    quizzes: quizRes.data || [],
+    challenges: challengeRes.data || [],
+    personality: (!persRes.error && persRes.data && persRes.data[0]) ? persRes.data[0] : null,
+  };
 
   if (!statsRes.error && statsRes.data && statsRes.data[0]) {
     const b = statsRes.data[0];
@@ -5620,6 +5750,121 @@ async function openCompetitorDetail(id) {
 
 function renderCompetitorBadges(b) {
   renderBadgeCatalogInto(document.getElementById("compDetailBadges"), buildBadgeCatalog(b));
+}
+
+// ---------- Přesun studenta do konkrétního ročníku (např. opakuje ročník) ----------
+async function moveCompetitorRocnik() {
+  const id = currentCompetitorId;
+  const rocnik = parseInt(document.getElementById("compDetailRocnikMove").value, 10);
+  const msgEl = document.getElementById("compDetailRocnikMoveMsg");
+  msgEl.textContent = "Ukládám...";
+  msgEl.style.color = "";
+  const { error } = await sb.rpc("set_student_rocnik", { p_id: id, p_rocnik: rocnik });
+  if (error) {
+    msgEl.textContent = "Nepodařilo se přesunout: " + error.message;
+    msgEl.style.color = "var(--red)";
+    return;
+  }
+  msgEl.textContent = "Přesunuto do " + rocnikLabel(rocnik) + ".";
+  msgEl.style.color = "var(--primary)";
+  await renderCompetitors();
+  await openCompetitorDetail(id);
+}
+
+// ---------- Export záznamů jednoho studenta do Excelu ----------
+function exportCompetitorExcel() {
+  const d = currentCompetitorExportData;
+  if (!d) return;
+  const wb = XLSX.utils.book_new();
+
+  const overview = [
+    ["Jméno", d.student.name],
+    ["Ročník", d.student.rocnik],
+    ["Body celkem", d.student.points],
+    ["Pořadí celkem", d.student.rank_overall],
+    ["Pořadí v ročníku", d.student.rank_in_rocnik],
+    ["Push oznámení", d.student.has_push ? "zapnuto" : "vypnuto"],
+    ["Splněné kvízy", d.stats ? d.stats.completed_quizzes : 0],
+    ["Splněné výzvy", d.stats ? d.stats.challenges_completed : 0],
+    ["Test osobnosti", d.personality ? d.personality.type_code : "nevyplněno"],
+  ];
+  if (d.student.last_year_rank_overall != null) {
+    overview.push(
+      ["Minulý školní rok", d.student.last_year_label],
+      ["Minulý rok - ročník", d.student.last_year_rocnik],
+      ["Minulý rok - body", d.student.last_year_points],
+      ["Minulý rok - pořadí v ročníku", d.student.last_year_rank_in_rocnik],
+      ["Minulý rok - pořadí celkem", d.student.last_year_rank_overall]
+    );
+  }
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(overview), "Přehled");
+
+  const quizRows = [["Kvíz", "Nejlepší skóre", "Ze", "%", "Pokusů", "Body"]];
+  d.quizzes.forEach((q) => {
+    const pct = q.best_total > 0 ? Math.round((q.best_score / q.best_total) * 100) : 0;
+    quizRows.push([q.quiz_title, q.best_score, q.best_total, pct, q.attempts_count, q.best_earned_points]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(quizRows), "Kvízy");
+
+  const challengeRows = [["Výzva", "Stav", "Pokusů", "Body"]];
+  d.challenges.forEach((c) => {
+    const label = c.my_status === "pending" ? "Čeká na schválení" : c.my_status === "approved" ? "Schváleno" : "Zamítnuto";
+    challengeRows.push([c.challenge_title, label, c.attempts_used, c.best_points != null ? c.best_points : 0]);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(challengeRows), "Výzvy");
+
+  XLSX.writeFile(wb, "ForkIt_" + d.student.name.replace(/\s+/g, "_") + ".xlsx");
+}
+
+// ---------- Admin: export přehledu všech studentů do Excelu ----------
+async function exportAllStudentsExcel() {
+  const { data, error } = await sb.rpc("get_leaderboard_admin");
+  if (error) {
+    alert("Nepodařilo se načíst studenty: " + error.message);
+    return;
+  }
+  const rows = [["Jméno", "Ročník", "Body", "Pořadí v ročníku", "Pořadí celkem", "Push",
+    "Minulý rok", "Minulý rok - ročník", "Minulý rok - body", "Minulý rok - pořadí v ročníku", "Minulý rok - pořadí celkem"]];
+  (data || []).forEach((r) => {
+    rows.push([
+      r.name, r.rocnik, r.points, r.rank_in_rocnik, r.rank_overall, r.has_push ? "ano" : "ne",
+      r.last_year_label || "", r.last_year_rocnik ?? "", r.last_year_points ?? "", r.last_year_rank_in_rocnik ?? "", r.last_year_rank_overall ?? "",
+    ]);
+  });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "Studenti");
+  XLSX.writeFile(wb, "ForkIt_studenti_" + new Date().toISOString().slice(0, 10) + ".xlsx");
+}
+
+// ---------- Admin: spuštění nového školního roku (vynulování bodů + posun ročníku) ----------
+function openNewYearModal() {
+  document.getElementById("newYearError").innerHTML = "";
+  const btn = document.getElementById("newYearConfirmBtn");
+  btn.disabled = false;
+  btn.textContent = "Ano, spustit";
+  document.getElementById("newYearModal").classList.remove("hidden");
+}
+
+function closeNewYearModal() {
+  document.getElementById("newYearModal").classList.add("hidden");
+}
+
+async function newYearConfirmed() {
+  const errorEl = document.getElementById("newYearError");
+  const btn = document.getElementById("newYearConfirmBtn");
+  errorEl.innerHTML = "";
+  btn.disabled = true;
+  btn.textContent = "Spouštím...";
+
+  const { error } = await sb.rpc("promote_students_new_year");
+  if (error) {
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se spustit nový školní rok: " + esc(error.message) + "</div>";
+    btn.disabled = false;
+    btn.textContent = "Ano, spustit";
+    return;
+  }
+  closeNewYearModal();
+  document.getElementById("newYearSuccessMsg").textContent = "✅ Nový školní rok byl spuštěn - body vynulovány, ročníky posunuty, 3. ročník přesunut do Vyučení.";
 }
 
 // ---------- Smazat studenta (jen mistrová) - nevratné, s potvrzovací tabulkou ----------
@@ -5782,9 +6027,18 @@ async function renderProfile() {
     return;
   }
 
-  document.getElementById("profileMeta").textContent = user.rocnik + ". ročník · Kuchař/Číšník";
+  document.getElementById("profileMeta").textContent = rocnikLabel(user.rocnik) + " · Kuchař/Číšník";
   pointsSection.classList.remove("hidden");
   document.getElementById("profilePoints").textContent = user.points;
+
+  const lyEl = document.getElementById("profileLastYear");
+  if (user.last_year_rank_overall != null) {
+    lyEl.classList.remove("hidden");
+    lyEl.innerHTML = "&#127942; Minulý školní rok (" + esc(user.last_year_label) + ") jsi ve " + user.last_year_rocnik + ". ročníku skončil/a na <b>" +
+      user.last_year_rank_in_rocnik + ". místě</b> a celkově na <b>" + user.last_year_rank_overall + ". místě</b> (" + user.last_year_points + " b.).";
+  } else {
+    lyEl.classList.add("hidden");
+  }
 }
 
 // ---------- ÚSPĚCHY (odznáčky) ----------
@@ -6102,7 +6356,7 @@ function renderConversationList(students, isSearchMode) {
     const unreadBadge = s.unread > 0 ? "<span class='badge-pts'>" + s.unread + "</span>" : "";
     div.innerHTML =
       "<div style='display:flex;align-items:center;gap:10px;'>" + miniAvatarHtml(s.avatar_url, s.name) +
-      "<div><div class='name'>" + esc(s.name) + " <span style='font-weight:400;color:var(--text-muted);'>(" + s.rocnik + ". roč.)</span></div>" +
+      "<div><div class='name'>" + esc(s.name) + " <span style='font-weight:400;color:var(--text-muted);'>(" + rocnikLabel(s.rocnik, true) + ")</span></div>" +
       "<div class='meta'>" + esc(preview) + "</div></div></div>" + unreadBadge;
     div.onclick = () => openChatThread(s.id, s.name);
     listEl.appendChild(div);
