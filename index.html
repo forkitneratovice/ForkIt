@@ -846,6 +846,21 @@
         </div>
       </div>
 
+      <!-- SMAZAT STUDENTA - POTVRZOVACÍ TABULKA (jen mistrová) -->
+      <div class="terms-modal hidden" id="deleteStudentModal" onclick="if(event.target===this) closeDeleteStudentModal()">
+        <div class="terms-modal-box" style="max-height:none;">
+          <h3 style="color:var(--red);">Jste si jistá?</h3>
+          <div class="terms-modal-body" style="overflow-y:visible;">
+            <p>Opravdu chceš navždy smazat účet <b id="delStudentName">–</b>? Smaže se úplně vše - body, kvízy, výzvy, zprávy, odznáčky i fotky/videa z výzev. Tuto akci <b>nelze vrátit zpět</b> a student se pod tímto účtem už nikdy nepřihlásí.</p>
+          </div>
+          <div id="delStudentError"></div>
+          <div style="display:flex;gap:10px;margin-top:6px;">
+            <button class="btn-secondary" style="flex:1;" onclick="closeDeleteStudentModal()">Zrušit</button>
+            <button class="btn-primary" style="flex:1;background:var(--red);" id="delStudentConfirmBtn" onclick="deleteStudentConfirmed()">Ano, smazat</button>
+          </div>
+        </div>
+      </div>
+
       <!-- VŠEOBECNÉ PODMÍNKY / ZPRACOVÁNÍ OSOBNÍCH ÚDAJŮ -->
       <div class="terms-modal hidden" id="termsModal" onclick="if(event.target===this) closeTermsModal()">
         <div class="terms-modal-box">
@@ -1374,6 +1389,10 @@
 
         <h2 class="section-title">Odznáčky</h2>
         <div id="compDetailBadges"></div>
+
+        <h2 class="section-title" style="color:var(--red);">Nebezpečná zóna</h2>
+        <p class="help-text">Nevratně smaže účet i všechna data studenta (body, kvízy, výzvy, zprávy, odznáčky...). Použij např. u falešné registrace nebo studenta, který už školu ukončil.</p>
+        <button class="btn-secondary" style="color:var(--red);" onclick="openDeleteStudentModal()">Smazat studenta</button>
       </div>
 
       <!-- ZPRÁVY -->
@@ -5601,6 +5620,70 @@ async function openCompetitorDetail(id) {
 
 function renderCompetitorBadges(b) {
   renderBadgeCatalogInto(document.getElementById("compDetailBadges"), buildBadgeCatalog(b));
+}
+
+// ---------- Smazat studenta (jen mistrová) - nevratné, s potvrzovací tabulkou ----------
+// Uložené soubory (avatar, fotky/videa z výzev) je potřeba smazat ZE STORAGE ještě
+// před samotným smazáním DB řádků (get_student_delete_preview vrátí jejich cesty,
+// dokud k nim ještě existují odpovídající řádky v challenge_submission_media).
+let deleteStudentPreview = null;
+
+function openDeleteStudentModal() {
+  const r = allCompetitors.find((c) => c.id === currentCompetitorId);
+  if (!r) return;
+  document.getElementById("delStudentName").textContent = r.name;
+  document.getElementById("delStudentError").innerHTML = "";
+  const btn = document.getElementById("delStudentConfirmBtn");
+  btn.disabled = false;
+  btn.textContent = "Ano, smazat";
+  deleteStudentPreview = null;
+  document.getElementById("deleteStudentModal").classList.remove("hidden");
+}
+
+function closeDeleteStudentModal() {
+  document.getElementById("deleteStudentModal").classList.add("hidden");
+}
+
+async function deleteStudentConfirmed() {
+  const id = currentCompetitorId;
+  const errorEl = document.getElementById("delStudentError");
+  const btn = document.getElementById("delStudentConfirmBtn");
+  errorEl.innerHTML = "";
+  btn.disabled = true;
+  btn.textContent = "Mažu...";
+
+  const { data: preview, error: previewError } = await sb.rpc("get_student_delete_preview", { p_id: id });
+  if (previewError) {
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se smazat: " + esc(previewError.message) + "</div>";
+    btn.disabled = false;
+    btn.textContent = "Ano, smazat";
+    return;
+  }
+  const p = preview && preview[0];
+
+  // nejdřív (best-effort) smazat soubory ze storage - chyba tady nesmí zablokovat
+  // smazání účtu samotného, jen se schová/přeskočí (soubor by tak jen zůstal
+  // "osiřelý" v bucketu, což je mnohem menší problém než nemožnost účet smazat)
+  try {
+    if (p && p.challenge_media_paths && p.challenge_media_paths.length > 0) {
+      await sb.storage.from("challenge-media").remove(p.challenge_media_paths);
+    }
+    if (p && p.avatar_path) {
+      await sb.storage.from("avatars").remove([p.avatar_path]);
+    }
+  } catch (e) {}
+
+  const { error } = await sb.rpc("delete_student", { p_id: id });
+  if (error) {
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se smazat: " + esc(error.message) + "</div>";
+    btn.disabled = false;
+    btn.textContent = "Ano, smazat";
+    return;
+  }
+
+  closeDeleteStudentModal();
+  showScreen("competitors");
+  await renderCompetitors();
 }
 
 function openAvatarLightbox(url) {
