@@ -1533,6 +1533,11 @@
 
       <!-- NÁPOVĚDA / O APLIKACI -->
       <div class="screen hidden" id="screen-help">
+        <div class="field" style="margin-bottom:16px;">
+          <input type="text" id="appSearchInput" placeholder="&#128269; Hledat ve Slovníku, Aktualitách, Kvízech, Výzvách..." oninput="handleAppSearchInput()" style="width:100%;padding:12px 14px;border-radius:12px;border:1px solid #E0DCD3;font-size:14.5px;font-family:inherit;">
+        </div>
+        <div id="appSearchResults"></div>
+        <div id="appSearchDefaultContent">
         <div class="help-section">
           <h2 class="section-title">&#127860; O aplikaci</h2>
           <p class="help-text">ForkIt je appka pro studenty oboru kuchař-číšník. Plníte tu kvízy a výzvy, sbíráte body a odznáčky, čtete slovo dne a aktuality, procvičujete si znalosti, a když si nevíte rady, napíšete mistrové rovnou tady.</p>
@@ -1595,6 +1600,7 @@
           <h2 class="section-title">&#128260; Procvičování</h2>
           <p class="help-text">V sekci Procvičování si můžete trénovat bez tlaku – kvízy nanečisto (bez bodů a bez omezení pokusů) a kartičky se slovíčky na opakování.</p>
           <p class="help-text">Ideální na rozehřátí před ostrým pokusem u kvízu.</p>
+        </div>
         </div>
       </div>
 
@@ -2432,6 +2438,95 @@ function containsProfanity(text) {
   return tokens.some((t) => ACCENTED_BLOCKED_WORDS.includes(t));
 }
 
+// ---------- VYHLEDÁVÁNÍ NAPŘÍČ APLIKACÍ (na obrazovce Nápověda) ----------
+// Hledá napříč Slovníkem, Aktualitami, Kvízy a Výzvami přes jednu RPC
+// (search_app_content) - ta uz sama filtruje podle role/ročníku, ať se
+// studentovi neukáže něco, co by stejně normálně neviděl (např. cizí
+// ročník u kvízu, nebo ještě neschválený návrh). U kvízů a výzev se hledá
+// jen podle názvu, ne podle znění otázek - ať student nechtěně nenarazí
+// na nápovědu k otázce, kterou ještě nezkoušel.
+let appSearchResultsData = [];
+let appSearchDebounceTimer = null;
+
+function resetAppSearch() {
+  document.getElementById("appSearchInput").value = "";
+  document.getElementById("appSearchResults").innerHTML = "";
+  document.getElementById("appSearchDefaultContent").classList.remove("hidden");
+  appSearchResultsData = [];
+}
+
+function handleAppSearchInput() {
+  clearTimeout(appSearchDebounceTimer);
+  const q = document.getElementById("appSearchInput").value.trim();
+  if (q.length < 2) {
+    document.getElementById("appSearchResults").innerHTML = "";
+    document.getElementById("appSearchDefaultContent").classList.remove("hidden");
+    return;
+  }
+  appSearchDebounceTimer = setTimeout(() => runAppSearch(q), 300);
+}
+
+const APP_SEARCH_KIND_LABELS = { word: "Slovník", aktualita: "Aktualita", quiz: "Kvíz", challenge: "Výzva" };
+const APP_SEARCH_KIND_ICONS = { word: "&#128214;", aktualita: "&#128226;", quiz: "&#9999;&#65039;", challenge: "&#127919;" };
+
+async function runAppSearch(q) {
+  const resultsEl = document.getElementById("appSearchResults");
+  document.getElementById("appSearchDefaultContent").classList.add("hidden");
+  resultsEl.innerHTML = "<div class='empty-note'>Hledám...</div>";
+
+  const { data, error } = await sb.rpc("search_app_content", { p_query: q });
+  if (error) {
+    resultsEl.innerHTML = "<div class='error-note'>Vyhledávání se nepodařilo: " + esc(error.message) + "</div>";
+    return;
+  }
+  appSearchResultsData = data || [];
+  if (appSearchResultsData.length === 0) {
+    resultsEl.innerHTML = "<div class='empty-note'>Nic jsme nenašli. Zkus jiné klíčové slovo.</div>";
+    return;
+  }
+  resultsEl.innerHTML = "";
+  appSearchResultsData.forEach((r, i) => {
+    const plainSnippet = r.display_text ? r.display_text.replace(/<[^>]+>/g, "").trim() : "";
+    const title = r.display_title || plainSnippet.slice(0, 70) || APP_SEARCH_KIND_LABELS[r.kind];
+    const sub = r.display_title && plainSnippet ? plainSnippet.slice(0, 90) : "";
+    const div = document.createElement("div");
+    div.className = "card";
+    div.style.cursor = "pointer";
+    div.innerHTML =
+      "<div style='display:flex;align-items:center;gap:10px;'><span style='font-size:18px;'>" + APP_SEARCH_KIND_ICONS[r.kind] + "</span>" +
+      "<div><div style='font-size:11.5px;color:var(--primary);font-weight:700;'>" + APP_SEARCH_KIND_LABELS[r.kind] + "</div>" +
+      "<div style='font-size:14px;color:var(--dark);font-weight:600;'>" + esc(title) + "</div>" +
+      (sub ? "<div style='font-size:12.5px;color:var(--text-muted);margin-top:2px;'>" + esc(sub) + "</div>" : "") +
+      "</div></div>";
+    div.onclick = () => openAppSearchResult(i);
+    resultsEl.appendChild(div);
+  });
+}
+
+function openAppSearchResult(i) {
+  const r = appSearchResultsData[i];
+  if (!r) return;
+  const isTeacher = user && user.role === "mistrova";
+
+  if (r.kind === "word") {
+    openWordDetail(r.ref_id, r.display_title, r.display_text);
+  } else if (r.kind === "aktualita") {
+    openAnnouncementDetail(r.ref_id, r.display_text, r.extra_created_at);
+  } else if (r.kind === "quiz") {
+    if (isTeacher) {
+      openQuizEdit(r.ref_id, "help");
+    } else {
+      showScreen("quizzes");
+    }
+  } else if (r.kind === "challenge") {
+    if (isTeacher) {
+      openChallengeStudents(r.ref_id, r.display_title, r.extra_points);
+    } else {
+      showScreen("challenges");
+    }
+  }
+}
+
 // Anonymní dotaz/zpětná vazba nahoře na obrazovce Časté otázky: studenti tam vidí
 // formulář na odeslání anonymní zprávy (+ odkaz na svoje starší zprávy a odpovědi),
 // mistrová místo toho vidí seznam došlých zpráv s možností na každou odpovědět.
@@ -2762,6 +2857,7 @@ function showScreen(name) {
   if (name === "practice-quizzes") renderPracticeQuizzes();
   if (name === "flashcards") openFlashcards();
   if (name === "faq") renderFaqFeedback();
+  if (name === "help") resetAppSearch();
   if (name === "my-feedback") renderMyFeedback();
   if (name === "teacher-feedback") renderTeacherFeedback();
 }
