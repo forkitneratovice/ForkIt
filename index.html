@@ -1339,26 +1339,10 @@
       <!-- ADMIN (jen mistrová) -->
       <div class="screen hidden" id="screen-admin">
         <h2 class="section-title">Administrace</h2>
-        <div class="card" style="cursor:pointer;" onclick="showScreen('competitors')">
-          <div style="font-weight:800;font-size:15px;color:var(--dark);font-family:'Poppins',sans-serif;">&#128101; Soutěžící</div>
-          <div class="help-text" style="margin:4px 0 0;">Seznam studentů, jejich body, pořadí a podrobnosti o jednotlivých profilech.</div>
-        </div>
-
-        <h2 class="section-title" style="margin-top:22px;">Export dat</h2>
-        <div class="card">
-          <div style="font-weight:800;font-size:15px;color:var(--dark);font-family:'Poppins',sans-serif;">&#128202; Export všech studentů (Excel)</div>
-          <div class="help-text" style="margin:4px 0 10px;">Stáhne přehled všech studentů - body, pořadí v ročníku i celkově, minulý rok.</div>
-          <button class="btn-secondary" onclick="exportAllStudentsExcel()">Stáhnout XLSX</button>
-        </div>
-
-        <h2 class="section-title" style="margin-top:22px;color:var(--red);">Nový školní rok</h2>
-        <div class="card">
-          <div class="help-text" style="margin:0 0 10px;">
-            Všem studentům se vynulují body (začnou od nuly) a posunou se o ročník výš. Studenti ze 3. ročníku se přesunou do "Vyučení" - už se nepočítají do žebříčku, ale zůstávají v Soutěžících, kdyby někdo dělal reparát nebo opakoval ročník (jde je odtamtud kdykoliv přesunout zpět). Jinak je pak smažeš jednotlivě u jejich profilu. Každému se u profilu uloží, kolikátí skončil v minulém roce ve svém ročníku a celkově - uvidíte to jak vy, tak student.
-          </div>
-          <button class="btn-secondary" style="color:var(--red);" onclick="openNewYearModal()">Spustit nový školní rok</button>
-          <div id="newYearSuccessMsg" style="font-size:12.5px;color:var(--primary);font-weight:700;margin-top:8px;"></div>
-        </div>
+        <button class="btn-secondary" onclick="showScreen('competitors')">&#128101; Soutěžící</button>
+        <button class="btn-secondary" style="margin-top:10px;" onclick="exportAllStudentsExcel()">&#128202; Export všech studentů (Excel)</button>
+        <button class="btn-secondary" style="margin-top:10px;color:var(--red);" onclick="openNewYearModal()">&#128197; Nový školní rok</button>
+        <div id="newYearSuccessMsg" style="font-size:12.5px;color:var(--primary);font-weight:700;margin-top:8px;"></div>
       </div>
 
       <!-- MODAL: potvrzení nového školního roku -->
