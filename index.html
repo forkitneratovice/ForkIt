@@ -58,13 +58,20 @@
     width: 100%;
     max-width: 480px;
     background: var(--bg);
-    min-height: 100vh;
+    height: 100vh;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
     box-shadow: 0 0 50px rgba(0,0,0,0.25);
   }
   .sidebar { display: none; }
-  .main { flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+  /* Topbar/drawer musí zůstat pořád vidět, i na dlouhých obrazovkách (např. Slovník se
+     spoustou slov) - stejné řešení jako na desktopu (viz níže): .app-shell/.main jsou
+     napevno omezené na výšku okna a overflow:hidden, takže se nemůžou "roztáhnout" podle
+     obsahu, a jediné, co uvnitř skutečně scrolluje, je .app-wrap. Topbar je mimo něj, takže
+     zůstává napevno na místě bez ohledu na to, jak dlouho scrolluješ dolů. */
+  .main { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 
   .topbar {
     background: var(--dark);
@@ -104,8 +111,6 @@
   .nav-drawer .nav-item.active { background: var(--primary); color: white; }
   .nav-drawer hr { border: none; border-top: 1px solid #3a3a3d; margin: 8px 0; }
   .screen {
-    flex: 1;
-    overflow-y: auto;
     padding: 18px 16px 32px;
   }
   .hidden { display: none !important; }
@@ -538,7 +543,7 @@
   }
   .nav-icon { display: block; margin-bottom: 2px; }
   .nav-icon svg { width: 18px; height: 18px; }
-  .app-wrap { position: relative; flex: 1; display: flex; flex-direction: column; }
+  .app-wrap { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; display: block; }
   .back-link { font-size: 13px; color: var(--primary); font-weight: 700; margin-bottom: 14px; display: inline-block; }
 
   /* ---------- Desktop layout ---------- */
@@ -2561,13 +2566,10 @@ function showScreen(name) {
   document.querySelectorAll(".screen").forEach((el) => el.classList.add("hidden"));
   const targetScreen = document.getElementById("screen-" + name);
   targetScreen.classList.remove("hidden");
-  // Každá obrazovka má vlastní scroll (viz .screen { overflow-y: auto }), takže
-  // se nestačí spolehnout na scroll okna - bez tohohle by třeba výsledek testu
-  // osobnosti/kvízu zůstal odscrollovaný tam, kde byla předchozí obrazovka.
+  // Skutečný scroll container je .app-wrap (obaluje všechny .screen) - .screen sám jen
+  // plyne podle obsahu, nescrolluje se zvlášť. Bez tohohle resetu by nová obrazovka
+  // zůstala odscrollovaná tam, kde byla ta předchozí (např. výsledek testu osobnosti/kvízu).
   targetScreen.scrollTop = 0;
-  // Na desktopu (viz @media min-width:900px) je skutečný scroll container .app-wrap, ne
-  // samotný .screen (ten tam jen plyne podle obsahu) - bez tohohle resetu by na desktopu
-  // zůstalo okno odscrollované tam, kde bylo u předchozí obrazovky.
   const appWrapEl = targetScreen.closest(".app-wrap");
   if (appWrapEl) appWrapEl.scrollTop = 0;
   document.querySelectorAll(".nav-item").forEach((el) => el.classList.remove("active"));
