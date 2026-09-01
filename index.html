@@ -784,6 +784,29 @@
         </div>
       </div>
 
+      <!-- REŽIM ÚDRŽBY: zobrazí se místo appky studentům (ne mistrové, ne
+           testovacím účtům), když mistrová právě nahrává rozdělanou
+           opravu/novinku a nechce, aby mezitím viděli appku v rozjetém
+           stavu. Zapíná/vypíná se v Administraci; appka to kontroluje po
+           přihlášení a pak průběžně, takže se to projeví i těm, kdo appku
+           mají už otevřenou. -->
+      <div class="screen hidden" id="screen-maintenance">
+        <div class="login-box">
+          <div class="login-logo">
+            <svg class="fork-logo" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <line x1="70" y1="10" x2="70" y2="38" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>
+              <line x1="85" y1="10" x2="85" y2="38" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>
+              <line x1="100" y1="10" x2="100" y2="38" stroke="currentColor" stroke-width="9" stroke-linecap="round"/>
+              <path d="M70 38 C70 52 85 50 85 64" stroke="currentColor" stroke-width="9" fill="none" stroke-linecap="round"/>
+              <path d="M85 64 L44 108 L16 78" stroke="currentColor" stroke-width="11" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h1>ForkIt</h1>
+          <p class="tag">&#128295; Chvilka údržby</p>
+          <p id="maintenanceMessage" style="margin-top:14px;font-size:14.5px;line-height:1.5;color:var(--text-muted);"></p>
+        </div>
+      </div>
+
       <!-- LOGIN / REGISTRACE -->
       <div class="screen hidden" id="screen-login">
         <div class="login-box">
@@ -1404,6 +1427,25 @@
         <div id="endYearSuccessMsg" style="font-size:12.5px;color:var(--primary);font-weight:700;margin-top:8px;"></div>
         <button class="btn-secondary" style="margin-top:10px;color:var(--red);" onclick="openNewYearModal()">&#128197; Nový školní rok</button>
         <div id="newYearSuccessMsg" style="font-size:12.5px;color:var(--primary);font-weight:700;margin-top:8px;"></div>
+
+        <!-- REŽIM ÚDRŽBY: zapnete, když nahráváte rozdělanou opravu/novinku
+             a chcete si ji nejdřív sami vyzkoušet (vy a testovací účty
+             appku vidíte pořád normálně), aniž by mezitím studenti viděli
+             appku v rozjetém stavu. Nezapomeňte to po dotestování vypnout. -->
+        <div style="margin-top:22px;padding:14px;background:#F3F0E9;border-radius:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+            <div style="font-weight:700;color:var(--dark);">&#128295; Režim údržby</div>
+            <label class="switch" style="position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0;">
+              <input type="checkbox" id="maintenanceToggle" onchange="saveMaintenanceMode()" style="opacity:0;width:0;height:0;">
+              <span id="maintenanceToggleTrack" style="position:absolute;inset:0;background:#ccc;border-radius:24px;transition:0.15s;"></span>
+              <span id="maintenanceToggleKnob" style="position:absolute;left:3px;top:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:0.15s;"></span>
+            </label>
+          </div>
+          <div class="help-text" style="margin-top:6px;margin-bottom:8px;">Když je zapnutý, appku normálně vidíte jen vy a testovací účty (Bob/Šárka) - ostatní studenti uvidí místo appky jen tuhle zprávu. Hodí se, když opravujete/testujete něco rozdělaného.</div>
+          <textarea id="maintenanceMessageInput" rows="2" placeholder="Zpráva, kterou uvidí studenti..." style="width:100%;padding:9px 10px;border-radius:8px;border:1px solid #E0DCD3;font-size:13px;font-family:inherit;resize:vertical;"></textarea>
+          <button class="btn-secondary" style="margin-top:8px;width:100%;" onclick="saveMaintenanceMode(true)">Uložit zprávu</button>
+          <div id="maintenanceSaveMsg" style="font-size:12px;color:var(--primary);font-weight:700;margin-top:6px;"></div>
+        </div>
       </div>
 
       <!-- KOŠ: bezpečnostní síť pro omylem smazané řádky (kvízy, výzvy,
@@ -2228,6 +2270,9 @@ function maybeRecheckTimeOfDayBadges() {
 }
 
 async function completeLogin() {
+  const blockedByMaintenance = await checkMaintenanceGate();
+  if (blockedByMaintenance) return;
+
   document.getElementById("hamburgerBtn").classList.remove("hidden");
   document.getElementById("homeBtn").classList.remove("hidden");
   document.getElementById("sidebar").classList.remove("hidden");
@@ -3043,6 +3088,7 @@ function showScreen(name) {
   if (name === "inactive-students") renderInactiveStudents();
   if (name === "preview-picker") renderPreviewPicker();
   if (name === "trash") loadTrashLog();
+  if (name === "admin") renderMaintenanceAdminUI();
   if (name === "my-feedback") renderMyFeedback();
   if (name === "teacher-feedback") renderTeacherFeedback();
 }
@@ -6327,6 +6373,100 @@ async function restoreTrashEntry(id) {
     return;
   }
   await loadTrashLog();
+}
+
+// ---------- REŽIM ÚDRŽBY ----------
+// Mistrová a testovací účty (Bob/Šárka) appku vidí VŽDY normálně - schválně,
+// ať si při zapnuté údržbě může v klidu odzkoušet novou verzi appky sama,
+// dřív než ji "pustí" studentům. Kontroluje se hned po přihlášení a pak
+// průběžně (interval + při návratu do popředí na telefonu), takže se to
+// projeví i studentům, kteří appku měli otevřenou už předtím.
+let maintenanceScreenActive = false;
+
+function isMaintenanceExempt() {
+  return !!user && (user.role === "mistrova" || user.is_test_account);
+}
+
+// Vrací true, pokud se má appka schovat za obrazovku údržby (a volající by
+// tedy měl přestat dál appku zobrazovat/inicializovat).
+async function checkMaintenanceGate() {
+  if (!user || isMaintenanceExempt()) return false;
+
+  let row;
+  try {
+    const { data, error } = await sb.rpc("get_maintenance_status");
+    // Při jakékoliv chybě appku raději normálně pustíme dál (fail-open) -
+    // ať kvůli výpadku téhle kontroly nezůstanou studenti zbytečně zamčení.
+    if (error || !data || !data.length) return false;
+    row = data[0];
+  } catch (e) {
+    return false;
+  }
+
+  if (row.enabled) {
+    maintenanceScreenActive = true;
+    document.getElementById("maintenanceMessage").textContent =
+      row.message || "Appka se právě upravuje, zkuste to prosím za chvíli.";
+    document.querySelectorAll(".screen").forEach((el) => el.classList.add("hidden"));
+    document.getElementById("screen-maintenance").classList.remove("hidden");
+    document.getElementById("hamburgerBtn").classList.add("hidden");
+    document.getElementById("homeBtn").classList.add("hidden");
+    document.getElementById("sidebar").classList.add("hidden");
+    closeNavDrawer();
+    return true;
+  }
+
+  if (maintenanceScreenActive) {
+    maintenanceScreenActive = false;
+    document.getElementById("hamburgerBtn").classList.remove("hidden");
+    document.getElementById("homeBtn").classList.remove("hidden");
+    document.getElementById("sidebar").classList.remove("hidden");
+    showScreen("home");
+  }
+  return false;
+}
+
+// Průběžná kontrola - i když student appku má otevřenou déle (nebo ji na
+// telefonu jen odemkne), do minuty se to projeví, aniž by musel appku
+// zavírat a znovu otevírat.
+setInterval(() => {
+  if (user) checkMaintenanceGate();
+}, 60000);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && user) checkMaintenanceGate();
+});
+
+function updateMaintenanceToggleVisual(on) {
+  document.getElementById("maintenanceToggleTrack").style.background = on ? "var(--primary)" : "#ccc";
+  document.getElementById("maintenanceToggleKnob").style.transform = on ? "translateX(20px)" : "translateX(0)";
+}
+
+async function renderMaintenanceAdminUI() {
+  document.getElementById("maintenanceSaveMsg").textContent = "";
+  const { data, error } = await sb.rpc("get_maintenance_status");
+  const row = (!error && data && data[0]) || { enabled: false, message: "" };
+  document.getElementById("maintenanceToggle").checked = !!row.enabled;
+  document.getElementById("maintenanceMessageInput").value = row.message || "";
+  updateMaintenanceToggleVisual(!!row.enabled);
+}
+
+async function saveMaintenanceMode() {
+  const enabled = document.getElementById("maintenanceToggle").checked;
+  const message = document.getElementById("maintenanceMessageInput").value;
+  updateMaintenanceToggleVisual(enabled);
+  const msgEl = document.getElementById("maintenanceSaveMsg");
+  msgEl.style.color = "var(--text-muted)";
+  msgEl.textContent = "Ukládám...";
+  const { error } = await sb.rpc("set_maintenance_mode", { p_enabled: enabled, p_message: message });
+  if (error) {
+    msgEl.style.color = "var(--red)";
+    msgEl.textContent = "Nepodařilo se uložit, zkuste to prosím znovu.";
+    return;
+  }
+  msgEl.style.color = "var(--primary)";
+  msgEl.textContent = enabled
+    ? "Uloženo - appku teď normálně vidíte jen vy a testovací účty."
+    : "Uloženo - appka je zpátky normálně dostupná všem.";
 }
 
 async function renderCompetitors() {
