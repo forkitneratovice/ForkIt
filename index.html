@@ -702,13 +702,6 @@
   </nav>
 
   <div class="main">
-    <!-- NÁHLED OČIMA STUDENTA: viditelný pruh, dokud se prohlíží appka za
-         vybraného studenta - ať mistrová nikdy neztratí přehled, že to
-         nevidí za sebe. -->
-    <div class="hidden" id="previewBanner" style="position:sticky;top:0;z-index:500;background:var(--dark);color:#fff;padding:9px 14px;padding-top:calc(9px + env(safe-area-inset-top));display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;flex-wrap:wrap;">
-      <span>&#128065; Prohlížíš jako <b id="previewBannerName"></b></span>
-      <button onclick="exitStudentPreview()" style="background:#fff;color:var(--dark);border:none;border-radius:8px;padding:6px 10px;font-weight:700;font-size:12px;white-space:nowrap;">Ukončit náhled</button>
-    </div>
     <div class="topbar" id="topbar">
       <div>
         <div class="title" id="topbarTitle">ForkIt</div>
@@ -1420,7 +1413,6 @@
       <div class="screen hidden" id="screen-admin">
         <h2 class="section-title">Administrace</h2>
         <button class="btn-secondary" onclick="showScreen('inactive-students')">&#128101; Soutěžící</button>
-        <button class="btn-secondary" style="margin-top:10px;" onclick="showScreen('preview-picker')">&#128065; Náhled očima studenta</button>
         <button class="btn-secondary" style="margin-top:10px;" onclick="showScreen('trash')">&#128465;&#65039; Koš</button>
         <button class="btn-secondary" style="margin-top:10px;" onclick="exportAllStudentsExcel()">&#128202; Export všech studentů (Excel)</button>
         <button class="btn-secondary" style="margin-top:10px;" onclick="openEndYearModal()">&#127881; Ukončit školní rok</button>
@@ -1441,7 +1433,7 @@
               <span id="maintenanceToggleKnob" style="position:absolute;left:3px;top:3px;width:18px;height:18px;background:#fff;border-radius:50%;transition:0.15s;"></span>
             </label>
           </div>
-          <div class="help-text" style="margin-top:6px;margin-bottom:8px;">Když je zapnutý, appku normálně vidíte jen vy a testovací účty (Bob/Šárka) - ostatní studenti uvidí místo appky jen tuhle zprávu. Hodí se, když opravujete/testujete něco rozdělaného.</div>
+          <div class="help-text" style="margin-top:6px;margin-bottom:8px;">Když je zapnutý, appku normálně vidíte jen vy a testovací účet Bob the Builder - ostatní (včetně Šárky Kulhánkové) uvidí místo appky jen tuhle zprávu. Hodí se, když opravujete/testujete něco rozdělaného.</div>
           <textarea id="maintenanceMessageInput" rows="2" placeholder="Zpráva, kterou uvidí studenti..." style="width:100%;padding:9px 10px;border-radius:8px;border:1px solid #E0DCD3;font-size:13px;font-family:inherit;resize:vertical;"></textarea>
           <button class="btn-secondary" style="margin-top:8px;width:100%;" onclick="saveMaintenanceMode(true)">Uložit zprávu</button>
           <div id="maintenanceSaveMsg" style="font-size:12px;color:var(--primary);font-weight:700;margin-top:6px;"></div>
@@ -1505,17 +1497,6 @@
           <div class="celebration-body" id="celebrationBody"></div>
           <button class="btn-primary" onclick="closeCelebration()">Paráda, díky!</button>
         </div>
-      </div>
-
-      <!-- NÁHLED OČIMA STUDENTA: výběr studenta, jehož pohledem appku uvidíš. -->
-      <div class="screen hidden" id="screen-preview-picker">
-        <span class="back-link" onclick="showScreen('admin')">&larr; Zpět do administrace</span>
-        <h2 class="section-title">Náhled očima studenta</h2>
-        <div class="help-text" style="margin-top:-8px;margin-bottom:12px;">Vyber studenta - appka se ti zobrazí přesně tak, jak ji vidí on/ona (bez zpráv a bez možnosti cokoliv odeslat).</div>
-        <div class="field" style="margin-bottom:12px;">
-          <input type="text" id="previewPickerSearch" placeholder="&#128269; Hledat jménem..." oninput="filterPreviewPicker()" style="width:100%;padding:11px 12px;border-radius:10px;border:1px solid #E0DCD3;font-size:14px;font-family:inherit;">
-        </div>
-        <div id="previewPickerList"><div class="empty-note">Načítám...</div></div>
       </div>
 
       <!-- "PODLOŽKA" před celým seznamem - kdo je dlouho neaktivní, ať mistrová
@@ -1878,13 +1859,14 @@ const isRecoveryLink = /type=recovery/.test(window.location.hash) || /type=recov
 let session = null;
 let user = null;        // profil z tabulky "profiles"
 
-// ---------- NÁHLED OČIMA STUDENTA (jen mistrová) ----------
-// Dokud je previewStudentId nastavené, appka zůstává přihlášená jako
-// mistrová (session i "user" pod tím se nemění), ale "user" proměnná se
-// dočasně nahradí syntetickým studentským profilem a příslušné RPC volání
-// (viz previewAware* helpery níž) se přesměrují na teacher-only "preview_*"
-// varianty parametrizované konkrétním studentem - mistrová tak vidí appku
-// přesně tak, jak ji vidí on/ona, beze změny vlastního přihlášení.
+// ---------- NÁHLED OČIMA STUDENTA (pozůstatek zrušené funkce) ----------
+// Vstupní obrazovka/tlačítko "Náhled očima studenta" byly odstraněny (místo
+// toho slouží k prohlížení appky jako student přímo testovací účet Bob the
+// Builder) - previewStudentId se tedy už nikdy nenastaví a zůstává natrvalo
+// null. Zůstávající previewStudentId-větve v kódu (loadQuizzes, žebříček,
+// odznáčky...) jsou tím pádem mrtvý, ale neškodný kód - schválně se
+// neodstraňovaly všechny najednou, ať se zbytečně nesahá na věci, co dobře
+// fungují.
 let previewStudentId = null;
 let previewRealUser = null; // sem se schová skutečný "user" (mistrová) po dobu náhledu
 
@@ -3086,7 +3068,6 @@ function showScreen(name) {
   if (name === "faq") renderFaqFeedback();
   if (name === "help") resetAppSearch();
   if (name === "inactive-students") renderInactiveStudents();
-  if (name === "preview-picker") renderPreviewPicker();
   if (name === "trash") loadTrashLog();
   if (name === "admin") renderMaintenanceAdminUI();
   if (name === "my-feedback") renderMyFeedback();
@@ -6105,124 +6086,6 @@ async function loadRank() {
   if (!previewStudentId) sb.rpc("check_rank_badges").catch(() => {});
 }
 
-// ---------- NÁHLED OČIMA STUDENTA (jen mistrová) ----------
-// Seznam studentů k výběru se natáhne jednou při vstupu na obrazovku a dál
-// se jen filtruje v paměti podle vyhledávacího textu (viz filterPreviewPicker) -
-// ať se při psaní nevolá server znovu a znovu.
-let previewPickerRoster = null;
-
-async function renderPreviewPicker() {
-  document.getElementById("previewPickerSearch").value = "";
-  const listEl = document.getElementById("previewPickerList");
-  listEl.innerHTML = "<div class='empty-note'>Načítám...</div>";
-
-  const { data, error } = await sb.rpc("get_leaderboard_admin");
-  if (error) {
-    listEl.innerHTML = "<div class='error-note'>Nepodařilo se načíst studenty: " + esc(error.message) + "</div>";
-    return;
-  }
-  previewPickerRoster = (data || []).slice().sort((a, b) => a.name.localeCompare(b.name, "cs"));
-  renderPreviewPickerList(previewPickerRoster);
-}
-
-function filterPreviewPicker() {
-  if (!previewPickerRoster) return;
-  const q = document.getElementById("previewPickerSearch").value.trim().toLowerCase();
-  renderPreviewPickerList(q ? previewPickerRoster.filter((s) => s.name.toLowerCase().includes(q)) : previewPickerRoster);
-}
-
-function renderPreviewPickerList(list) {
-  const listEl = document.getElementById("previewPickerList");
-  if (list.length === 0) {
-    listEl.innerHTML = "<div class='empty-note'>Nikdo takový se nenašel.</div>";
-    return;
-  }
-  listEl.innerHTML = "";
-  list.forEach((s) => {
-    const div = document.createElement("div");
-    div.className = "card";
-    div.style.cursor = "pointer";
-    div.innerHTML =
-      "<div style='display:flex;justify-content:space-between;align-items:center;gap:10px;'>" +
-      "<div><div style='font-weight:700;color:var(--dark);'>" + esc(s.name) + "</div>" +
-      "<div style='font-size:12px;color:var(--text-muted);'>" + rocnikLabel(s.rocnik) + "</div></div>" +
-      "<span style='font-size:13px;color:var(--primary);font-weight:700;white-space:nowrap;'>Zobrazit &rarr;</span>" +
-      "</div>";
-    div.onclick = () => startStudentPreview(s.id);
-    listEl.appendChild(div);
-  });
-}
-
-// Vstup do náhledu: session i skutečný "user" (mistrová) zůstávají beze
-// změny - jen se dočasně nahradí "user" syntetickým studentským profilem a
-// data-loading funkce (loadQuizzes/loadChallenges/loadRank/...) se
-// přesměrují na teacher-only "preview_*" RPC (viz previewStudentId výše).
-async function startStudentPreview(studentId) {
-  const { data, error } = await sb.rpc("get_student_preview_profile", { p_student_id: studentId });
-  if (error || !data || !data[0]) {
-    alert("Nepodařilo se načíst profil tohoto studenta.");
-    return;
-  }
-  const p = data[0];
-
-  previewRealUser = user;
-  previewStudentId = studentId;
-  user = {
-    id: p.id,
-    name: p.name,
-    rocnik: p.rocnik,
-    points: p.points,
-    role: "student",
-    avatar_url: p.avatar_url,
-    last_year_rank_overall: p.last_year_rank_overall,
-    last_year_rank_in_rocnik: p.last_year_rank_in_rocnik,
-    last_year_points: p.last_year_points,
-    last_year_rocnik: p.last_year_rocnik,
-    last_year_label: p.last_year_label,
-    pending_celebration: null, // v náhledu se oslavná cedulka neukazuje - patří skutečnému přihlášení
-  };
-
-  document.getElementById("previewBannerName").textContent = p.name + " (" + rocnikLabel(p.rocnik) + ")";
-  document.getElementById("previewBanner").classList.remove("hidden");
-
-  // Přepnutí navigace na to, co vidí student - schovej Admin, ukaž Úspěchy,
-  // a schovej Zprávy (soukromá komunikace mistrové zůstává mimo náhled).
-  document.getElementById("navAdminSidebar").classList.add("hidden");
-  document.getElementById("navAdminDrawer").classList.add("hidden");
-  document.getElementById("navAchievementsSidebar").classList.remove("hidden");
-  document.getElementById("navAchievementsDrawer").classList.remove("hidden");
-  document.getElementById("navMessagesSidebar").classList.add("hidden");
-  document.getElementById("navMessagesDrawer").classList.add("hidden");
-
-  personalityResult = null; // test osobnosti v náhledu záměrně nepočítáme (viz renderHome)
-  myQuizSubmissions = []; // vlastní navržené kvízy studenta nejsou v rozsahu náhledu v1
-
-  await loadQuizzes();
-  await loadChallenges();
-  showScreen("home");
-}
-
-// Konec náhledu: vrátí skutečného přihlášeného uživatele (mistrovou) a
-// obnoví normální navigaci.
-function exitStudentPreview() {
-  if (!previewRealUser) return;
-  user = previewRealUser;
-  previewRealUser = null;
-  previewStudentId = null;
-
-  document.getElementById("previewBanner").classList.add("hidden");
-  document.getElementById("navAdminSidebar").classList.remove("hidden");
-  document.getElementById("navAdminDrawer").classList.remove("hidden");
-  document.getElementById("navAchievementsSidebar").classList.add("hidden");
-  document.getElementById("navAchievementsDrawer").classList.add("hidden");
-  document.getElementById("navMessagesSidebar").classList.remove("hidden");
-  document.getElementById("navMessagesDrawer").classList.remove("hidden");
-
-  quizzes = [];
-  challenges = [];
-  showScreen("admin");
-}
-
 // ---------- SOUTĚŽÍCÍ (přehled studentů, jen mistrová) ----------
 let allCompetitors = [];
 let currentCompetitorId = null;
@@ -6376,15 +6239,18 @@ async function restoreTrashEntry(id) {
 }
 
 // ---------- REŽIM ÚDRŽBY ----------
-// Mistrová a testovací účty (Bob/Šárka) appku vidí VŽDY normálně - schválně,
-// ať si při zapnuté údržbě může v klidu odzkoušet novou verzi appky sama,
-// dřív než ji "pustí" studentům. Kontroluje se hned po přihlášení a pak
-// průběžně (interval + při návratu do popředí na telefonu), takže se to
-// projeví i studentům, kteří appku měli otevřenou už předtím.
+// Mistrová a účet Bob the Builder (maintenance_preview_account) appku vidí
+// VŽDY normálně - schválně, ať si při zapnuté údržbě může v klidu odzkoušet
+// novou verzi appky sama, dřív než ji "pustí" studentům. Šárka Kulhánková
+// zůstává i přes is_test_account normální "studentkou" z pohledu údržby -
+// vidí obrazovku údržby stejně jako ostatní. Kontroluje se hned po
+// přihlášení a pak průběžně (interval + při návratu do popředí na
+// telefonu), takže se to projeví i studentům, kteří appku měli otevřenou
+// už předtím.
 let maintenanceScreenActive = false;
 
 function isMaintenanceExempt() {
-  return !!user && (user.role === "mistrova" || user.is_test_account);
+  return !!user && (user.role === "mistrova" || user.maintenance_preview_account);
 }
 
 // Vrací true, pokud se má appka schovat za obrazovku údržby (a volající by
