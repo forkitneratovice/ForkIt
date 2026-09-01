@@ -1412,7 +1412,7 @@
       <!-- ADMIN (jen mistrová) -->
       <div class="screen hidden" id="screen-admin">
         <h2 class="section-title">Administrace</h2>
-        <button class="btn-secondary" onclick="showScreen('inactive-students')">&#128101; Soutěžící</button>
+        <button class="btn-secondary" onclick="showScreen('competitors')">&#128101; Soutěžící</button>
         <button class="btn-secondary" style="margin-top:10px;" onclick="showScreen('trash')">&#128465;&#65039; Koš</button>
         <button class="btn-secondary" style="margin-top:10px;" onclick="exportAllStudentsExcel()">&#128202; Export všech studentů (Excel)</button>
         <button class="btn-secondary" style="margin-top:10px;" onclick="openEndYearModal()">&#127881; Ukončit školní rok</button>
@@ -1499,18 +1499,10 @@
         </div>
       </div>
 
-      <!-- "PODLOŽKA" před celým seznamem - kdo je dlouho neaktivní, ať mistrová
-           ví, koho popostrčit, dřív než to zjistí až na konci pololetí. -->
-      <div class="screen hidden" id="screen-inactive-students">
-        <span class="back-link" onclick="showScreen('admin')">&larr; Zpět do administrace</span>
-        <h2 class="section-title">Neaktivní studenti</h2>
-        <div class="help-text" style="margin-top:-8px;margin-bottom:12px;">Podle toho, kdy se naposledy přihlásili do appky - nejdéle neaktivní jsou nahoře.</div>
-        <div id="inactiveStudentsList"><div class="empty-note">Načítám...</div></div>
-        <button class="btn-secondary" style="margin-top:16px;" onclick="showScreen('competitors')">&#128101; Zobrazit všechny účastníky</button>
-      </div>
-
+      <!-- SOUTĚŽÍCÍ: rovnou celý seznam (hledání + filtr ročníku nahoře),
+           tlačítko na neaktivní studenty vede do podřazené "podložky" níž. -->
       <div class="screen hidden" id="screen-competitors">
-        <span class="back-link" onclick="showScreen('inactive-students')">&larr; Zpět</span>
+        <span class="back-link" onclick="showScreen('admin')">&larr; Zpět do administrace</span>
         <div class="comp-filter-row">
           <select id="compRocnikFilter" onchange="filterCompetitors()">
             <option value="all">Všechny</option>
@@ -1525,7 +1517,17 @@
           </select>
           <input type="text" id="compSearchInput" placeholder="Hledat studenta…" oninput="filterCompetitors()">
         </div>
+        <button class="btn-secondary" style="margin-top:10px;margin-bottom:14px;" onclick="showScreen('inactive-students')">&#128100; Neaktivní studenti</button>
         <div id="competitorsList"><div class="empty-note">Načítám...</div></div>
+      </div>
+
+      <!-- "PODLOŽKA" - kdo je dlouho neaktivní, ať mistrová ví, koho
+           popostrčit, dřív než to zjistí až na konci pololetí. -->
+      <div class="screen hidden" id="screen-inactive-students">
+        <span class="back-link" onclick="showScreen('competitors')">&larr; Zpět na soutěžící</span>
+        <h2 class="section-title">Neaktivní studenti</h2>
+        <div class="help-text" style="margin-top:-8px;margin-bottom:12px;">Podle toho, kdy se naposledy přihlásili do appky - nejdéle neaktivní jsou nahoře.</div>
+        <div id="inactiveStudentsList"><div class="empty-note">Načítám...</div></div>
       </div>
 
       <!-- DETAIL STUDENTA (jen mistrová) -->
