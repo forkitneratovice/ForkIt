@@ -3135,6 +3135,17 @@ function renderHome() {
   renderHomeLatestQuiz();
   renderHomeLatestChallenge();
   checkCelebration();
+
+  // Karty výše se vykreslí hned z toho, co už appka má v paměti (ať se Domů
+  // neblokuje na síti) - na pozadí se ale zároveň potichu natáhnou čerstvá
+  // data a karty se pak ještě jednou překreslí. Bez tohohle by kliknutí na
+  // "poslední kvíz" rovnou z Domů mohlo narazit na zastaralý stav pokusů/
+  // odpočtu, kdyby appka zůstala dlouho otevřená bez skutečného obnovení
+  // (viz stejná oprava u renderQuizList()).
+  if (user.role === "student" && !previewStudentId) {
+    loadQuizzes().then(renderHomeLatestQuiz);
+    loadChallenges().then(renderHomeLatestChallenge);
+  }
 }
 
 // ---------- "Co čeká na vyřízení" - souhrn všeho, na co má mistrová reagovat ----------
@@ -3812,6 +3823,14 @@ async function renderQuizList() {
   }
   document.getElementById("studentQuizzesContent").classList.remove("hidden");
   document.getElementById("teacherQuizzesContent").classList.add("hidden");
+
+  // Kvízy se (na rozdíl od výzev) při přihlášení natáhnou jen jednou a pak
+  // žijí v paměti - pokud appka zůstane dlouho otevřená (typicky mobil, co
+  // appku jen "probudí" z pozadí místo skutečného znovunačtení), zůstal by
+  // tu napořád stav (počet pokusů, 24h odpočet) z okamžiku přihlášení. Proto
+  // se tu vždy při vstupu na tuhle obrazovku natáhnou znovu čerstvě ze
+  // serveru - stejně jako to už dělá renderChallenges() u výzev.
+  await loadQuizzes();
 
   const list = document.getElementById("quizListFull");
   list.innerHTML = "";
