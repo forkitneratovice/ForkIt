@@ -1398,11 +1398,30 @@
         <h2 class="section-title">Administrace</h2>
         <button class="btn-secondary" onclick="showScreen('inactive-students')">&#128101; Soutěžící</button>
         <button class="btn-secondary" style="margin-top:10px;" onclick="showScreen('preview-picker')">&#128065; Náhled očima studenta</button>
+        <button class="btn-secondary" style="margin-top:10px;" onclick="showScreen('trash')">&#128465;&#65039; Koš</button>
         <button class="btn-secondary" style="margin-top:10px;" onclick="exportAllStudentsExcel()">&#128202; Export všech studentů (Excel)</button>
         <button class="btn-secondary" style="margin-top:10px;" onclick="openEndYearModal()">&#127881; Ukončit školní rok</button>
         <div id="endYearSuccessMsg" style="font-size:12.5px;color:var(--primary);font-weight:700;margin-top:8px;"></div>
         <button class="btn-secondary" style="margin-top:10px;color:var(--red);" onclick="openNewYearModal()">&#128197; Nový školní rok</button>
         <div id="newYearSuccessMsg" style="font-size:12.5px;color:var(--primary);font-weight:700;margin-top:8px;"></div>
+      </div>
+
+      <!-- KOŠ: bezpečnostní síť pro omylem smazané řádky (kvízy, výzvy,
+           odpovědi, reakce, zprávy, odznáčky...). Zachytává se to triggerem
+           přímo v databázi, takže to funguje i při ručním zásahu z mé
+           strany, ne jen při mazání přes appku. Smazání celého studentského
+           účtu (přes "Smazat studenta") tady schválně není - to má vlastní
+           potvrzovaný postup a technicky nejde vrátit stejnou cestou. -->
+      <div class="screen hidden" id="screen-trash">
+        <span class="back-link" onclick="showScreen('admin')">&larr; Zpět do administrace</span>
+        <h2 class="section-title">Koš</h2>
+        <div class="help-text" style="margin-top:-8px;margin-bottom:12px;">Poslední smazané záznamy (kvízy, výzvy, odpovědi, reakce, zprávy, odznáčky a další). Nezahrnuje smazání celého studentského účtu. Obnovením se záznam vrátí přesně tak, jak vypadal těsně před smazáním.</div>
+        <div class="field" style="margin-bottom:12px;">
+          <select id="trashTableFilter" onchange="loadTrashLog()">
+            <option value="">Všechny typy</option>
+          </select>
+        </div>
+        <div id="trashList"><div class="empty-note">Načítám...</div></div>
       </div>
 
       <!-- MODAL: potvrzení ukončení školního roku -->
@@ -3023,6 +3042,7 @@ function showScreen(name) {
   if (name === "help") resetAppSearch();
   if (name === "inactive-students") renderInactiveStudents();
   if (name === "preview-picker") renderPreviewPicker();
+  if (name === "trash") loadTrashLog();
   if (name === "my-feedback") renderMyFeedback();
   if (name === "teacher-feedback") renderTeacherFeedback();
 }
@@ -6193,6 +6213,120 @@ async function renderInactiveStudents() {
       "</div>";
     listEl.appendChild(div);
   });
+}
+
+// ---------- KOŠ (jen mistrová) ----------
+// Přátelské české názvy pro tabulky, které koš hlídá (viz DB trigger
+// trash_log_trigger) - přesně v tomhle pořadí se nabízí i ve filtru.
+const TRASH_TABLE_LABELS = [
+  ["quizzes", "Kvíz"],
+  ["challenges", "Výzva"],
+  ["quiz_completions", "Vyplnění kvízu"],
+  ["challenge_submissions", "Odevzdání výzvy"],
+  ["challenge_submission_media", "Příloha k výzvě"],
+  ["personality_results", "Výsledek testu osobnosti"],
+  ["word_progress", "Postup u slovíčka"],
+  ["word_reactions", "Reakce na slovo dne"],
+  ["announcements", "Aktualita"],
+  ["announcement_reactions", "Reakce na aktualitu"],
+  ["messages", "Zpráva"],
+  ["message_reactions", "Reakce na zprávu"],
+  ["student_badge_awards", "Odznáček"],
+  ["activity_progress", "Rozdělaná aktivita"],
+  ["student_login_stats", "Statistika přihlašování"],
+  ["push_subscriptions", "Push odběr"],
+  ["words", "Slovo ve slovníku"],
+];
+let trashTableFilterPopulated = false;
+let trashNamesById = null; // uuid -> jméno, dotažené líně z rostru přes get_leaderboard_admin
+
+function trashTableLabel(t) {
+  const found = TRASH_TABLE_LABELS.find((x) => x[0] === t);
+  return found ? found[1] : t;
+}
+
+async function trashResolveNames() {
+  if (trashNamesById) return trashNamesById;
+  trashNamesById = {};
+  const { data } = await sb.rpc("get_leaderboard_admin");
+  (data || []).forEach((r) => { trashNamesById[r.id] = r.name; });
+  return trashNamesById;
+}
+
+// Z uloženého jsonb řádku vytáhne pár nejvýstižnějších polí, ať mistrová
+// pozná, o co šlo, aniž by musela rozklikávat syrová data. Obecné pro
+// všechny hlídané tabulky - nezávisí na tom, jaké přesně sloupce má.
+function trashSummaryLine(rowData, names) {
+  const parts = [];
+  if (rowData.title) parts.push(esc(rowData.title));
+  if (rowData.text) parts.push(esc(String(rowData.text).replace(/<[^>]+>/g, "").slice(0, 60)));
+  if (rowData.type_code) parts.push("typ " + esc(rowData.type_code));
+  if (rowData.word) parts.push(esc(rowData.word));
+  if (rowData.badge_code) parts.push(esc(rowData.badge_code));
+  if (rowData.status) parts.push(esc(rowData.status));
+  const personId = rowData.user_id || rowData.student_id || rowData.sender_id;
+  if (personId && names[personId]) parts.push(esc(names[personId]));
+  return parts.length ? parts.join(" &middot; ") : "(bez náhledu, viz syrová data)";
+}
+
+async function loadTrashLog() {
+  const filterEl = document.getElementById("trashTableFilter");
+  if (!trashTableFilterPopulated) {
+    TRASH_TABLE_LABELS.forEach(([value, label]) => {
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = label;
+      filterEl.appendChild(opt);
+    });
+    trashTableFilterPopulated = true;
+  }
+
+  const listEl = document.getElementById("trashList");
+  listEl.innerHTML = "<div class='empty-note'>Načítám...</div>";
+
+  const [{ data, error }, names] = await Promise.all([
+    sb.rpc("get_trash_log", { p_table_name: filterEl.value || null, p_limit: 200 }),
+    trashResolveNames(),
+  ]);
+  if (error) {
+    listEl.innerHTML = "<div class='error-note'>Nepodařilo se načíst koš: " + esc(error.message) + "</div>";
+    return;
+  }
+  renderTrashList(data || [], names);
+}
+
+function renderTrashList(rows, names) {
+  const listEl = document.getElementById("trashList");
+  if (rows.length === 0) {
+    listEl.innerHTML = "<div class='empty-note'>Koš je prázdný.</div>";
+    return;
+  }
+  listEl.innerHTML = "";
+  rows.forEach((r) => {
+    const div = document.createElement("div");
+    div.className = "card";
+    const when = new Date(r.deleted_at).toLocaleString("cs-CZ");
+    const actionHtml = r.restored_at
+      ? "<span style='font-size:12px;font-weight:700;color:var(--primary);white-space:nowrap;'>Obnoveno</span>"
+      : "<button class='btn-secondary' style='width:auto;padding:6px 12px;font-size:12.5px;white-space:nowrap;' onclick='restoreTrashEntry(" + r.id + ")'>Obnovit</button>";
+    div.innerHTML =
+      "<div style='display:flex;justify-content:space-between;align-items:flex-start;gap:10px;'>" +
+      "<div><div style='font-weight:700;color:var(--dark);'>" + esc(trashTableLabel(r.table_name)) + "</div>" +
+      "<div style='font-size:12.5px;color:var(--text);margin-top:2px;'>" + trashSummaryLine(r.row_data, names) + "</div>" +
+      "<div style='font-size:11px;color:var(--text-muted);margin-top:4px;'>Smazáno " + when + "</div></div>" +
+      actionHtml +
+      "</div>";
+    listEl.appendChild(div);
+  });
+}
+
+async function restoreTrashEntry(id) {
+  const { error } = await sb.rpc("restore_from_trash", { p_trash_id: id });
+  if (error) {
+    alert("Nepodařilo se obnovit: " + error.message);
+    return;
+  }
+  await loadTrashLog();
 }
 
 async function renderCompetitors() {
