@@ -495,11 +495,13 @@
 
   /* Leaderboard */
   .lb-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .lb-tabs-scroll { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .lb-tab {
     flex: 1; padding: 9px; text-align: center; border-radius: 20px;
     background: var(--card); font-size: 12.5px; font-weight: 700; color: var(--text-muted);
-    border: 1px solid #E5E0D6;
+    border: 1px solid #E5E0D6; white-space: nowrap;
   }
+  .lb-tabs-scroll .lb-tab { flex: 0 0 auto; padding: 9px 14px; }
   .lb-tab.active { background: var(--dark); color: white; border-color: var(--dark); }
   .lb-row {
     display: flex; align-items: center; gap: 10px;
@@ -832,9 +834,13 @@
             <div class="field">
               <label>Ročník</label>
               <select id="regRocnik">
-                <option value="1">1. ročník</option>
-                <option value="2">2. ročník</option>
-                <option value="3">3. ročník</option>
+                <option value="KČ1">KČ1</option>
+                <option value="KČ2">KČ2</option>
+                <option value="KČ3">KČ3</option>
+                <option value="HT1">HT1</option>
+                <option value="HT2">HT2</option>
+                <option value="HT3">HT3</option>
+                <option value="HT4">HT4</option>
               </select>
             </div>
             <div class="field">
@@ -1005,9 +1011,13 @@
         <div class="field" id="qcRocnikField">
           <label>Ročník</label>
           <select id="qcRocnik" onchange="checkQuizEditorDirty()">
-            <option value="1">1. ročník</option>
-            <option value="2">2. ročník</option>
-            <option value="3">3. ročník</option>
+            <option value="KČ1">KČ1</option>
+            <option value="KČ2">KČ2</option>
+            <option value="KČ3">KČ3</option>
+            <option value="HT1">HT1</option>
+            <option value="HT2">HT2</option>
+            <option value="HT3">HT3</option>
+            <option value="HT4">HT4</option>
             <option value="all">Všechny ročníky</option>
           </select>
         </div>
@@ -1283,12 +1293,16 @@
           <p class="lb-note">Jména a pořadí ostatních studentů mimo první 3 místa se nezobrazují – vidíš jen svoje vlastní umístění.</p>
         </div>
         <div id="teacherLeaderboardContent" class="hidden">
-          <div class="lb-tabs">
-            <div class="lb-tab active" id="lbATabOverall" onclick="setLbAdminFilter('overall')">Celkově</div>
-            <div class="lb-tab" id="lbATabR1" onclick="setLbAdminFilter('1')">1. ročník</div>
-            <div class="lb-tab" id="lbATabR2" onclick="setLbAdminFilter('2')">2. ročník</div>
-            <div class="lb-tab" id="lbATabR3" onclick="setLbAdminFilter('3')">3. ročník</div>
-            <div class="lb-tab" id="lbATabR4" onclick="setLbAdminFilter('4')">Vyučení</div>
+          <div class="lb-tabs lb-tabs-scroll" id="lbAdminTabs">
+            <div class="lb-tab active" data-filter="overall" onclick="setLbAdminFilter('overall')">Celkově</div>
+            <div class="lb-tab" data-filter="KČ1" onclick="setLbAdminFilter('KČ1')">KČ1</div>
+            <div class="lb-tab" data-filter="KČ2" onclick="setLbAdminFilter('KČ2')">KČ2</div>
+            <div class="lb-tab" data-filter="KČ3" onclick="setLbAdminFilter('KČ3')">KČ3</div>
+            <div class="lb-tab" data-filter="HT1" onclick="setLbAdminFilter('HT1')">HT1</div>
+            <div class="lb-tab" data-filter="HT2" onclick="setLbAdminFilter('HT2')">HT2</div>
+            <div class="lb-tab" data-filter="HT3" onclick="setLbAdminFilter('HT3')">HT3</div>
+            <div class="lb-tab" data-filter="HT4" onclick="setLbAdminFilter('HT4')">HT4</div>
+            <div class="lb-tab" data-filter="Vyučení" onclick="setLbAdminFilter('Vyučení')">Vyučení</div>
           </div>
           <div id="lbAdminList"></div>
         </div>
@@ -1411,7 +1425,7 @@
         <div class="terms-modal-box" style="max-height:none;">
           <h3 style="color:var(--red);">Jste si jistá?</h3>
           <div class="terms-modal-body" style="overflow-y:visible;">
-            <p>Všem studentům se <b>vynulují body</b> a posunou se o ročník výš. Studenti ze 3. ročníku se přesunou do <b>Vyučení</b> (ne smažou - jde je kdykoliv přesunout zpět, např. při reparátu). U každého se uloží jeho umístění z tohoto roku. Tuto akci <b>nelze vrátit zpět</b>.</p>
+            <p>Všem studentům se <b>vynulují body</b> a posunou se o ročník výš (KČ1&rarr;KČ2&rarr;KČ3, HT1&rarr;HT2&rarr;HT3&rarr;HT4). Studenti z posledního ročníku svého oboru (KČ3, HT4) se přesunou do <b>Vyučení</b> (ne smažou - jde je kdykoliv přesunout zpět, např. při reparátu). U každého se uloží jeho umístění z tohoto roku. Tuto akci <b>nelze vrátit zpět</b>.</p>
           </div>
           <div id="newYearError"></div>
           <div style="display:flex;gap:10px;margin-top:6px;">
@@ -1458,10 +1472,14 @@
         <div class="comp-filter-row">
           <select id="compRocnikFilter" onchange="filterCompetitors()">
             <option value="all">Všechny</option>
-            <option value="1">1. ročník</option>
-            <option value="2">2. ročník</option>
-            <option value="3">3. ročník</option>
-            <option value="4">Vyučení</option>
+            <option value="KČ1">KČ1</option>
+            <option value="KČ2">KČ2</option>
+            <option value="KČ3">KČ3</option>
+            <option value="HT1">HT1</option>
+            <option value="HT2">HT2</option>
+            <option value="HT3">HT3</option>
+            <option value="HT4">HT4</option>
+            <option value="Vyučení">Vyučení</option>
           </select>
           <input type="text" id="compSearchInput" placeholder="Hledat studenta…" oninput="filterCompetitors()">
         </div>
@@ -1511,10 +1529,14 @@
           <label>Přesunout do ročníku (např. při opakování ročníku nebo reparátu z Vyučení)</label>
           <div style="display:flex;gap:8px;">
             <select id="compDetailRocnikMove" style="flex:1;">
-              <option value="1">1. ročník</option>
-              <option value="2">2. ročník</option>
-              <option value="3">3. ročník</option>
-              <option value="4">Vyučení</option>
+              <option value="KČ1">KČ1</option>
+              <option value="KČ2">KČ2</option>
+              <option value="KČ3">KČ3</option>
+              <option value="HT1">HT1</option>
+              <option value="HT2">HT2</option>
+              <option value="HT3">HT3</option>
+              <option value="HT4">HT4</option>
+              <option value="Vyučení">Vyučení</option>
             </select>
             <button class="btn-secondary" style="width:auto;padding:11px 16px;" onclick="moveCompetitorRocnik()">Přesunout</button>
           </div>
@@ -1972,7 +1994,7 @@ async function loginWithPassword() {
 async function registerAccount() {
   const jmeno = document.getElementById("regJmeno").value.trim();
   const prijmeni = document.getElementById("regPrijmeni").value.trim();
-  const rocnik = parseInt(document.getElementById("regRocnik").value, 10);
+  const rocnik = document.getElementById("regRocnik").value;
   const email = document.getElementById("regEmail").value.trim();
   const errorEl = document.getElementById("registerError");
   errorEl.innerHTML = "";
@@ -3864,7 +3886,7 @@ async function renderPracticeQuizzes() {
     const div = document.createElement("div");
     div.className = "list-item";
     div.innerHTML =
-      "<div><div class='name'>" + esc(q.title) + "</div><div class='meta'>" + q.rocnik + ". ročník · " + q.questions.length + " otázky</div></div>";
+      "<div><div class='name'>" + esc(q.title) + "</div><div class='meta'>" + quizRocnikLabel(q.rocnik) + " · " + q.questions.length + " otázky</div></div>";
     div.onclick = () => openPracticeQuiz(q.id);
     list.appendChild(div);
   });
@@ -3887,7 +3909,7 @@ async function loadQuizzesAdmin() {
     const div = document.createElement("div");
     div.className = "list-item";
     div.innerHTML =
-      '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + q.rocnik + ". ročník · " + q.question_count + " otázky · " + q.points + " b.</div></div>" +
+      '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + quizRocnikLabel(q.rocnik) + " · " + q.question_count + " otázky · " + q.points + " b.</div></div>" +
       '<span class="badge-pts">' + q.completed_count + "/" + q.total_students + "</span>";
     const editBtn = document.createElement("button");
     editBtn.className = "toggle-btn";
@@ -4188,7 +4210,7 @@ async function saveQuizEdit() {
   errorEl.innerHTML = "";
   const title = document.getElementById("qcTitle").value.trim();
   const rocnikRaw = document.getElementById("qcRocnik").value;
-  const rocnik = rocnikRaw === "all" ? null : parseInt(rocnikRaw, 10);
+  const rocnik = rocnikRaw === "all" ? null : rocnikRaw;
   const points = parseInt(document.getElementById("qcPoints").value, 10);
 
   if (!title) {
@@ -4360,7 +4382,7 @@ async function saveQuizDraft() {
   errorEl.innerHTML = "";
   const title = document.getElementById("qcTitle").value.trim();
   const rocnikRaw = document.getElementById("qcRocnik").value;
-  const rocnik = rocnikRaw === "all" ? null : parseInt(rocnikRaw, 10);
+  const rocnik = rocnikRaw === "all" ? null : rocnikRaw;
   const points = parseInt(document.getElementById("qcPoints").value, 10);
 
   if (!title) {
@@ -4439,7 +4461,7 @@ async function reviewStudentQuiz(status) {
   errorEl.innerHTML = "";
   const title = document.getElementById("qcTitle").value.trim();
   const rocnikRaw = document.getElementById("qcRocnik").value;
-  const rocnik = rocnikRaw === "all" ? null : parseInt(rocnikRaw, 10);
+  const rocnik = rocnikRaw === "all" ? null : rocnikRaw;
   const points = parseInt(document.getElementById("qcPoints").value, 10);
   const comment = document.getElementById("qcComment").value.trim();
 
@@ -5888,11 +5910,9 @@ let lbAdminFilter = "overall";
 
 function setLbAdminFilter(f) {
   lbAdminFilter = f;
-  document.getElementById("lbATabOverall").classList.toggle("active", f === "overall");
-  document.getElementById("lbATabR1").classList.toggle("active", f === "1");
-  document.getElementById("lbATabR2").classList.toggle("active", f === "2");
-  document.getElementById("lbATabR3").classList.toggle("active", f === "3");
-  document.getElementById("lbATabR4").classList.toggle("active", f === "4");
+  document.querySelectorAll("#lbAdminTabs .lb-tab").forEach((el) => {
+    el.classList.toggle("active", el.dataset.filter === f);
+  });
   renderLeaderboardAdmin();
 }
 
@@ -5905,8 +5925,8 @@ async function renderLeaderboardAdmin() {
     return;
   }
   let rows = data || [];
-  // "Celkově" soutěží jen aktivní ročníky 1.-3. (Vyučení tam nemají co dělat -
-  // řadit se ale mezi sebou, ve své vlastní záložce "Vyučení", dál mohou).
+  // "Celkově" soutěží jen aktivní ročníky (KČ1-3, HT1-4) - Vyučení tam nemají
+  // co dělat, řadit se ale mezi sebou, ve své vlastní záložce "Vyučení", dál mohou.
   if (lbAdminFilter === "overall") {
     rows = rows.filter((r) => r.rank_overall != null);
   } else {
@@ -6225,8 +6245,25 @@ function renderCompetitorsList(rows) {
 // Ročník 4 se v DB používá jako "Vyučení" (absolvoval/a, škola skončila) -
 // tahle funkce to na jednom místě promítne do zobrazovaného textu.
 function rocnikLabel(rocnik, short) {
-  if (rocnik === 4) return "Vyučení";
-  return short ? rocnik + ". roč." : rocnik + ". ročník";
+  if (rocnik == null) return "Testovací účet";
+  return rocnik;
+}
+
+// Obor (studijní program) podle prefixu kódu ročníku - "KČ1".."KČ3" jsou
+// Kuchař/Číšník, "HT1".."HT4" jsou Hotelnictví. Když uz je student "Vyučení",
+// aktuální rocnik uz prefix nema - pouzije se proto last_year_rocnik (kod,
+// ktery mel tesne pred promoci do Vyučení).
+// Cílový ročník kvízu - na rozdíl od rocnikLabel() tu null znamená "pro
+// všechny ročníky" (kvíz bez omezení), ne testovací účet.
+function quizRocnikLabel(rocnik) {
+  return rocnik == null ? "Všechny ročníky" : rocnik;
+}
+
+function oborLabel(rocnik, lastYearRocnik) {
+  const code = String((rocnik === "Vyučení" ? lastYearRocnik : rocnik) || "");
+  if (code.indexOf("KČ") === 0) return "Kuchař/Číšník";
+  if (code.indexOf("HT") === 0) return "Hotelnictví";
+  return "";
 }
 
 function czPokusy(n) {
@@ -6263,7 +6300,8 @@ async function openCompetitorDetail(id) {
     avatarWrap.appendChild(span);
   }
   document.getElementById("compDetailName").textContent = r.name;
-  document.getElementById("compDetailMeta").textContent = rocnikLabel(r.rocnik) + " · Kuchař/Číšník";
+  const compObor = oborLabel(r.rocnik, r.last_year_rocnik);
+  document.getElementById("compDetailMeta").textContent = rocnikLabel(r.rocnik) + (compObor ? " · " + compObor : "");
   document.getElementById("compDetailPush").textContent = r.has_push ? "🔔 Push oznámení zapnuto" : "🔕 Push oznámení vypnuto";
   document.getElementById("compDetailPoints").textContent = r.points;
   document.getElementById("compDetailRankOverall").textContent = r.rank_overall != null ? "#" + r.rank_overall : "—";
@@ -6272,7 +6310,7 @@ async function openCompetitorDetail(id) {
   const lyEl = document.getElementById("compDetailLastYear");
   if (r.last_year_rank_overall != null) {
     lyEl.classList.remove("hidden");
-    lyEl.innerHTML = "&#127942; Minulý školní rok (" + esc(r.last_year_label) + ") skončil/a ve " + r.last_year_rocnik + ". ročníku na <b>" +
+    lyEl.innerHTML = "&#127942; Minulý školní rok (" + esc(r.last_year_label) + ") skončil/a v ročníku " + esc(r.last_year_rocnik) + " na <b>" +
       r.last_year_rank_in_rocnik + ". místě</b> a celkově na <b>" + r.last_year_rank_overall + ". místě</b> (" + r.last_year_points + " b.).";
   } else {
     lyEl.classList.add("hidden");
@@ -6384,7 +6422,7 @@ function renderCompetitorBadges(b) {
 // ---------- Přesun studenta do konkrétního ročníku (např. opakuje ročník) ----------
 async function moveCompetitorRocnik() {
   const id = currentCompetitorId;
-  const rocnik = parseInt(document.getElementById("compDetailRocnikMove").value, 10);
+  const rocnik = document.getElementById("compDetailRocnikMove").value;
   const msgEl = document.getElementById("compDetailRocnikMoveMsg");
   msgEl.textContent = "Ukládám...";
   msgEl.style.color = "";
@@ -6435,7 +6473,7 @@ function buildDiplomaPdf(d) {
 
   doc.setFont("DejaVuSans", "normal");
   doc.setFontSize(14);
-  doc.text("ForkIt - Kuchař/Číšník", w / 2, 50, { align: "center" });
+  doc.text("ForkIt" + (oborLabel(d.last_year_rocnik, d.last_year_rocnik) ? " - " + oborLabel(d.last_year_rocnik, d.last_year_rocnik) : ""), w / 2, 50, { align: "center" });
 
   doc.setFont("DejaVuSans", "bold");
   doc.setFontSize(26);
@@ -6444,7 +6482,7 @@ function buildDiplomaPdf(d) {
   doc.setFont("DejaVuSans", "normal");
   doc.setFontSize(14);
   doc.text("ve školním roce " + d.last_year_label + " se umístil/a", w / 2, 95, { align: "center" });
-  doc.text("na " + d.last_year_rank_in_rocnik + ". místě ve " + d.last_year_rocnik + ". ročníku", w / 2, 105, { align: "center" });
+  doc.text("na " + d.last_year_rank_in_rocnik + ". místě v ročníku " + d.last_year_rocnik, w / 2, 105, { align: "center" });
   doc.text("a na " + d.last_year_rank_overall + ". místě celkově", w / 2, 115, { align: "center" });
   doc.text("s celkovým počtem " + d.last_year_points + " bodů.", w / 2, 125, { align: "center" });
 
@@ -6590,7 +6628,7 @@ async function newYearConfirmed() {
     return;
   }
   closeNewYearModal();
-  document.getElementById("newYearSuccessMsg").textContent = "✅ Nový školní rok byl spuštěn - body vynulovány, ročníky posunuty, 3. ročník přesunut do Vyučení.";
+  document.getElementById("newYearSuccessMsg").textContent = "✅ Nový školní rok byl spuštěn - body vynulovány, ročníky posunuty, poslední ročníky (KČ3, HT4) přesunuty do Vyučení.";
 }
 
 // ---------- Smazat studenta (jen mistrová) - nevratné, s potvrzovací tabulkou ----------
@@ -6748,19 +6786,20 @@ async function renderProfile() {
   const pointsSection = document.getElementById("profilePointsSection");
 
   if (user.role === "mistrova") {
-    document.getElementById("profileMeta").textContent = "Učitel · Kuchař/Číšník";
+    document.getElementById("profileMeta").textContent = "Učitel";
     pointsSection.classList.add("hidden");
     return;
   }
 
-  document.getElementById("profileMeta").textContent = rocnikLabel(user.rocnik) + " · Kuchař/Číšník";
+  const myObor = oborLabel(user.rocnik, user.last_year_rocnik);
+  document.getElementById("profileMeta").textContent = rocnikLabel(user.rocnik) + (myObor ? " · " + myObor : "");
   pointsSection.classList.remove("hidden");
   document.getElementById("profilePoints").textContent = user.points;
 
   const lyEl = document.getElementById("profileLastYear");
   if (user.last_year_rank_overall != null) {
     lyEl.classList.remove("hidden");
-    lyEl.innerHTML = "&#127942; Minulý školní rok (" + esc(user.last_year_label) + ") jsi ve " + user.last_year_rocnik + ". ročníku skončil/a na <b>" +
+    lyEl.innerHTML = "&#127942; Minulý školní rok (" + esc(user.last_year_label) + ") jsi v ročníku " + esc(user.last_year_rocnik) + " skončil/a na <b>" +
       user.last_year_rank_in_rocnik + ". místě</b> a celkově na <b>" + user.last_year_rank_overall + ". místě</b> (" + user.last_year_points + " b.).";
   } else {
     lyEl.classList.add("hidden");
