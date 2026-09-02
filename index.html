@@ -1356,6 +1356,19 @@
             </div>
           </div>
         </div>
+
+        <div id="preferredAddressSection">
+          <h2 class="section-title">Jak vás mám oslovovat</h2>
+          <div class="card" style="text-align:left;">
+            <p class="lb-note" style="margin-top:0;">Uvidí to jen mistrová u vás v Soutěžících - třeba přezdívka nebo jak vám říkají kamarádi.</p>
+            <div class="field">
+              <input type="text" id="preferredAddressInput" maxlength="30" placeholder="např. Terka">
+            </div>
+            <button class="btn-secondary" onclick="savePreferredAddress()">Uložit</button>
+            <div id="preferredAddressMsg" style="font-size:12.5px;margin-top:6px;"></div>
+          </div>
+        </div>
+
         <h2 class="section-title">Heslo</h2>
         <button class="btn-secondary" id="changePasswordToggleBtn" onclick="toggleChangePassword()">Změnit heslo</button>
         <div id="changePasswordForm" class="hidden">
@@ -6474,12 +6487,19 @@ function renderCompetitorsList(rows) {
       : "<span title='Nemá zapnutá oznámení' style='margin-left:6px;opacity:0.35;'>&#128277;</span>";
     div.innerHTML =
       "<div style='display:flex;align-items:center;gap:10px;'>" + miniAvatarHtml(r.avatar_url, r.name) +
-      "<div><div class='name'>" + esc(r.name) + pushBadge + "</div>" +
+      "<div><div class='name'>" + nameWithPreferredAddress(r) + pushBadge + "</div>" +
       "<div class='meta'>" + rocnikLabel(r.rocnik) + " · " + r.points + " b.</div></div></div>" +
       "<div class='lb-points'>" + (r.rank_overall != null ? "#" + r.rank_overall : "—") + "</div>";
     div.onclick = () => openCompetitorDetail(r.id);
     list.appendChild(div);
   });
+}
+
+// Jméno studenta doplněné o oslovení, které si sám nastavil na svém profilu
+// (viditelné jen mistrové, přes get_leaderboard_admin.preferred_address) -
+// sdílené mezi seznamem Soutěžících a jejich detailem, ať to nikde nerozjede.
+function nameWithPreferredAddress(r) {
+  return esc(r.name) + (r.preferred_address ? " (" + esc(r.preferred_address) + ")" : "");
 }
 
 // Ročník 4 se v DB používá jako "Vyučení" (absolvoval/a, škola skončila) -
@@ -6539,7 +6559,7 @@ async function openCompetitorDetail(id) {
     span.textContent = initials(r.name);
     avatarWrap.appendChild(span);
   }
-  document.getElementById("compDetailName").textContent = r.name;
+  document.getElementById("compDetailName").innerHTML = nameWithPreferredAddress(r);
   const compObor = oborLabel(r.rocnik, r.last_year_rocnik);
   document.getElementById("compDetailMeta").textContent = rocnikLabel(r.rocnik) + (compObor ? " · " + compObor : "");
   document.getElementById("compDetailPush").textContent = r.has_push ? "🔔 Push oznámení zapnuto" : "🔕 Push oznámení vypnuto";
@@ -7024,12 +7044,18 @@ async function renderProfile() {
   refreshPushStatus();
 
   const pointsSection = document.getElementById("profilePointsSection");
+  const preferredAddressSection = document.getElementById("preferredAddressSection");
 
   if (user.role === "mistrova") {
     document.getElementById("profileMeta").textContent = "Učitel";
     pointsSection.classList.add("hidden");
+    preferredAddressSection.classList.add("hidden");
     return;
   }
+
+  preferredAddressSection.classList.remove("hidden");
+  document.getElementById("preferredAddressInput").value = user.preferred_address || "";
+  document.getElementById("preferredAddressMsg").textContent = "";
 
   const myObor = oborLabel(user.rocnik, user.last_year_rocnik);
   document.getElementById("profileMeta").textContent = rocnikLabel(user.rocnik) + (myObor ? " · " + myObor : "");
@@ -7046,6 +7072,30 @@ async function renderProfile() {
   }
   document.getElementById("profileDiplomaBtn").classList.toggle("hidden", !user.last_year_label);
   loadProfileStreak();
+}
+
+// Oslovení, které si student sám nastaví - vidí ho jen mistrová v Soutěžících
+// (v závorce za jménem), ostatním studentům se nikde nezobrazuje.
+async function savePreferredAddress() {
+  const input = document.getElementById("preferredAddressInput");
+  const msgEl = document.getElementById("preferredAddressMsg");
+  msgEl.style.color = "";
+  msgEl.textContent = "";
+  const { error } = await sb.rpc("set_preferred_address", { p_value: input.value });
+  if (error) {
+    msgEl.style.color = "var(--red)";
+    if (error.message.indexOf("too long") !== -1) {
+      msgEl.textContent = "Oslovení může mít nejvýš 30 znaků.";
+    } else if (error.message.indexOf("inappropriate") !== -1) {
+      msgEl.textContent = "Tohle oslovení nejde použít, zkus prosím jiné.";
+    } else {
+      msgEl.textContent = "Nepodařilo se uložit, zkus to prosím znovu.";
+    }
+    return;
+  }
+  user.preferred_address = input.value.trim() || null;
+  msgEl.style.color = "var(--green)";
+  msgEl.textContent = "Uloženo.";
 }
 
 // Odznáčky/streak jednoho studenta - buď toho skutečně přihlášeného
