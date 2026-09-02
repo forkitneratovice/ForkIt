@@ -677,6 +677,9 @@
     <button class="nav-item" data-nav="leaderboard" onclick="showScreen('leaderboard')">
       <span class="nav-icon">&#127942;</span>Žebříček
     </button>
+    <button class="nav-item hidden" data-nav="competitors" id="navCompetitorsSidebar" onclick="showScreen('competitors')">
+      <span class="nav-icon">&#128101;</span>Soutěžící
+    </button>
     <button class="nav-item hidden" data-nav="admin" id="navAdminSidebar" onclick="showScreen('admin')">
       <span class="nav-icon">&#128736;</span>Admin
     </button>
@@ -734,6 +737,9 @@
       </button>
       <button class="nav-item" data-nav="leaderboard" onclick="showScreen('leaderboard')">
         <span class="nav-icon">&#127942;</span>Žebříček
+      </button>
+      <button class="nav-item hidden" data-nav="competitors" id="navCompetitorsDrawer" onclick="showScreen('competitors')">
+        <span class="nav-icon">&#128101;</span>Soutěžící
       </button>
       <button class="nav-item" data-nav="achievements" id="navAchievementsDrawer" onclick="showScreen('achievements')">
         <span class="nav-icon">&#127941;</span>Úspěchy
@@ -927,7 +933,6 @@
             <p><b>Právní základ:</b> souhlas žáka (u nezletilých případně zákonného zástupce) a plnění úkolu školy ve veřejném zájmu (vzdělávání).</p>
             <p><b>Doba uchování:</b> po dobu studia na škole a přiměřenou dobu poté, nejdéle po dobu danou spisovým a skartačním řádem školy.</p>
             <p><b>Vaše práva:</b> máte právo na přístup ke svým údajům, jejich opravu či výmaz a na odvolání souhlasu – stačí kontaktovat mistrovou nebo školu.</p>
-            <p style="font-style:italic;">Toto je pracovní verze textu podmínek – před ostrým nasazením appky doporučujeme nechat znění zkontrolovat pověřencem pro ochranu osobních údajů (DPO) školy.</p>
           </div>
           <button class="btn-secondary" style="margin-top:14px;" onclick="closeTermsModal()">Zavřít</button>
         </div>
@@ -1174,6 +1179,8 @@
       <div class="screen hidden" id="screen-slovnik">
         <div id="teacherSlovnikContent" class="hidden">
           <button class="btn-primary" onclick="openWordCreate()">+ Přidat slovo dne</button>
+          <button class="btn-secondary" style="margin-top:8px;" onclick="shuffleWordQueue()">&#128256; Zamíchat frontu</button>
+          <div id="shuffleWordQueueMsg" style="font-size:12.5px;margin-top:6px;"></div>
         </div>
         <h2 class="section-title">Slovník</h2>
         <div class="field">
@@ -1427,12 +1434,12 @@
         <div id="achievementsList"></div>
       </div>
 
-      <!-- SOUTĚŽÍCÍ (přehled studentů, jen mistrová) -->
+      <!-- SOUTĚŽÍCÍ (přehled studentů, jen mistrová) - vlastní položka v navigaci,
+           viz navCompetitorsSidebar/navCompetitorsDrawer, ne součást Administrace. -->
       <!-- ADMIN (jen mistrová) -->
       <div class="screen hidden" id="screen-admin">
         <h2 class="section-title">Administrace</h2>
-        <button class="btn-secondary" onclick="showScreen('competitors')">&#128101; Soutěžící</button>
-        <button class="btn-secondary" style="margin-top:10px;" onclick="showScreen('trash')">&#128465;&#65039; Koš</button>
+        <button class="btn-secondary" onclick="showScreen('trash')">&#128465;&#65039; Koš</button>
         <button class="btn-secondary" style="margin-top:10px;" onclick="exportAllStudentsExcel()">&#128202; Export všech studentů (Excel)</button>
         <button class="btn-secondary" style="margin-top:10px;" onclick="openEndYearModal()">&#127881; Ukončit školní rok</button>
         <div id="endYearSuccessMsg" style="font-size:12.5px;color:var(--primary);font-weight:700;margin-top:8px;"></div>
@@ -1521,7 +1528,6 @@
       <!-- SOUTĚŽÍCÍ: rovnou celý seznam (hledání + filtr ročníku nahoře),
            tlačítko na neaktivní studenty vede do podřazené "podložky" níž. -->
       <div class="screen hidden" id="screen-competitors">
-        <span class="back-link" onclick="showScreen('admin')">&larr; Zpět do administrace</span>
         <div class="comp-filter-row">
           <select id="compRocnikFilter" onchange="filterCompetitors()">
             <option value="all">Všechny</option>
@@ -2293,6 +2299,8 @@ async function completeLogin() {
   const showAdmin = user.role === "mistrova";
   document.getElementById("navAdminSidebar").classList.toggle("hidden", !showAdmin);
   document.getElementById("navAdminDrawer").classList.toggle("hidden", !showAdmin);
+  document.getElementById("navCompetitorsSidebar").classList.toggle("hidden", !showAdmin);
+  document.getElementById("navCompetitorsDrawer").classList.toggle("hidden", !showAdmin);
 
   await recordLoginActivity();
   await loadQuizzes();
@@ -5812,6 +5820,25 @@ async function unbumpWord(id) {
     alert("Nepodařilo se zrušit naplánování: " + error.message);
     return;
   }
+  await renderSlovnik();
+}
+
+// "Zamíchat frontu" - náhodně přeskládá pořadí slov čekajících ve frontě
+// (queue_order), ale nechá bokem ta, co mistrová ručně naplánovala přes
+// "Přidat jako další" (bumped_at) - ta se zveřejní přesně v pořadí, v jakém
+// byla naplánována, zamíchání se jich netýká (viz publish_next_word_if_due).
+async function shuffleWordQueue() {
+  const msgEl = document.getElementById("shuffleWordQueueMsg");
+  msgEl.style.color = "";
+  msgEl.textContent = "Míchám...";
+  const { error } = await sb.rpc("shuffle_word_queue");
+  if (error) {
+    msgEl.style.color = "var(--red)";
+    msgEl.textContent = "Nepodařilo se zamíchat frontu: " + error.message;
+    return;
+  }
+  msgEl.style.color = "var(--green)";
+  msgEl.textContent = "Fronta zamíchána.";
   await renderSlovnik();
 }
 
