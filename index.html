@@ -2250,7 +2250,13 @@ function maybeRecheckTimeOfDayBadges() {
   const now = Date.now();
   if (now - lastTimeOfDayCheckAt < 3 * 60 * 1000) return;
   lastTimeOfDayCheckAt = now;
-  sb.rpc("record_login_activity", { p_local_hour: new Date().getHours() }).catch(() => {});
+  // Poznámka k .then(null, cb) místo .catch(cb): supabase-js vrací z .rpc()
+  // "thenable" objekt, který má .then(), ale NEMÁ vlastní .catch() metodu -
+  // zavolání .catch() přímo na něm proto skončí TypeError (zjištěno na
+  // živém provozu: appka se kvůli tomu i uprostřed běžné práce tiše
+  // zhroutila, například se u kvízu vůbec neotevřela obrazovka s otázkami).
+  // .then(null, cb) funguje spolehlivě všude, kde běžný .then(cb) funguje.
+  sb.rpc("record_login_activity", { p_local_hour: new Date().getHours() }).then(null, () => {});
 }
 
 async function completeLogin() {
@@ -4679,7 +4685,7 @@ function startQuizTake(q, restoredAnswers) {
   // ale student se nevrátí, pošleme mu později připomínku. Tréninkové kvízy
   // (Procvičování) záměrně nesledujeme, tam žádný "termín" nehrozí.
   if (!isPracticeMode) {
-    sb.rpc("mark_activity_started", { p_kind: "quiz", p_ref_id: q.id }).catch(() => {});
+    sb.rpc("mark_activity_started", { p_kind: "quiz", p_ref_id: q.id }).then(null, () => {});
   }
 
   const container = document.getElementById("quizQuestions");
@@ -4766,11 +4772,11 @@ async function submitQuiz() {
     if (error.message && error.message.includes("MAX_ATTEMPTS")) {
       alert("U tohoto kvízu jsi už vyčerpal/a všechny 3 pokusy.");
       clearQuizProgress();
-      if (!isPracticeMode) sb.rpc("mark_activity_finished", { p_kind: "quiz", p_ref_id: currentQuiz.id }).catch(() => {});
+      if (!isPracticeMode) sb.rpc("mark_activity_finished", { p_kind: "quiz", p_ref_id: currentQuiz.id }).then(null, () => {});
     } else if (error.message && error.message.includes("COOLDOWN_ACTIVE")) {
       alert("Tento kvíz můžeš zkusit znovu až za 24 hodin od posledního pokusu.");
       clearQuizProgress();
-      if (!isPracticeMode) sb.rpc("mark_activity_finished", { p_kind: "quiz", p_ref_id: currentQuiz.id }).catch(() => {});
+      if (!isPracticeMode) sb.rpc("mark_activity_finished", { p_kind: "quiz", p_ref_id: currentQuiz.id }).then(null, () => {});
     } else {
       alert("Něco se nepovedlo: " + error.message);
     }
@@ -4779,7 +4785,7 @@ async function submitQuiz() {
   }
 
   clearQuizProgress();
-  if (!isPracticeMode) sb.rpc("mark_activity_finished", { p_kind: "quiz", p_ref_id: currentQuiz.id }).catch(() => {});
+  if (!isPracticeMode) sb.rpc("mark_activity_finished", { p_kind: "quiz", p_ref_id: currentQuiz.id }).then(null, () => {});
   const result = data[0];
   lastCorrectAnswers = result.correct_answers || [];
   document.getElementById("quizScoreText").textContent = result.score + " / " + result.total;
@@ -5019,7 +5025,7 @@ const challengeActivityMarked = new Set();
 function markChallengeStartedOnce(challengeId) {
   if (challengeActivityMarked.has(challengeId)) return;
   challengeActivityMarked.add(challengeId);
-  sb.rpc("mark_activity_started", { p_kind: "challenge", p_ref_id: challengeId }).catch(() => {});
+  sb.rpc("mark_activity_started", { p_kind: "challenge", p_ref_id: challengeId }).then(null, () => {});
 }
 
 function renderChallengeDetail() {
@@ -5195,7 +5201,7 @@ async function submitChallengeForm() {
     currentChallenge.last_text = text;
     clearChallengeTextDraft(currentChallenge.id);
     challengeActivityMarked.delete(currentChallenge.id);
-    sb.rpc("mark_activity_finished", { p_kind: "challenge", p_ref_id: currentChallenge.id }).catch(() => {});
+    sb.rpc("mark_activity_finished", { p_kind: "challenge", p_ref_id: currentChallenge.id }).then(null, () => {});
     renderChallengeDetail();
   } catch (e) {
     btn.disabled = false;
@@ -6112,7 +6118,7 @@ async function loadRank() {
   // Odemyká odznáčky za 1. místo / postup v žebříčku - počítá se vždy znovu
   // server-side (viz check_rank_badges), tady se to jen odpaluje na pozadí.
   // V náhledu se nic neodpaluje - je to jen prohlížení, ne skutečná aktivita.
-  if (!previewStudentId) sb.rpc("check_rank_badges").catch(() => {});
+  if (!previewStudentId) sb.rpc("check_rank_badges").then(null, () => {});
 }
 
 // ---------- SOUTĚŽÍCÍ (přehled studentů, jen mistrová) ----------
