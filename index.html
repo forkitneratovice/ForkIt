@@ -735,9 +735,6 @@
       <button class="nav-item" data-nav="leaderboard" onclick="showScreen('leaderboard')">
         <span class="nav-icon">&#127942;</span>Žebříček
       </button>
-      <button class="nav-item hidden" data-nav="admin" id="navAdminDrawer" onclick="showScreen('admin')">
-        <span class="nav-icon">&#128736;</span>Admin
-      </button>
       <button class="nav-item" data-nav="achievements" id="navAchievementsDrawer" onclick="showScreen('achievements')">
         <span class="nav-icon">&#127941;</span>Úspěchy
       </button>
@@ -752,6 +749,9 @@
       </button>
       <button class="nav-item" data-nav="faq" onclick="showScreen('faq')">
         <span class="nav-icon">&#128203;</span>Časté otázky
+      </button>
+      <button class="nav-item hidden" data-nav="admin" id="navAdminDrawer" onclick="showScreen('admin')">
+        <span class="nav-icon">&#128736;</span>Admin
       </button>
       <hr>
       <button class="nav-item" onclick="logoutUser()">
@@ -1319,6 +1319,12 @@
             <div class="lb-tab" data-filter="HT3" onclick="setLbAdminFilter('HT3')">HT3</div>
             <div class="lb-tab" data-filter="HT4" onclick="setLbAdminFilter('HT4')">HT4</div>
             <div class="lb-tab" data-filter="Vyučení" onclick="setLbAdminFilter('Vyučení')">Vyučení</div>
+          </div>
+          <div class="lb-tabs hidden" id="lbAdminMetricTabs">
+            <div class="lb-tab active" data-metric="overall" onclick="setLbAdminMetric('overall')">Celkově</div>
+            <div class="lb-tab" data-metric="quizzes" onclick="setLbAdminMetric('quizzes')">Kvízy</div>
+            <div class="lb-tab" data-metric="challenges" onclick="setLbAdminMetric('challenges')">Výzvy</div>
+            <div class="lb-tab" data-metric="badges" onclick="setLbAdminMetric('badges')">Odznáčky</div>
           </div>
           <div id="lbAdminList"></div>
         </div>
@@ -5989,24 +5995,82 @@ function setLbFilter(f) {
 }
 
 let lbAdminFilter = "overall";
+let lbAdminMetric = "overall";
 
 function setLbAdminFilter(f) {
   lbAdminFilter = f;
   document.querySelectorAll("#lbAdminTabs .lb-tab").forEach((el) => {
     el.classList.toggle("active", el.dataset.filter === f);
   });
+  // Kategorie (Kvízy/Výzvy/Odznáčky) dávají smysl jen v rámci jednoho
+  // konkrétního ročníku - u "Celkově" napříč všemi ročníky zůstáváme
+  // u celkových bodů, tak jako dřív.
+  const metricTabs = document.getElementById("lbAdminMetricTabs");
+  if (f === "overall") {
+    metricTabs.classList.add("hidden");
+    lbAdminMetric = "overall";
+    document.querySelectorAll("#lbAdminMetricTabs .lb-tab").forEach((el) => {
+      el.classList.toggle("active", el.dataset.metric === "overall");
+    });
+  } else {
+    metricTabs.classList.remove("hidden");
+  }
+  renderLeaderboardAdmin();
+}
+
+function setLbAdminMetric(m) {
+  lbAdminMetric = m;
+  document.querySelectorAll("#lbAdminMetricTabs .lb-tab").forEach((el) => {
+    el.classList.toggle("active", el.dataset.metric === m);
+  });
   renderLeaderboardAdmin();
 }
 
 async function renderLeaderboardAdmin() {
-  const { data, error } = await sb.rpc("get_leaderboard_admin");
   const list = document.getElementById("lbAdminList");
-  list.innerHTML = "";
-  if (error) {
-    list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst žebříček: " + esc(error.message) + "</div>";
+
+  // Základní data (jméno, avatar, push stav, minulý rok...) natáhneme vždy -
+  // potřebuje je i openCompetitorDetail() při kliknutí na řádek, ať to
+  // funguje bez ohledu na to, jestli je zrovna aktivní kategorie s vlastním
+  // pořadím (kvízy/výzvy/odznáčky), nebo celkové body.
+  const { data: baseData, error: baseError } = await sb.rpc("get_leaderboard_admin");
+  if (baseError) {
+    list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst žebříček: " + esc(baseError.message) + "</div>";
     return;
   }
-  let rows = data || [];
+  allCompetitors = baseData || [];
+  list.innerHTML = "";
+
+  if (lbAdminFilter !== "overall" && lbAdminMetric !== "overall") {
+    const { data: metricData, error: metricError } = await sb.rpc("get_leaderboard_admin_metric", {
+      p_metric: lbAdminMetric,
+      p_rocnik: lbAdminFilter,
+    });
+    if (metricError) {
+      list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst žebříček: " + esc(metricError.message) + "</div>";
+      return;
+    }
+    const rows = metricData || [];
+    if (rows.length === 0) {
+      list.innerHTML = "<div class='empty-note'>Zatím tu nejsou žádní studenti s body.</div>";
+      return;
+    }
+    const unit = lbAdminMetric === "badges" ? " odznáčků" : " b.";
+    rows.forEach((r) => {
+      const div = document.createElement("div");
+      div.className = "lb-row";
+      div.innerHTML =
+        "<div class='lb-rank'>#" + r.rank_in_rocnik + "</div>" +
+        miniAvatarHtml(r.avatar_url, r.name) +
+        "<div><div class='lb-name'>" + esc(r.name) + "</div><div class='lb-sub'>" + rocnikLabel(r.rocnik) + "</div></div>" +
+        "<div class='lb-points' style='margin-left:auto;'>" + r.value + unit + "</div>";
+      div.onclick = () => openCompetitorDetail(r.id);
+      list.appendChild(div);
+    });
+    return;
+  }
+
+  let rows = allCompetitors;
   // "Celkově" soutěží jen aktivní ročníky (KČ1-3, HT1-4) - Vyučení tam nemají
   // co dělat, řadit se ale mezi sebou, ve své vlastní záložce "Vyučení", dál mohou.
   if (lbAdminFilter === "overall") {
@@ -6027,6 +6091,7 @@ async function renderLeaderboardAdmin() {
       miniAvatarHtml(r.avatar_url, r.name) +
       "<div><div class='lb-name'>" + esc(r.name) + "</div><div class='lb-sub'>" + rocnikLabel(r.rocnik) + "</div></div>" +
       "<div class='lb-points' style='margin-left:auto;'>" + r.points + " b.</div>";
+    div.onclick = () => openCompetitorDetail(r.id);
     list.appendChild(div);
   });
 }
