@@ -1376,6 +1376,22 @@
           </div>
         </div>
 
+        <div id="praxeSection">
+          <h2 class="section-title">Kde máte praxi</h2>
+          <div class="card" style="text-align:left;">
+            <div class="field">
+              <label>Název</label>
+              <input type="text" id="praxeNazevInput" maxlength="60" placeholder="např. Hotel Golf">
+            </div>
+            <div class="field">
+              <label>Město</label>
+              <input type="text" id="praxeMestoInput" maxlength="60" placeholder="např. Neratovice">
+            </div>
+            <button class="btn-secondary" onclick="savePraxe()">Uložit</button>
+            <div id="praxeMsg" style="font-size:12.5px;margin-top:6px;"></div>
+          </div>
+        </div>
+
         <h2 class="section-title">Heslo</h2>
         <button class="btn-secondary" id="changePasswordToggleBtn" onclick="toggleChangePassword()">Změnit heslo</button>
         <div id="changePasswordForm" class="hidden">
@@ -1563,6 +1579,7 @@
           <div class="comp-name" id="compDetailName">—</div>
           <div class="comp-meta" id="compDetailMeta">—</div>
           <div class="comp-meta" id="compDetailPush">—</div>
+          <div class="comp-meta hidden" id="compDetailPraxe"></div>
         </div>
         <div class="hidden" id="compDetailLastYear" style="font-size:13px;color:var(--text);background:#F3F0E9;border-radius:10px;padding:10px 12px;margin-bottom:12px;"></div>
         <div class="comp-stat-grid">
@@ -6590,6 +6607,14 @@ async function openCompetitorDetail(id) {
   const compObor = oborLabel(r.rocnik, r.last_year_rocnik);
   document.getElementById("compDetailMeta").textContent = rocnikLabel(r.rocnik) + (compObor ? " · " + compObor : "");
   document.getElementById("compDetailPush").textContent = r.has_push ? "🔔 Push oznámení zapnuto" : "🔕 Push oznámení vypnuto";
+  const praxeEl = document.getElementById("compDetailPraxe");
+  if (r.praxe_nazev || r.praxe_mesto) {
+    praxeEl.classList.remove("hidden");
+    praxeEl.textContent = "🎓 Praxe: " + [r.praxe_nazev, r.praxe_mesto].filter(Boolean).join(", ");
+  } else {
+    praxeEl.classList.add("hidden");
+    praxeEl.textContent = "";
+  }
   document.getElementById("compDetailPoints").textContent = r.points;
   document.getElementById("compDetailRankOverall").textContent = r.rank_overall != null ? "#" + r.rank_overall : "—";
   document.getElementById("compDetailRankRocnik").textContent = r.rank_in_rocnik != null ? "#" + r.rank_in_rocnik : "—";
@@ -7072,17 +7097,24 @@ async function renderProfile() {
 
   const pointsSection = document.getElementById("profilePointsSection");
   const preferredAddressSection = document.getElementById("preferredAddressSection");
+  const praxeSection = document.getElementById("praxeSection");
 
   if (user.role === "mistrova") {
     document.getElementById("profileMeta").textContent = "Učitel";
     pointsSection.classList.add("hidden");
     preferredAddressSection.classList.add("hidden");
+    praxeSection.classList.add("hidden");
     return;
   }
 
   preferredAddressSection.classList.remove("hidden");
   document.getElementById("preferredAddressInput").value = user.preferred_address || "";
   document.getElementById("preferredAddressMsg").textContent = "";
+
+  praxeSection.classList.remove("hidden");
+  document.getElementById("praxeNazevInput").value = user.praxe_nazev || "";
+  document.getElementById("praxeMestoInput").value = user.praxe_mesto || "";
+  document.getElementById("praxeMsg").textContent = "";
 
   const myObor = oborLabel(user.rocnik, user.last_year_rocnik);
   document.getElementById("profileMeta").textContent = rocnikLabel(user.rocnik) + (myObor ? " · " + myObor : "");
@@ -7121,6 +7153,32 @@ async function savePreferredAddress() {
     return;
   }
   user.preferred_address = input.value.trim() || null;
+  msgEl.style.color = "var(--green)";
+  msgEl.textContent = "Uloženo.";
+}
+
+// Kde má student praxi (název + město) - vidí to jen mistrová v detailu
+// Soutěžících, ostatním studentům se to nikde nezobrazuje.
+async function savePraxe() {
+  const nazevInput = document.getElementById("praxeNazevInput");
+  const mestoInput = document.getElementById("praxeMestoInput");
+  const msgEl = document.getElementById("praxeMsg");
+  msgEl.style.color = "";
+  msgEl.textContent = "";
+  const { error } = await sb.rpc("set_praxe", { p_nazev: nazevInput.value, p_mesto: mestoInput.value });
+  if (error) {
+    msgEl.style.color = "var(--red)";
+    if (error.message.indexOf("too long") !== -1) {
+      msgEl.textContent = "Název i město mohou mít nejvýš 60 znaků.";
+    } else if (error.message.indexOf("inappropriate") !== -1) {
+      msgEl.textContent = "Tohle nejde použít, zkus to prosím jinak.";
+    } else {
+      msgEl.textContent = "Nepodařilo se uložit, zkus to prosím znovu.";
+    }
+    return;
+  }
+  user.praxe_nazev = nazevInput.value.trim() || null;
+  user.praxe_mesto = mestoInput.value.trim() || null;
   msgEl.style.color = "var(--green)";
   msgEl.textContent = "Uloženo.";
 }
