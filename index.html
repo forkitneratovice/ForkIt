@@ -3498,9 +3498,11 @@ async function renderTeacherHomeLatestWord() {
   const w = data[0];
   const div = document.createElement("div");
   div.className = "card";
+  div.style.cursor = "pointer";
   div.innerHTML =
     "<div style=\"font-weight:800;font-size:15px;color:var(--dark);font-family:'Poppins',sans-serif;\">" + esc(w.word) + "</div>" +
     "<div style='font-size:13px;color:var(--text-muted);margin-top:4px;'>" + esc(w.definition) + "</div>";
+  div.onclick = () => openWordDetail(w.id, w.word, w.definition);
   el.innerHTML = "";
   el.appendChild(div);
 }
