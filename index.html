@@ -993,6 +993,10 @@
           <div id="homeNewsListAdmin" style="margin-top:14px;"></div>
           <button class="btn-secondary" onclick="showScreen('announcements')">Zobrazit všechny aktuality</button>
 
+          <h2 class="section-title" style="margin-top:20px;">Slovo dne</h2>
+          <div id="teacherHomeLatestWord"></div>
+          <button class="btn-secondary" onclick="showScreen('slovnik')">Zobrazit slovník</button>
+
           <h2 class="section-title" style="margin-top:20px;">Rychlé akce</h2>
           <button class="btn-primary" onclick="openQuizCreate()">+ Vytvořit kvíz</button>
           <button class="btn-primary" style="margin-top:10px;" onclick="openChallengeCreate()">+ Vytvořit výzvu</button>
@@ -3215,6 +3219,7 @@ function renderHome() {
     if (isRealTeacher) {
       renderHomeNewsAdmin();
       renderHomePendingWidget();
+      renderTeacherHomeLatestWord();
     } else {
       renderViewerHomeNews();
       renderViewerHomeLatestWord();
@@ -3477,6 +3482,26 @@ async function renderViewerHomeNews() {
   div.className = "news-card";
   const dateStr = new Date(a.created_at).toLocaleDateString("cs-CZ");
   div.innerHTML = "<div class='news-text'>" + sanitizeRichHtml(a.text) + "</div><div class='news-date'>" + dateStr + "</div>";
+  el.appendChild(div);
+}
+
+// Slovo dne na Domů i pro skutečnou mistrovou - ať vidí to samé, co studenti,
+// bez nutnosti chodit zvlášť do Slovníku.
+async function renderTeacherHomeLatestWord() {
+  const el = document.getElementById("teacherHomeLatestWord");
+  el.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const { data, error } = await sb.from("words").select("id,word,definition").eq("published", true).order("published_at", { ascending: false }).limit(1);
+  if (error || !data || data.length === 0) {
+    el.innerHTML = "<div class='empty-note'>Zatím tu není žádné slovo.</div>";
+    return;
+  }
+  const w = data[0];
+  const div = document.createElement("div");
+  div.className = "card";
+  div.innerHTML =
+    "<div style=\"font-weight:800;font-size:15px;color:var(--dark);font-family:'Poppins',sans-serif;\">" + esc(w.word) + "</div>" +
+    "<div style='font-size:13px;color:var(--text-muted);margin-top:4px;'>" + esc(w.definition) + "</div>";
+  el.innerHTML = "";
   el.appendChild(div);
 }
 
