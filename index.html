@@ -970,6 +970,7 @@
         </div>
 
         <div id="teacherHomeContent" class="hidden">
+        <div id="teacherHomeAdminBits">
           <div id="homePendingWidget" style="margin-bottom:18px;"></div>
           <h2 class="section-title">Aktuality</h2>
           <div class="field">
@@ -997,6 +998,20 @@
           <button class="btn-primary" style="margin-top:10px;" onclick="openChallengeCreate()">+ Vytvořit výzvu</button>
           <button class="btn-primary" style="margin-top:10px;" onclick="openWordCreate()">+ Přidat slovo dne</button>
         </div>
+        </div>
+
+        <!-- DOMŮ PRO MISTROVOU (NÁHLED) - jen ke čtení: aktuality + slovo dne,
+             bez kompozitoru, rychlých akcí a "co čeká na vyřízení" (to všechno
+             jsou zásahy/soukromé věci jen pro skutečnou mistrovou). -->
+        <div id="viewerHomeContent" class="hidden">
+          <h2 class="section-title">Aktuality</h2>
+          <div id="viewerHomeNewsList"></div>
+          <button class="btn-secondary" onclick="showScreen('announcements')">Zobrazit všechny aktuality</button>
+
+          <h2 class="section-title">Slovo dne</h2>
+          <div id="viewerHomeLatestWord"></div>
+          <button class="btn-secondary" onclick="showScreen('slovnik')">Zobrazit slovník</button>
+        </div>
       </div>
 
       <!-- KVIZY LIST -->
@@ -1011,8 +1026,8 @@
           <div id="quizListFull"></div>
         </div>
         <div id="teacherQuizzesContent" class="hidden">
-          <button class="btn-primary" onclick="openQuizCreate()">+ Vytvořit nový kvíz</button>
-          <button class="btn-primary" style="margin-top:10px;background:var(--dark);" onclick="showScreen('quiz-submissions-admin')">Schválit kvíz</button>
+          <button class="btn-primary" id="teacherQuizzesCreateBtn" onclick="openQuizCreate()">+ Vytvořit nový kvíz</button>
+          <button class="btn-primary" id="teacherQuizzesApproveBtn" style="margin-top:10px;background:var(--dark);" onclick="showScreen('quiz-submissions-admin')">Schválit kvíz</button>
           <h2 class="section-title">Vaše kvízy</h2>
           <div id="quizListAdmin"></div>
         </div>
@@ -1088,8 +1103,8 @@
           <div id="challengeListStudent"></div>
         </div>
         <div id="teacherChallengesContent" class="hidden">
-          <button class="btn-primary" onclick="openChallengeCreate()">+ Vytvořit výzvu</button>
-          <button class="btn-primary" style="margin-top:10px;background:var(--dark);" onclick="showScreen('challenge-approvals')">Schválit výzvu</button>
+          <button class="btn-primary" id="teacherChallengesCreateBtn" onclick="openChallengeCreate()">+ Vytvořit výzvu</button>
+          <button class="btn-primary" id="teacherChallengesApproveBtn" style="margin-top:10px;background:var(--dark);" onclick="showScreen('challenge-approvals')">Schválit výzvu</button>
           <h2 class="section-title">Vaše výzvy</h2>
           <div id="challengeListAdminOverview"></div>
         </div>
@@ -1611,7 +1626,7 @@
           </div>
         </div>
 
-        <div class="field" style="margin-top:14px;">
+        <div class="field" style="margin-top:14px;" id="compDetailRocnikMoveField">
           <label>Přesunout do ročníku (např. při opakování ročníku nebo reparátu z Vyučení)</label>
           <div style="display:flex;gap:8px;">
             <select id="compDetailRocnikMove" style="flex:1;">
@@ -1643,9 +1658,11 @@
         <h2 class="section-title">Odznáčky</h2>
         <div id="compDetailBadges"></div>
 
-        <h2 class="section-title" style="color:var(--red);">Nebezpečná zóna</h2>
-        <p class="help-text">Nevratně smaže účet i všechna data studenta (body, kvízy, výzvy, zprávy, odznáčky...). Použij např. u falešné registrace nebo studenta, který už školu ukončil.</p>
-        <button class="btn-secondary" style="color:var(--red);" onclick="openDeleteStudentModal()">Smazat studenta</button>
+        <div id="compDetailDangerZone">
+          <h2 class="section-title" style="color:var(--red);">Nebezpečná zóna</h2>
+          <p class="help-text">Nevratně smaže účet i všechna data studenta (body, kvízy, výzvy, zprávy, odznáčky...). Použij např. u falešné registrace nebo studenta, který už školu ukončil.</p>
+          <button class="btn-secondary" style="color:var(--red);" onclick="openDeleteStudentModal()">Smazat studenta</button>
+        </div>
       </div>
 
       <!-- ZPRÁVY -->
@@ -2316,8 +2333,20 @@ async function completeLogin() {
   const showAdmin = user.role === "mistrova";
   document.getElementById("navAdminSidebar").classList.toggle("hidden", !showAdmin);
   document.getElementById("navAdminDrawer").classList.toggle("hidden", !showAdmin);
-  document.getElementById("navCompetitorsSidebar").classList.toggle("hidden", !showAdmin);
-  document.getElementById("navCompetitorsDrawer").classList.toggle("hidden", !showAdmin);
+
+  // Soutěžící vidí i mistrová (náhled) - jen Admin zůstává čistě pro
+  // skutečnou mistrovou (viz is_mistrova_any() na backendu).
+  const showCompetitorsNav = user.role === "mistrova" || user.role === "mistrova_view";
+  document.getElementById("navCompetitorsSidebar").classList.toggle("hidden", !showCompetitorsNav);
+  document.getElementById("navCompetitorsDrawer").classList.toggle("hidden", !showCompetitorsNav);
+
+  // Zprávy a Dotazy jsou soukromá komunikace mezi studenty a skutečnou
+  // mistrovou - mistrová (náhled) k nim záměrně nemá přístup vůbec.
+  const showMessagesNav = user.role !== "mistrova_view";
+  const navMessagesSidebar = document.getElementById("navMessagesSidebar");
+  const navMessagesDrawer = document.getElementById("navMessagesDrawer");
+  if (navMessagesSidebar) navMessagesSidebar.classList.toggle("hidden", !showMessagesNav);
+  if (navMessagesDrawer) navMessagesDrawer.classList.toggle("hidden", !showMessagesNav);
 
   await recordLoginActivity();
   await loadQuizzes();
@@ -2762,6 +2791,7 @@ function openAppSearchResult(i) {
   const r = appSearchResultsData[i];
   if (!r) return;
   const isTeacher = user && user.role === "mistrova";
+  const isTeacherView = user && (user.role === "mistrova" || user.role === "mistrova_view");
 
   if (r.kind === "help") {
     jumpToHelpSection(r.helpSectionEl);
@@ -2776,11 +2806,14 @@ function openAppSearchResult(i) {
   } else if (r.kind === "quiz") {
     if (isTeacher) {
       openQuizEdit(r.ref_id, "help");
+    } else if (isTeacherView) {
+      // Mistrová (náhled) smí kvízy jen prohlížet, ne upravovat.
+      openQuizStudents(r.ref_id, r.display_title, null);
     } else {
       showScreen("quizzes");
     }
   } else if (r.kind === "challenge") {
-    if (isTeacher) {
+    if (isTeacherView) {
       openChallengeStudents(r.ref_id, r.display_title, r.extra_points);
     } else {
       showScreen("challenges");
@@ -2798,6 +2831,14 @@ function openAppSearchResult(i) {
 async function renderFaqFeedback() {
   const el = document.getElementById("faqFeedbackSection");
   if (!user || !el) return;
+
+  // Dotazy jsou soukromá zpětná vazba jen pro skutečnou mistrovou - mistrová
+  // (náhled) tuhle sekci vůbec nevidí (ani formulář na odeslání, ten dává
+  // smysl jen studentům).
+  if (user.role === "mistrova_view") {
+    el.innerHTML = "";
+    return;
+  }
 
   if (user.role === "mistrova") {
     el.innerHTML =
@@ -3158,13 +3199,26 @@ function renderHome() {
   // Zprávy jsou v náhledu očima studenta záměrně mimo rozsah (soukromá
   // komunikace) - banner by navíc ukazoval nepřečtené zprávy MISTROVÉ
   // (session se v náhledu nemění), ne studenta, takže by byl zavádějící.
-  if (!previewStudentId) renderHomeMessageBanner();
+  // Mistrová (náhled) k Zprávám nemá přístup vůbec, takže banner na ni
+  // nemíří - viz completeLogin() a hidden nav item.
+  if (!previewStudentId && user.role !== "mistrova_view") renderHomeMessageBanner();
 
-  if (user.role === "mistrova") {
+  if (user.role === "mistrova" || user.role === "mistrova_view") {
     document.getElementById("studentHomeContent").classList.add("hidden");
     document.getElementById("teacherHomeContent").classList.remove("hidden");
-    renderHomeNewsAdmin();
-    renderHomePendingWidget();
+    // Mistrová (náhled) dostane uvnitř teacherHomeContent jen svůj vlastní
+    // read-only blok (aktuality + slovo dne) - kompozitor aktualit, rychlé
+    // akce a "co čeká na vyřízení" jsou jen pro skutečnou mistrovou.
+    const isRealTeacher = user.role === "mistrova";
+    document.getElementById("teacherHomeAdminBits").classList.toggle("hidden", !isRealTeacher);
+    document.getElementById("viewerHomeContent").classList.toggle("hidden", isRealTeacher);
+    if (isRealTeacher) {
+      renderHomeNewsAdmin();
+      renderHomePendingWidget();
+    } else {
+      renderViewerHomeNews();
+      renderViewerHomeLatestWord();
+    }
     return;
   }
   document.getElementById("studentHomeContent").classList.remove("hidden");
@@ -3405,6 +3459,42 @@ async function renderHomeNews() {
   div.innerHTML =
     "<div class='news-text'>" + sanitizeRichHtml(a.text) + "</div><div class='news-date'>" + dateStr + "</div>" +
     reactionBarHtml("announcement", a.id, myReaction ? myReaction.emoji : null, "home-news");
+  el.appendChild(div);
+}
+
+// ---------- DOMŮ PRO MISTROVOU (NÁHLED) - jen ke čtení ----------
+async function renderViewerHomeNews() {
+  const el = document.getElementById("viewerHomeNewsList");
+  el.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const { data, error } = await sb.from("announcements").select("id,text,created_at").order("created_at", { ascending: false }).limit(1);
+  if (error || !data || data.length === 0) {
+    el.innerHTML = "<div class='empty-note'>Zatím žádné aktuality.</div>";
+    return;
+  }
+  const a = data[0];
+  el.innerHTML = "";
+  const div = document.createElement("div");
+  div.className = "news-card";
+  const dateStr = new Date(a.created_at).toLocaleDateString("cs-CZ");
+  div.innerHTML = "<div class='news-text'>" + sanitizeRichHtml(a.text) + "</div><div class='news-date'>" + dateStr + "</div>";
+  el.appendChild(div);
+}
+
+async function renderViewerHomeLatestWord() {
+  const el = document.getElementById("viewerHomeLatestWord");
+  el.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const { data, error } = await sb.from("words").select("id,word,definition").eq("published", true).order("published_at", { ascending: false }).limit(1);
+  if (error || !data || data.length === 0) {
+    el.innerHTML = "<div class='empty-note'>Zatím tu není žádné slovo.</div>";
+    return;
+  }
+  const w = data[0];
+  const div = document.createElement("div");
+  div.className = "card";
+  div.innerHTML =
+    "<div style=\"font-weight:800;font-size:15px;color:var(--dark);font-family:'Poppins',sans-serif;\">" + esc(w.word) + "</div>" +
+    "<div style='font-size:13px;color:var(--text-muted);margin-top:4px;'>" + esc(w.definition) + "</div>";
+  el.innerHTML = "";
   el.appendChild(div);
 }
 
@@ -3873,9 +3963,14 @@ async function postAnnouncement() {
 async function renderQuizList() {
   if (!user) return;
 
-  if (user.role === "mistrova") {
+  if (user.role === "mistrova" || user.role === "mistrova_view") {
     document.getElementById("studentQuizzesContent").classList.add("hidden");
     document.getElementById("teacherQuizzesContent").classList.remove("hidden");
+    // "+ Vytvořit nový kvíz" a "Schválit kvíz" jsou úpravy - jen skutečná
+    // mistrová je smí vidět, mistrová (náhled) jen prohlíží seznam níž.
+    const canEditQuizzes = user.role === "mistrova";
+    document.getElementById("teacherQuizzesCreateBtn").classList.toggle("hidden", !canEditQuizzes);
+    document.getElementById("teacherQuizzesApproveBtn").classList.toggle("hidden", !canEditQuizzes);
     loadQuizzesAdmin();
     return;
   }
@@ -4037,12 +4132,16 @@ async function loadQuizzesAdmin() {
     div.innerHTML =
       '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + quizRocnikLabel(q.rocnik) + " · " + q.question_count + " otázky · " + q.points + " b.</div></div>" +
       '<span class="badge-pts">' + q.completed_count + "/" + q.total_students + "</span>";
-    const editBtn = document.createElement("button");
-    editBtn.className = "toggle-btn";
-    editBtn.style.marginLeft = "8px";
-    editBtn.textContent = "Upravit";
-    editBtn.onclick = (e) => { e.stopPropagation(); openQuizEdit(q.id, "quizzes"); };
-    div.appendChild(editBtn);
+    // "Upravit" je zásah do obsahu kvízu - jen skutečná mistrová, mistrová
+    // (náhled) může kliknutím na řádek jen prohlížet výsledky studentů.
+    if (user.role === "mistrova") {
+      const editBtn = document.createElement("button");
+      editBtn.className = "toggle-btn";
+      editBtn.style.marginLeft = "8px";
+      editBtn.textContent = "Upravit";
+      editBtn.onclick = (e) => { e.stopPropagation(); openQuizEdit(q.id, "quizzes"); };
+      div.appendChild(editBtn);
+    }
     div.onclick = () => openQuizStudents(q.id, q.title, q.points);
     list.appendChild(div);
   });
@@ -4850,7 +4949,7 @@ async function submitQuiz() {
 
   if (result.is_test) {
     const lines = [];
-    if (user.role === "mistrova") {
+    if (user.role === "mistrova" || user.role === "mistrova_view") {
       lines.push("Zkušební pokus (mistrová) – nezapočítává se do bodů ani statistik.");
       if (result.effort_bonus) lines.push("Kdyby to byl student: 1 b. za snahu.");
       else if (result.perfect_bonus) lines.push("Kdyby to byl student: plný počet + bonus " + bonusAmount + " b. za 100 % = " + result.earned_points + " b.");
@@ -4981,9 +5080,14 @@ async function loadChallenges() {
 async function renderChallenges() {
   if (!user) return;
 
-  if (user.role === "mistrova") {
+  if (user.role === "mistrova" || user.role === "mistrova_view") {
     document.getElementById("studentChallengesContent").classList.add("hidden");
     document.getElementById("teacherChallengesContent").classList.remove("hidden");
+    // "+ Vytvořit výzvu" a "Schválit výzvu" jsou úpravy - jen skutečná
+    // mistrová, mistrová (náhled) jen prohlíží seznam níž.
+    const canEditChallenges = user.role === "mistrova";
+    document.getElementById("teacherChallengesCreateBtn").classList.toggle("hidden", !canEditChallenges);
+    document.getElementById("teacherChallengesApproveBtn").classList.toggle("hidden", !canEditChallenges);
     loadChallengesAdminOverview();
     return;
   }
@@ -5453,9 +5557,23 @@ function renderChallengeReview() {
 
   const isPending = s.status === "pending";
   const isEditing = !isPending && reviewEditMode;
+  // Schvalování/zamítání a zpětná úprava hodnocení jsou zásahy do bodů
+  // studenta - jen skutečná mistrová, mistrová (náhled) odevzdání jen čte.
+  const canReview = user.role === "mistrova";
 
   let actionHtml;
-  if (isPending || isEditing) {
+  if (!canReview) {
+    if (isPending) {
+      actionHtml = "<div class='card' style='text-align:center;'><span class='badge-pts'>Čeká na schválení</span></div>";
+    } else {
+      const resultLabel = s.status === "approved"
+        ? "Schváleno &middot; " + (s.awarded_points != null ? s.awarded_points : 0) + " b."
+        : "Zamítnuto &middot; 0 b.";
+      actionHtml =
+        "<div class='card' style='text-align:center;'><span class='" + (s.status === "approved" ? "done-tag" : "badge-pts") + "'>" + resultLabel + "</span></div>" +
+        (s.teacher_comment ? "<div class='card' style='white-space:pre-wrap;font-size:13.5px;margin-top:10px;'><b>Komentář mistrové:</b><br>" + esc(s.teacher_comment) + "</div>" : "");
+    }
+  } else if (isPending || isEditing) {
     const pointsValue = isEditing ? (s.awarded_points != null ? s.awarded_points : s.suggested_points) : s.suggested_points;
     const commentValue = isEditing ? (s.teacher_comment || "") : "";
     const rejectOnclick = isEditing ? "editReviewSubmission('rejected')" : "rejectReviewSubmission()";
@@ -5781,30 +5899,34 @@ function renderWordList(words) {
   }
   el.innerHTML = "";
   const bumpedRanks = computeBumpedRanks();
+  // Mistrová i mistrová (náhled) vidí i nezveřejněná (frontová) slova a jejich
+  // stav ve frontě - liší se jen v tom, že "náhled" nemůže frontu upravovat
+  // (bump/unbump zůstává jen pro skutečnou mistrovou).
+  const canViewQueue = user.role === "mistrova" || user.role === "mistrova_view";
+  const canEditQueue = user.role === "mistrova";
   words.forEach((w) => {
     const div = document.createElement("div");
-    // Mistrová vidí i nezveřejněná (frontová) slova - odliší je šedou/zelenou
-    // barvou karty + krátkou poznámkou, jestli už je studenti vidí, nebo ještě
-    // čekají ve frontě. Studenti sami nezveřejněná slova vůbec nevidí (RLS).
-    div.className = "card" + (user.role === "mistrova" ? (w.published ? " status-green" : " status-gray") : "");
+    div.className = "card" + (canViewQueue ? (w.published ? " status-green" : " status-gray") : "");
     let html =
       "<div style=\"font-weight:800;font-size:15px;color:var(--dark);font-family:'Poppins',sans-serif;\">" + esc(w.word) + "</div>" +
       "<div style='font-size:13px;color:var(--text-muted);margin-top:4px;'>" + esc(w.definition) + "</div>";
-    if (user.role === "mistrova") {
+    if (canViewQueue) {
       if (w.published) {
         html += "<div class='word-status-note green'>&#9989; Studenti už toto slovo vidí</div>";
       } else if (w.bumped_at) {
-        html +=
-          "<div class='word-status-note green'>&#128204; Naplánováno jako další (v pořadí " + bumpedRanks.get(w.id) + ".)</div>" +
-          "<button class='btn-secondary' style='width:auto;padding:6px 12px;font-size:12.5px;margin-top:4px;' data-unbump='" + w.id + "'>Zrušit naplánování</button>";
+        html += "<div class='word-status-note green'>&#128204; Naplánováno jako další (v pořadí " + bumpedRanks.get(w.id) + ".)</div>";
+        if (canEditQueue) {
+          html += "<button class='btn-secondary' style='width:auto;padding:6px 12px;font-size:12.5px;margin-top:4px;' data-unbump='" + w.id + "'>Zrušit naplánování</button>";
+        }
       } else {
-        html +=
-          "<div class='word-status-note gray'>&#8987; Ve frontě - studenti to ještě neviděli</div>" +
-          "<button class='btn-secondary' style='width:auto;padding:6px 12px;font-size:12.5px;margin-top:4px;' data-bump='" + w.id + "'>Přidat jako další</button>";
+        html += "<div class='word-status-note gray'>&#8987; Ve frontě - studenti to ještě neviděli</div>";
+        if (canEditQueue) {
+          html += "<button class='btn-secondary' style='width:auto;padding:6px 12px;font-size:12.5px;margin-top:4px;' data-bump='" + w.id + "'>Přidat jako další</button>";
+        }
       }
     }
     div.innerHTML = html;
-    if (user.role === "mistrova") {
+    if (canViewQueue) {
       div.style.cursor = "pointer";
       div.onclick = (e) => {
         if (e.target.closest("[data-bump],[data-unbump]")) return;
@@ -6156,7 +6278,7 @@ async function renderLeaderboardAdmin() {
 async function renderLeaderboard() {
   if (!user) return;
 
-  if (user.role === "mistrova") {
+  if (user.role === "mistrova" || user.role === "mistrova_view") {
     document.getElementById("studentLeaderboardContent").classList.add("hidden");
     document.getElementById("teacherLeaderboardContent").classList.remove("hidden");
     renderLeaderboardAdmin();
@@ -6631,6 +6753,11 @@ async function openCompetitorDetail(id) {
   document.getElementById("compDetailRocnikMove").value = String(r.rocnik);
   document.getElementById("compDetailRocnikMoveMsg").textContent = "";
   document.getElementById("compDetailDiplomaBtn").classList.toggle("hidden", !r.last_year_label);
+  // Přesun ročníku a smazání účtu jsou nevratné/citlivé zásahy - jen pro
+  // skutečnou mistrovou, ne pro mistrovou (náhled) s právy jen na čtení.
+  const canEditStudent = user.role === "mistrova";
+  document.getElementById("compDetailRocnikMoveField").classList.toggle("hidden", !canEditStudent);
+  document.getElementById("compDetailDangerZone").classList.toggle("hidden", !canEditStudent);
 
   document.getElementById("compDetailQuizCount").textContent = "…";
   document.getElementById("compDetailChallengeCount").textContent = "…";
@@ -7099,8 +7226,8 @@ async function renderProfile() {
   const preferredAddressSection = document.getElementById("preferredAddressSection");
   const praxeSection = document.getElementById("praxeSection");
 
-  if (user.role === "mistrova") {
-    document.getElementById("profileMeta").textContent = "Učitel";
+  if (user.role === "mistrova" || user.role === "mistrova_view") {
+    document.getElementById("profileMeta").textContent = user.role === "mistrova" ? "Učitel" : "Učitel (náhled)";
     pointsSection.classList.add("hidden");
     preferredAddressSection.classList.add("hidden");
     praxeSection.classList.add("hidden");
@@ -7407,6 +7534,11 @@ async function computeNavBadges() {
   // v náhledu nezobrazují.
   if (previewStudentId) return;
 
+  // Mistrová (náhled) nemá žádné z těchhle odznaků - Kvízy/Výzvy/Dotazy ke
+  // schválení jsou úkoly jen pro skutečnou mistrovou a Zprávy jsou pro ni
+  // úplně mimo rozsah.
+  if (user.role === "mistrova_view") return;
+
   if (user.role === "student") {
     const seenQuizIds = await getSeenSet("forkit_seen_quiz_ids");
     const seenSubmissionDecisions = await getSeenSet("forkit_seen_quiz_submission_decisions");
@@ -7455,6 +7587,13 @@ let currentChatThreadStudentId = null;
 
 async function renderMessages() {
   if (!user) return;
+  // Zprávy jsou soukromá linka mezi studenty a skutečnou mistrovou - mistrová
+  // (náhled) sem nemá chodit vůbec (nav item je schovaný), ale kdyby se sem
+  // přesto dostala, ať nevidí ani neposílá nic.
+  if (user.role === "mistrova_view") {
+    showScreen("home");
+    return;
+  }
   const isTeacher = user.role === "mistrova";
   document.getElementById("studentMessagesContent").classList.toggle("hidden", isTeacher);
   document.getElementById("teacherMessagesContent").classList.toggle("hidden", !isTeacher);
