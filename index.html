@@ -1411,6 +1411,15 @@
           </div>
         </div>
 
+        <!-- Test osobnosti jen pro mistrovou (náhled) - ze zvědavosti, výsledek
+             vidí jen ona sama (get_my_personality_result vrací jen vlastní řádek). -->
+        <div class="hidden" id="personalityViewerSection">
+          <h2 class="section-title">Test osobnosti</h2>
+          <div class="card" style="text-align:center;cursor:pointer;" onclick="openPersonalityTest('profile')">
+            <div id="personalityViewerCardContent"></div>
+          </div>
+        </div>
+
         <h2 class="section-title">Heslo</h2>
         <button class="btn-secondary" id="changePasswordToggleBtn" onclick="toggleChangePassword()">Změnit heslo</button>
         <div id="changePasswordForm" class="hidden">
@@ -3718,7 +3727,10 @@ const PERSONALITY_TYPES = {
 };
 
 async function loadPersonalityResult() {
-  if (!user || user.role !== "student") { personalityResult = null; return; }
+  // Test osobnosti smí (kromě studentů) vyplnit i mistrová (náhled) - jen ze
+  // zvědavosti, na svém profilu, a výsledek vidí jen ona (get_my_personality_result
+  // vrací vždy jen řádek volajícího uživatele).
+  if (!user || (user.role !== "student" && user.role !== "mistrova_view")) { personalityResult = null; return; }
   const { data, error } = await sb.rpc("get_my_personality_result");
   personalityResult = (!error && data && data[0]) ? data[0] : null;
 }
@@ -3824,9 +3836,10 @@ async function submitPersonalityTest() {
   }
   clearPersonalityProgress();
   personalityResult = { type_code: data, answers: personalityAnswers.slice(), completed_at: new Date().toISOString() };
-  // Server přičetl 5 b. za vyplnění (viz submit_personality_test) - promítnout
+  // Server přičetl 5 b. za vyplnění (viz submit_personality_test), ale jen
+  // studentům - mistrová (náhled) si test dělá jen ze zvědavosti, promítnout
   // hned i do appky, ať se to ukáže na Domů/Profilu bez nutnosti znovu se přihlásit.
-  user.points = (user.points || 0) + 5;
+  if (user.role === "student") user.points = (user.points || 0) + 5;
   renderHomePersonalityPrompt();
   renderPersonalityResult();
   showScreen("personality-result");
@@ -3843,7 +3856,7 @@ function renderPersonalityResult() {
     "<div class='card' style='text-align:center;'>" +
     "<div style='font-size:30px;font-weight:800;color:var(--primary);font-family:\"Poppins\",sans-serif;'>" + esc(personalityResult.type_code) + "</div>" +
     "<div style='font-size:15px;font-weight:700;margin-top:2px;'>" + esc(info.title) + "</div>" +
-    "<div style='font-size:13px;color:var(--green);font-weight:700;margin-top:8px;'>+5 b. za vyplnění testu</div>" +
+    (user.role === "student" ? "<div style='font-size:13px;color:var(--green);font-weight:700;margin-top:8px;'>+5 b. za vyplnění testu</div>" : "") +
     "<div style='font-size:13px;color:var(--text);margin-top:10px;line-height:1.5;text-align:left;'>" + esc(info.desc) + "</div>" +
     "</div>";
 
@@ -7243,7 +7256,7 @@ async function renderProfile() {
     avatarEl.innerHTML = "<span id='profileInitials'>" + esc(initials(user.name)) + "</span>";
   }
   let nameHtml = esc(user.name);
-  if (user.role === "student" && personalityResult && personalityResult.type_code) {
+  if ((user.role === "student" || user.role === "mistrova_view") && personalityResult && personalityResult.type_code) {
     nameHtml += " <span style='display:inline-block;font-size:12px;font-weight:700;color:var(--primary);background:#FFF6D9;padding:2px 8px;border-radius:8px;vertical-align:middle;'>" + esc(personalityResult.type_code) + "</span>";
   }
   document.getElementById("profileName").innerHTML = nameHtml;
@@ -7252,12 +7265,29 @@ async function renderProfile() {
   const pointsSection = document.getElementById("profilePointsSection");
   const preferredAddressSection = document.getElementById("preferredAddressSection");
   const praxeSection = document.getElementById("praxeSection");
+  const personalityViewerSection = document.getElementById("personalityViewerSection");
 
   if (user.role === "mistrova" || user.role === "mistrova_view") {
     document.getElementById("profileMeta").textContent = user.role === "mistrova" ? "Učitel" : "Učitel (náhled)";
     pointsSection.classList.add("hidden");
     preferredAddressSection.classList.add("hidden");
     praxeSection.classList.add("hidden");
+
+    // Test osobnosti ze zvědavosti - jen mistrová (náhled), skutečná mistrová
+    // ho na svém profilu nemá.
+    personalityViewerSection.classList.toggle("hidden", user.role !== "mistrova_view");
+    if (user.role === "mistrova_view") {
+      const contentEl = document.getElementById("personalityViewerCardContent");
+      if (personalityResult && personalityResult.type_code) {
+        contentEl.innerHTML =
+          "<div style='font-size:22px;font-weight:800;color:var(--primary);font-family:\"Poppins\",sans-serif;'>" + esc(personalityResult.type_code) + "</div>" +
+          "<div style='font-size:12px;color:var(--text-muted);margin-top:4px;'>Klepni pro zobrazení výsledku</div>";
+      } else {
+        contentEl.innerHTML =
+          "<div style='font-size:14px;font-weight:700;color:var(--dark);'>Zjistěte svůj typ osobnosti</div>" +
+          "<div style='font-size:12px;color:var(--text-muted);margin-top:4px;'>Klepněte a vyplňte test &middot; cca 5 minut &middot; výsledek uvidíte jen vy</div>";
+      }
+    }
     return;
   }
 
