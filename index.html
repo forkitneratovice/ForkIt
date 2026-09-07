@@ -486,7 +486,7 @@
   .pexeso-card-back .term-text { font-size: 11px; font-weight: 700; color: var(--dark); line-height: 1.25; margin: auto; }
   .pexeso-card.zoomed {
     position: fixed; top: 50%; left: 50%; width: 220px; height: 290px;
-    margin: -145px 0 0 -110px; z-index: 600;
+    margin: -145px 0 0 -110px; z-index: 600; opacity: 1;
   }
   .pexeso-card.zoomed .pexeso-card-back { box-shadow: 0 10px 40px rgba(0,0,0,0.35); padding: 12px; }
   .pexeso-card.zoomed .pexeso-card-back .term-text { font-size: 17px; }
@@ -1725,6 +1725,9 @@
 
         <div id="compDetailPersonality"></div>
 
+        <h2 class="section-title">Procvičování</h2>
+        <div id="compDetailPractice"></div>
+
         <h2 class="section-title">Kvízy</h2>
         <div id="compDetailQuizList"><div class="empty-note">Načítám...</div></div>
 
@@ -1841,7 +1844,7 @@
           <p class="help-text">Ideální na rozehřátí před ostrým pokusem u kvízu.</p>
           <p class="help-text"><strong>Kvízy nanečisto:</strong> stejné otázky jako ostré kvízy, ale bez omezení počtu pokusů ani čekací doby mezi nimi – klidně si kvíz zkuste vícekrát za sebou, dokud si nebudete jistí, a teprve pak ho zkuste nanečisto.</p>
           <p class="help-text"><strong>Slovíčka:</strong> kartičky ze slovníku se skutečným rozloženým opakováním (jako Anki). Klepnutím na kartičku uvidíte pojem, zkuste si v hlavě říct definici a dalším klepnutím kartičku otočíte a definici zkontrolujete. Pak se sami ohodnotíte – Neumím / Chci si to ještě procvičit vrátí slovíčko brzy zpátky, Umím ho na pár dní schová a samo se vrátí k ověření později (čím déle ho umíte, tím delší přestávku dostane). Když nemáte zrovna nic na opakování, appka vám to napíše.</p>
-          <p class="help-text"><strong>Pexeso:</strong> hledáte dvojice název pojmu + odpovídající obrázek, pokaždé z náhodně vylosovaných 10 dvojic z celého balíku. Appka počítá tahy (kolikrát jste porovnávali dvojici kartiček) – čím míň, tím lepší skóre, a appka vám ukáže, jestli jste právě překonali svůj rekord. Klepnutím kartičku otočíte, dalším klepnutím na tu samou (i tu druhou, právě odkrytou, nebo i libovolnou už spárovanou) ji zvětšíte, ať obrázek pořádně poznáte – zůstane zvětšená, dokud na ni znovu neklepnete. U špatné dvojice se pak obě hned otočí zpátky; u poslední spárované dvojice kola se hned potom appka přepne na obrazovku Hotovo.</p>
+          <p class="help-text"><strong>Pexeso:</strong> hledáte dvojice název pojmu + odpovídající obrázek, pokaždé z náhodně vylosovaných 10 dvojic z celého balíku. Appka počítá tahy (kolikrát jste porovnávali dvojici kartiček) – čím míň, tím lepší skóre, a appka vám ukáže, jestli jste právě překonali svůj rekord. Klepnutím kartičku otočíte, dalším klepnutím na tu samou (i tu druhou, právě odkrytou, nebo i libovolnou už spárovanou) ji zvětšíte, ať obrázek pořádně poznáte – zůstane zvětšená, dokud na ni znovu neklepnete. U špatné dvojice se pak obě hned otočí zpátky; u poslední spárované dvojice kola se hned potom appka přepne na obrazovku Hotovo. Nikam ale spěchat nemusíte, ale ani čekat – kdo nepotřebuje tolik času, může rovnou klepnout na další kartičku a špatná dvojice se sama hned otočí zpátky.</p>
           <p class="help-text"><strong>Body za procvičování:</strong> za první dokončený kvíz nanečisto, první splněné opakování slovíček a první dohrané kolo pexesa v daný den dostanete +1 bod – nejvýš 3 body denně dohromady, ať procvičujete v jedné sekci nebo ve všech třech. Je to jen malá odměna navíc, hlavní body pořád nesou ostré kvízy a výzvy.</p>
           <p class="help-text">Za pravidelné procvičování jsou i odznáčky v sekci Úspěchy: Pilná píle (procvičuj 5 různých dnů), Procvičovací týden (denní bonus 7 dní v řadě), Trenér/ka (10 kvízů nanečisto), Slovní expert (50 slovíček poprvé jako Umím) a Pexeso mistr/mistryně (20 kol pexesa).</p>
         </div>
@@ -6480,7 +6483,12 @@ function pexesoCardClick(i) {
     return;
   }
 
-  if (pexesoBusy) return;
+  if (pexesoBusy) {
+    // Student nemusí čekat, až appka sama otočí špatnou dvojici zpátky -
+    // klepnutím na další (novou) kartičku dvojici hned dokončíme a
+    // pokračujeme rovnou touto novou kartičkou.
+    finishPexesoMismatch();
+  }
 
   if (pexesoZoomedIndex !== null) pexesoZoomedIndex = null;
 
@@ -7117,6 +7125,7 @@ async function openCompetitorDetail(id) {
   document.getElementById("compDetailChallengeList").innerHTML = "<div class='empty-note'>Načítám...</div>";
   document.getElementById("compDetailBadges").innerHTML = "";
   document.getElementById("compDetailPersonality").innerHTML = "";
+  document.getElementById("compDetailPractice").innerHTML = "<div class='empty-note'>Načítám...</div>";
 
   const [statsRes, quizRes, challengeRes, persRes] = await Promise.all([
     sb.rpc("get_student_badges_stats", { p_student_id: id }),
@@ -7142,10 +7151,12 @@ async function openCompetitorDetail(id) {
     document.getElementById("compDetailChallengeCount").textContent = b.challenges_completed;
     document.getElementById("compDetailStreak").textContent = b.login_streak || 0;
     renderCompetitorBadges(b);
+    renderCompetitorPractice(b);
   } else {
     document.getElementById("compDetailQuizCount").textContent = "0";
     document.getElementById("compDetailChallengeCount").textContent = "0";
     document.getElementById("compDetailStreak").textContent = "0";
+    document.getElementById("compDetailPractice").innerHTML = "<div class='empty-note'>Nepodařilo se načíst statistiky procvičování.</div>";
   }
 
   const persEl = document.getElementById("compDetailPersonality");
@@ -7207,6 +7218,34 @@ async function openCompetitorDetail(id) {
 
 function renderCompetitorBadges(b) {
   renderBadgeCatalogInto(document.getElementById("compDetailBadges"), buildBadgeCatalog(b));
+}
+
+// Přehled, jak moc student využívá dobrovolné Procvičování (kvízy nanečisto,
+// slovíčka, pexeso) - mistrová podle toho pozná, jestli to studenti berou,
+// aniž by musela procházet jednotlivé pokusy. Vychází ze stejných čísel jako
+// odznáčky (get_student_badges_stats), jen je tu zobrazuje rovnou v součtech.
+function renderCompetitorPractice(b) {
+  const el = document.getElementById("compDetailPractice");
+  const quizTotal = b.practice_quiz_total || 0;
+  const flashTotal = b.flashcards_sessions_total || 0;
+  const pexesoTotal = b.pexeso_rounds_total || 0;
+  if (quizTotal === 0 && flashTotal === 0 && pexesoTotal === 0) {
+    el.innerHTML = "<div class='empty-note'>Zatím nevyužil/a Procvičování (ani kvízy nanečisto, ani slovíčka, ani pexeso).</div>";
+    return;
+  }
+  const lastLabel = b.last_practice_at ? new Date(b.last_practice_at).toLocaleDateString("cs-CZ") : "—";
+  el.innerHTML =
+    "<div class='comp-stat-grid' style='grid-template-columns: repeat(3, 1fr);'>" +
+    "<div class='comp-stat-card'><div class='comp-stat-num'>" + quizTotal + "</div><div class='comp-stat-label'>kvízů nanečisto</div></div>" +
+    "<div class='comp-stat-card'><div class='comp-stat-num'>" + flashTotal + "</div><div class='comp-stat-label'>kontrol slovíček</div></div>" +
+    "<div class='comp-stat-card'><div class='comp-stat-num'>" + pexesoTotal + "</div><div class='comp-stat-label'>kol pexesa</div></div>" +
+    "</div>" +
+    "<div class='comp-stat-grid' style='grid-template-columns: repeat(3, 1fr); margin-top:8px;'>" +
+    "<div class='comp-stat-card'><div class='comp-stat-num'>" + (b.words_known_first_time || 0) + "</div><div class='comp-stat-label'>naučených slov</div></div>" +
+    "<div class='comp-stat-card'><div class='comp-stat-num'>" + (b.practice_days_active || 0) + "</div><div class='comp-stat-label'>aktivních dní</div></div>" +
+    "<div class='comp-stat-card'><div class='comp-stat-num'>" + (b.practice_streak || 0) + "</div><div class='comp-stat-label'>dní v řadě</div></div>" +
+    "</div>" +
+    "<p class='help-text' style='margin-top:8px;'>Naposledy procvičoval/a: " + esc(lastLabel) + "</p>";
 }
 
 // ---------- Přesun studenta do konkrétního ročníku (např. opakuje ročník) ----------
@@ -7310,6 +7349,12 @@ function exportCompetitorExcel() {
     ["Splněné kvízy", d.stats ? d.stats.completed_quizzes : 0],
     ["Splněné výzvy", d.stats ? d.stats.challenges_completed : 0],
     ["Test osobnosti", d.personality ? d.personality.type_code : "nevyplněno"],
+    ["Procvičování - kvízy nanečisto", d.stats ? (d.stats.practice_quiz_total || 0) : 0],
+    ["Procvičování - kontrol slovíček", d.stats ? (d.stats.flashcards_sessions_total || 0) : 0],
+    ["Procvičování - kol pexesa", d.stats ? (d.stats.pexeso_rounds_total || 0) : 0],
+    ["Procvičování - naučených slov", d.stats ? (d.stats.words_known_first_time || 0) : 0],
+    ["Procvičování - aktivních dní", d.stats ? (d.stats.practice_days_active || 0) : 0],
+    ["Procvičování - naposledy", d.stats && d.stats.last_practice_at ? new Date(d.stats.last_practice_at).toLocaleDateString("cs-CZ") : "nikdy"],
   ];
   if (d.student.last_year_rank_overall != null) {
     overview.push(
