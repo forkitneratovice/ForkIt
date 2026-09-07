@@ -1288,6 +1288,7 @@
           <div class="result-box">
             <div style="font-size:38px;margin-bottom:6px;">&#127881;</div>
             <div class="msg">Projel/a jsi celý balíček!</div>
+            <div class="msg" id="flashBonusMsg"></div>
             <button class="btn-primary" onclick="startFlashcardSession()">Zamíchat a projet znovu</button>
             <button class="btn-secondary" onclick="showScreen('practice-hub')">Zpět na procvičování</button>
           </div>
@@ -1303,6 +1304,7 @@
           <div class="result-box">
             <div style="font-size:38px;margin-bottom:6px;">&#127881;</div>
             <div class="msg">Všechny dvojice nalezeny!</div>
+            <div class="msg" id="pexesoBonusMsg"></div>
             <button class="btn-primary" onclick="startPexesoRound()">Zamíchat a hrát znovu</button>
             <button class="btn-secondary" onclick="showScreen('practice-hub')">Zpět na procvičování</button>
           </div>
@@ -1826,11 +1828,13 @@
 
         <div class="help-section">
           <h2 class="section-title">&#128260; Procvičování</h2>
-          <p class="help-text">V sekci Procvičování si můžete trénovat bez tlaku – kvízy nanečisto (bez bodů a bez omezení pokusů), kartičky se slovíčky na opakování a pexeso.</p>
+          <p class="help-text">V sekci Procvičování si můžete trénovat bez tlaku – kvízy nanečisto (bez omezení pokusů), kartičky se slovíčky na opakování a pexeso.</p>
           <p class="help-text">Ideální na rozehřátí před ostrým pokusem u kvízu.</p>
-          <p class="help-text"><strong>Kvízy nanečisto:</strong> stejné otázky jako ostré kvízy, ale bez bodů a bez omezení počtu pokusů ani čekací doby mezi nimi – klidně si kvíz zkuste vícekrát za sebou, dokud si nebudete jistí, a teprve pak ho zkuste nanečisto.</p>
+          <p class="help-text"><strong>Kvízy nanečisto:</strong> stejné otázky jako ostré kvízy, ale bez omezení počtu pokusů ani čekací doby mezi nimi – klidně si kvíz zkuste vícekrát za sebou, dokud si nebudete jistí, a teprve pak ho zkuste nanečisto.</p>
           <p class="help-text"><strong>Slovíčka:</strong> kartičky ze slovníku v Anki stylu. Klepnutím na kartičku uvidíte pojem, zkuste si v hlavě říct definici a dalším klepnutím kartičku otočíte a definici zkontrolujete. Pak se sami ohodnotíte – Neumím / Chci si to ještě procvičit / Umím – podle toho se karta vrátí dřív nebo později (nebo vůbec) zpátky do balíčku v rámci dané session.</p>
-          <p class="help-text"><strong>Pexeso:</strong> hledáte dvojice název pojmu + odpovídající obrázek, pokaždé z náhodně vylosovaných 10 dvojic z celého balíku. Klepnutím kartičku otočíte, dalším klepnutím na tu samou (i tu druhou, právě odkrytou) ji zvětšíte, ať obrázek pořádně poznáte – další klepnutí ji zase zmenší. Bez bodování, jen pro procvičení.</p>
+          <p class="help-text"><strong>Pexeso:</strong> hledáte dvojice název pojmu + odpovídající obrázek, pokaždé z náhodně vylosovaných 10 dvojic z celého balíku. Klepnutím kartičku otočíte, dalším klepnutím na tu samou (i tu druhou, právě odkrytou) ji zvětšíte, ať obrázek pořádně poznáte – další klepnutí ji zase zmenší.</p>
+          <p class="help-text"><strong>Body za procvičování:</strong> za první dokončený kvíz nanečisto, první projetý balíček slovíček a první dohrané kolo pexesa v daný den dostanete +1 bod – nejvýš 3 body denně dohromady, ať procvičujete v jedné sekci nebo ve všech třech. Je to jen malá odměna navíc, hlavní body pořád nesou ostré kvízy a výzvy.</p>
+          <p class="help-text">Za pravidelné procvičování jsou i odznáčky v sekci Úspěchy: Pilná píle (procvičuj 5 různých dnů), Procvičovací týden (denní bonus 7 dní v řadě), Trenér/ka (10 kvízů nanečisto), Slovní expert (50 slovíček poprvé jako Umím) a Pexeso mistr/mistryně (20 kol pexesa).</p>
         </div>
         </div>
       </div>
@@ -5035,6 +5039,20 @@ async function submitQuiz() {
   lastCorrectAnswers = result.correct_answers || [];
   document.getElementById("quizScoreText").textContent = result.score + " / " + result.total;
 
+  // Kvíz nanečisto (Procvičování) - první dokončený nanečisto kvíz dnes
+  // přidá malý bonus (viz record_practice_activity, max 3 b./den ze všeho
+  // procvičování dohromady). Mistrová/mistrova_view (náhled) body nedostávají.
+  let practiceBonusAwarded = 0;
+  if (isPracticeMode && user.role === "student") {
+    try {
+      const { data: prData } = await sb.rpc("record_practice_activity", { p_kind: "quiz", p_ref_id: currentQuiz.id });
+      if (prData && prData[0] && prData[0].points_awarded > 0) {
+        practiceBonusAwarded = prData[0].points_awarded;
+        user.points += practiceBonusAwarded;
+      }
+    } catch (e) {}
+  }
+
   const q = quizzes.find((qq) => qq.id === currentQuiz.id);
   const introEl = document.getElementById("quizScoreIntroMsg");
   const pointsEl = document.getElementById("quizPointsEarned");
@@ -5057,10 +5075,11 @@ async function submitQuiz() {
       else if (result.perfect_bonus) lines.push("Kdyby to byl student: plný počet + bonus " + bonusAmount + " b. za 100 % = " + result.earned_points + " b.");
       else lines.push("Kdyby to byl student, dostal by " + result.earned_points + " b. za tento pokus.");
     } else {
-      lines.push("Tréninkový pokus – nezapočítává se do bodů ani statistik.");
+      lines.push("Tréninkový pokus – nepočítá se do bodů za tento kvíz.");
       if (result.effort_bonus) lines.push("V ostrém kvízu bys dostal/a 1 b. za snahu.");
       else if (result.perfect_bonus) lines.push("V ostrém kvízu bys dostal/a plný počet + bonus " + bonusAmount + " b. za 100 % = " + result.earned_points + " b.");
       else lines.push("V ostrém kvízu bys dostal/a " + result.earned_points + " b. za tento pokus.");
+      if (practiceBonusAwarded > 0) lines.push("Za dnešní procvičování navíc dostáváš +" + practiceBonusAwarded + " b.");
     }
     introEl.innerHTML = lines.join("<br>");
   } else {
@@ -6207,8 +6226,28 @@ function updateFlashProgress() {
   document.getElementById("flashProgress").textContent = "Umíš " + known + " z " + flashAllWords.length;
 }
 
+// Sdílené pro Slovíčka i Pexeso (Kvíz nanečisto to volá sám inline, protože
+// potřebuje výsledek dřív, než sestaví text na obrazovce s výsledkem) -
+// zapíše dokončení do practice_activity_log a případný bonus (+1 b., max
+// 3 b./den ze všeho procvičování dohromady) rovnou zobrazí v dané obrazovce.
+// Studentům, kteří dnes bonus za tento typ procvičování už mají, se prostě
+// nic nepíše - žádná chybová hláška, ať to nepůsobí jako problém.
+async function awardPracticeBonus(kind, refId, msgElementId) {
+  if (!user || user.role !== "student") return;
+  try {
+    const { data } = await sb.rpc("record_practice_activity", { p_kind: kind, p_ref_id: refId });
+    const awarded = data && data[0] ? data[0].points_awarded : 0;
+    if (awarded > 0) {
+      user.points += awarded;
+      const el = document.getElementById(msgElementId);
+      if (el) el.textContent = "+" + awarded + " b. za dnešní procvičování";
+    }
+  } catch (e) {}
+}
+
 function startFlashcardSession() {
   document.getElementById("flashDoneState").classList.add("hidden");
+  document.getElementById("flashBonusMsg").textContent = "";
   document.getElementById("flashCard").classList.remove("hidden");
   document.getElementById("flashHint").classList.remove("hidden");
   flashDeck = shuffleArray(flashAllWords);
@@ -6227,6 +6266,7 @@ function showNextFlashcard() {
     document.getElementById("flashCard").classList.add("hidden");
     document.getElementById("flashHint").classList.add("hidden");
     document.getElementById("flashDoneState").classList.remove("hidden");
+    awardPracticeBonus("flashcards", null, "flashBonusMsg");
     return;
   }
   flashCurrent = flashDeck.shift();
@@ -6299,6 +6339,7 @@ function startPexesoRound() {
   pexesoMismatchPair = null;
   document.getElementById("pexesoGrid").classList.remove("hidden");
   document.getElementById("pexesoDoneState").classList.add("hidden");
+  document.getElementById("pexesoBonusMsg").textContent = "";
   renderPexesoGrid();
 }
 
@@ -6369,6 +6410,7 @@ function pexesoCardClick(i) {
       setTimeout(() => {
         document.getElementById("pexesoGrid").classList.add("hidden");
         document.getElementById("pexesoDoneState").classList.remove("hidden");
+        awardPracticeBonus("pexeso", null, "pexesoBonusMsg");
       }, 500);
     }
   } else {
@@ -7615,6 +7657,13 @@ function buildBadgeCatalog(b) {
     mk("Žebříček", "rank_jump_5", "&#128640;", "Postup o 5 míst", "Poskoč v žebříčku aspoň o 5 míst nahoru."),
     mk("Žebříček", "rank_jump_10", "&#128640;", "Postup o 10 míst", "Poskoč v žebříčku aspoň o 10 míst nahoru."),
 
+    // ---- Procvičování ----
+    mk("Procvičování", "practice_days5", "&#128218;", "Pilná píle", "Procvičuj (kvízy nanečisto, slovíčka nebo pexeso) 5 různých dnů.", Math.min(b.practice_days_active || 0, 5) + " / 5 dnů"),
+    mk("Procvičování", "practice_streak7", "&#128293;", "Procvičovací týden", "Získej denní bonus za procvičování 7 dní v řadě.", Math.min(b.practice_streak || 0, 7) + " / 7 dnů"),
+    mk("Procvičování", "practice_quiz10", "&#9989;", "Trenér/ka", "Dokonči celkem 10 kvízů nanečisto.", Math.min(b.practice_quiz_total || 0, 10) + " / 10"),
+    mk("Procvičování", "words_known50", "&#128218;", "Slovní expert", "Označ 50 různých slovíček poprvé jako Umím.", Math.min(b.words_known_first_time || 0, 50) + " / 50"),
+    mk("Procvičování", "pexeso_rounds20", "&#127183;", "Pexeso mistr/mistryně", "Dohraj celkem 20 kol pexesa.", Math.min(b.pexeso_rounds_total || 0, 20) + " / 20"),
+
     // ---- Různé ----
     mk("Různé", "personality", "&#129504;", "Sebepoznání", "Vyplň test osobnosti."),
     mk("Různé", "explorer", "&#128506;", "Objevitel", "Projdi si všechny hlavní sekce appky."),
@@ -7626,7 +7675,7 @@ function buildBadgeCatalog(b) {
   ];
 }
 
-const BADGE_SECTION_ORDER = ["Aktivita", "Kvízy", "Výzvy", "Komunita", "Žebříček", "Různé", "Výročí"];
+const BADGE_SECTION_ORDER = ["Aktivita", "Kvízy", "Výzvy", "Komunita", "Žebříček", "Procvičování", "Různé", "Výročí"];
 
 // Klik na kartu ji otočí (a znovu klik otočí zpátky) - datum získání je na
 // zadní straně, ať se hlavní mřížka zbytečně nepřeplácá texty.
