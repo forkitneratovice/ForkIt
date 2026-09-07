@@ -3244,7 +3244,7 @@ function showScreen(name) {
   if (name === "competitors") renderCompetitors();
   if (name === "practice-quizzes") renderPracticeQuizzes();
   if (name === "flashcards") openFlashcards();
-  if (name === "pexeso") { startPexesoRound(); refreshPexesoBest(); }
+  if (name === "pexeso") { if (!tryResumePexeso()) startPexesoRound(); refreshPexesoBest(); }
   if (name === "faq") renderFaqFeedback();
   if (name === "help") resetAppSearch();
   if (name === "inactive-students") renderInactiveStudents();
@@ -6395,6 +6395,74 @@ function shuffleArray(arr) {
   return a;
 }
 
+// Uloží rozehrané (ale ještě nedohrané) kolo do localStorage, ať appka na
+// telefonu kolo neztratí, když ji systém na pozadí "vyhodí z paměti" (typicky
+// po přepnutí do jiné appky) - viz i RESUMABLE_SCREENS. Ukládá se jen název
+// pojmu u každé kartičky (ne obrázek samotný - ten se dotáhne zpátky z
+// PEXESO_ITEMS podle názvu), ať se do localStorage nekopírují velké obrázky.
+// Rozehraná, ale zatím nespárovaná otočená kartička (a případná právě
+// probíhající špatná dvojice) se schválně neukládá - po obnovení appky ji
+// student jednoduše otočí znovu, není o co přijít.
+function pexesoCardTerm(card) {
+  if (card.kind === "term") return card.content;
+  const sibling = pexesoCards.find((c) => c.pairId === card.pairId && c.kind === "term");
+  return sibling ? sibling.content : null;
+}
+
+function savePexesoProgress() {
+  if (!pexesoCards.length) return;
+  try {
+    localStorage.setItem("forkit_pexeso_progress", JSON.stringify({
+      cards: pexesoCards.map((c) => ({ term: pexesoCardTerm(c), kind: c.kind, matched: c.matched })),
+      moves: pexesoMoves,
+    }));
+  } catch (e) {}
+}
+
+function clearPexesoProgress() {
+  try { localStorage.removeItem("forkit_pexeso_progress"); } catch (e) {}
+}
+
+// Zkusí obnovit rozehrané kolo uložené v localStorage (viz savePexesoProgress
+// výše) - vrací true, pokud se povedlo (appka pak nerozdává nové kolo, jen
+// pokračuje ve starém). Pokud mezitím mistrová balík pojmů upravila natolik,
+// že už uložené názvy nesedí, radši bezpečně rozdáme nové kolo.
+function tryResumePexeso() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem("forkit_pexeso_progress") || "null"); } catch (e) {}
+  if (!saved || !Array.isArray(saved.cards) || !saved.cards.length) return false;
+
+  let nextPairId = 0;
+  const pairIdByTerm = {};
+  const cards = [];
+  for (const sc of saved.cards) {
+    const item = PEXESO_ITEMS.find((it) => it.term === sc.term);
+    if (!item) return false;
+    if (!(sc.term in pairIdByTerm)) pairIdByTerm[sc.term] = nextPairId++;
+    cards.push({
+      pairId: pairIdByTerm[sc.term],
+      kind: sc.kind,
+      content: sc.kind === "image" ? item.img : item.term,
+      flipped: !!sc.matched,
+      matched: !!sc.matched,
+    });
+  }
+
+  if (pexesoMismatchTimeout) { clearTimeout(pexesoMismatchTimeout); pexesoMismatchTimeout = null; }
+  if (pexesoRoundDoneTimeout) { clearTimeout(pexesoRoundDoneTimeout); pexesoRoundDoneTimeout = null; }
+  pexesoCards = cards;
+  pexesoFlippedIndex = null;
+  pexesoZoomedIndex = null;
+  pexesoBusy = false;
+  pexesoMismatchPair = null;
+  pexesoMoves = typeof saved.moves === "number" ? saved.moves : 0;
+  document.getElementById("pexesoGrid").classList.remove("hidden");
+  document.getElementById("pexesoDoneState").classList.add("hidden");
+  document.getElementById("pexesoBonusMsg").textContent = "";
+  renderPexesoGrid();
+  return true;
+}
+
 function startPexesoRound() {
   const pool = shuffleArray(PEXESO_ITEMS).slice(0, Math.min(PEXESO_ROUND_SIZE, PEXESO_ITEMS.length));
   const cards = [];
@@ -6404,6 +6472,7 @@ function startPexesoRound() {
   });
   if (pexesoMismatchTimeout) { clearTimeout(pexesoMismatchTimeout); pexesoMismatchTimeout = null; }
   if (pexesoRoundDoneTimeout) { clearTimeout(pexesoRoundDoneTimeout); pexesoRoundDoneTimeout = null; }
+  clearPexesoProgress();
   pexesoCards = shuffleArray(cards);
   pexesoFlippedIndex = null;
   pexesoZoomedIndex = null;
@@ -6465,6 +6534,7 @@ function finishPexesoMismatch() {
 // zmenší - viz níže).
 function finishPexesoRound() {
   if (pexesoRoundDoneTimeout) { clearTimeout(pexesoRoundDoneTimeout); pexesoRoundDoneTimeout = null; }
+  clearPexesoProgress();
   document.getElementById("pexesoGrid").classList.add("hidden");
   document.getElementById("pexesoDoneState").classList.remove("hidden");
   awardPracticeBonus("pexeso", null, "pexesoBonusMsg", pexesoMoves);
@@ -6541,6 +6611,7 @@ function pexesoCardClick(i) {
     card.matched = true;
     pexesoFlippedIndex = null;
     renderPexesoGrid();
+    savePexesoProgress();
     if (pexesoCards.every((c) => c.matched)) {
       pexesoRoundDoneTimeout = setTimeout(finishPexesoRound, 1800);
     }
@@ -6548,6 +6619,7 @@ function pexesoCardClick(i) {
     pexesoBusy = true;
     pexesoMismatchPair = [pexesoFlippedIndex, i];
     pexesoMismatchTimeout = setTimeout(finishPexesoMismatch, 1800);
+    savePexesoProgress();
   }
 }
 
