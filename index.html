@@ -1221,6 +1221,34 @@
           <span class="title">Pexeso</span>
           <span class="desc">Najdi dvojice název + obrázek. Pokaždé jiná sada pojmů.</span>
         </button>
+        <button class="practice-hub-btn" onclick="showScreen('practice-materials')">
+          <span class="icon">&#128196;</span>
+          <span class="title">Materiály</span>
+          <span class="desc">Studijní materiály ke zobrazení a stažení.</span>
+        </button>
+      </div>
+
+      <!-- PROCVIČOVÁNÍ: MATERIÁLY -->
+      <div class="screen hidden" id="screen-practice-materials">
+        <span class="back-link" onclick="showScreen('practice-hub')">&larr; Zpět na procvičování</span>
+        <button class="btn-primary hidden" id="materialsUploadBtn" onclick="openMaterialUpload()">+ Nahrát materiál</button>
+        <div id="materialsList" style="margin-top:10px;"><div class="empty-note">Načítám...</div></div>
+      </div>
+
+      <!-- NAHRÁT MATERIÁL (jen mistrová) -->
+      <div class="screen hidden" id="screen-material-upload">
+        <span class="back-link" onclick="showScreen('practice-materials')">&larr; Zpět na materiály</span>
+        <h2 class="section-title">Nový materiál</h2>
+        <div class="field">
+          <label>Název</label>
+          <input type="text" id="materialTitleInput" placeholder="např. Tepelná úprava">
+        </div>
+        <div class="field">
+          <label>Soubor</label>
+          <input type="file" id="materialFileInput">
+        </div>
+        <div id="materialUploadError"></div>
+        <button class="btn-primary" id="materialUploadBtn" onclick="saveMaterialUpload()">Nahrát materiál</button>
       </div>
 
       <!-- PROCVIČOVÁNÍ: SEZNAM KVÍZŮ K TRÉNINKU -->
@@ -2622,7 +2650,7 @@ function hasPersistedSupabaseSession() {
 // o pár řádků níž – kdyby byl RESUMABLE_SCREENS deklarovaný až za tím
 // (přes const), skončilo by to chybou "Cannot access before initialization"
 // a celá appka by se nenačetla.)
-const RESUMABLE_SCREENS = ["home", "quizzes", "quiz-take", "personality-take", "challenges", "practice-hub", "practice-quizzes", "flashcards", "pexeso", "slovnik", "leaderboard", "competitors", "achievements", "messages", "profile"];
+const RESUMABLE_SCREENS = ["home", "quizzes", "quiz-take", "personality-take", "challenges", "practice-hub", "practice-quizzes", "flashcards", "pexeso", "practice-materials", "slovnik", "leaderboard", "competitors", "achievements", "messages", "profile"];
 
 if (!hasPersistedSupabaseSession()) {
   showScreen("login");
@@ -3213,6 +3241,8 @@ function showScreen(name) {
     "practice-quizzes": ["Kvízy nanečisto", "Tréninkový režim"],
     flashcards: ["Slovíčka", "Procvičuj jako kartičky"],
     pexeso: ["Pexeso", "Najdi dvojice název + obrázek"],
+    "practice-materials": ["Materiály", "Studijní materiály ke stažení"],
+    "material-upload": ["Nový materiál", "Nahrát studijní materiál"],
     leaderboard: ["Žebříček", "Jak si vedeš"],
     competitors: ["Soutěžící", "Přehled studentů"],
     "competitor-detail": ["Student", "Detail studenta"],
@@ -3248,6 +3278,7 @@ function showScreen(name) {
   if (name === "practice-quizzes") renderPracticeQuizzes();
   if (name === "flashcards") openFlashcards();
   if (name === "pexeso") { if (!tryResumePexeso()) startPexesoRound(); refreshPexesoBest(); }
+  if (name === "practice-materials") renderPracticeMaterials();
   if (name === "faq") renderFaqFeedback();
   if (name === "help") resetAppSearch();
   if (name === "inactive-students") renderInactiveStudents();
@@ -6387,6 +6418,157 @@ async function refreshPexesoBest() {
   el.textContent = pexesoBestMoves != null
     ? "Tvůj rekord: " + pexesoBestMoves + " tahů"
     : "Zatím žádný rekord - tohle je tvé první dohrané kolo!";
+}
+
+// ---------- MATERIÁLY (studijní materiály ke zobrazení/stažení, jen mistrová je nahrává) ----------
+let allMaterials = [];
+
+function formatMaterialSize(bytes) {
+  if (!bytes && bytes !== 0) return "";
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + " kB";
+  return (bytes / 1024 / 1024).toFixed(1) + " MB";
+}
+
+function materialPublicUrl(path) {
+  const { data } = sb.storage.from("practice-materials").getPublicUrl(path);
+  return data.publicUrl;
+}
+
+// Prohlížeč umí nativně zobrazit jen PDF a obrázky - u ostatních typů (Word,
+// PowerPoint, Excel...) použijeme Google Docs Viewer, který soubor "umí"
+// vykreslit rovnou z veřejné URL, aniž bychom si museli sami hlídat převod.
+function viewMaterial(m) {
+  const url = materialPublicUrl(m.storage_path);
+  const viewableInline = /\.(pdf|jpe?g|png|gif|webp)$/i.test(m.file_name || "");
+  const finalUrl = viewableInline ? url : ("https://docs.google.com/viewer?embedded=true&url=" + encodeURIComponent(url));
+  window.open(finalUrl, "_blank");
+}
+
+function downloadMaterial(m) {
+  const url = materialPublicUrl(m.storage_path);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = m.file_name || m.title;
+  a.target = "_blank";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+async function renderPracticeMaterials() {
+  const el = document.getElementById("materialsList");
+  el.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const isTeacher = user.role === "mistrova";
+  document.getElementById("materialsUploadBtn").classList.toggle("hidden", !isTeacher);
+
+  const { data, error } = await sb.from("practice_materials")
+    .select("id,title,file_name,storage_path,mime_type,file_size,created_at")
+    .order("created_at", { ascending: false });
+  if (error) {
+    el.innerHTML = "<div class='empty-note'>Nepodařilo se načíst materiály: " + esc(error.message) + "</div>";
+    return;
+  }
+  allMaterials = data || [];
+  if (allMaterials.length === 0) {
+    el.innerHTML = "<div class='empty-note'>Zatím tu nejsou žádné materiály.</div>";
+    return;
+  }
+  el.innerHTML = "";
+  allMaterials.forEach((m) => {
+    const div = document.createElement("div");
+    div.className = "card";
+    const sizeLabel = formatMaterialSize(m.file_size);
+    div.innerHTML =
+      "<div style=\"font-weight:800;font-size:15px;color:var(--dark);font-family:'Poppins',sans-serif;\">" + esc(m.title) + "</div>" +
+      "<div style='font-size:12.5px;color:var(--text-muted);margin-top:2px;'>" + esc(m.file_name) + (sizeLabel ? " · " + sizeLabel : "") + "</div>" +
+      "<div style='display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;'>" +
+      "<button class='btn-secondary' style='width:auto;padding:8px 14px;font-size:13px;' data-view>Zobrazit</button>" +
+      "<button class='btn-secondary' style='width:auto;padding:8px 14px;font-size:13px;' data-download>Stáhnout</button>" +
+      (isTeacher ? "<button class='btn-secondary' style='width:auto;padding:8px 14px;font-size:13px;color:var(--red);' data-delete>Smazat</button>" : "") +
+      "</div>";
+    div.querySelector("[data-view]").onclick = () => viewMaterial(m);
+    div.querySelector("[data-download]").onclick = () => downloadMaterial(m);
+    if (isTeacher) div.querySelector("[data-delete]").onclick = () => deleteMaterialConfirm(m);
+    el.appendChild(div);
+  });
+}
+
+function openMaterialUpload() {
+  document.getElementById("materialTitleInput").value = "";
+  document.getElementById("materialFileInput").value = "";
+  document.getElementById("materialUploadError").innerHTML = "";
+  showScreen("material-upload");
+}
+
+async function saveMaterialUpload() {
+  const title = document.getElementById("materialTitleInput").value.trim();
+  const fileInput = document.getElementById("materialFileInput");
+  const file = fileInput.files[0];
+  const errorEl = document.getElementById("materialUploadError");
+  errorEl.innerHTML = "";
+  if (!title) {
+    errorEl.innerHTML = "<div class='error-note'>Zadej název materiálu.</div>";
+    return;
+  }
+  if (!file) {
+    errorEl.innerHTML = "<div class='error-note'>Vyber soubor.</div>";
+    return;
+  }
+
+  const btn = document.getElementById("materialUploadBtn");
+  btn.disabled = true;
+  btn.textContent = "Nahrávám...";
+
+  try {
+    const buf = await file.arrayBuffer();
+    if (!buf || buf.byteLength === 0) {
+      errorEl.innerHTML = "<div class='error-note'>Soubor se nepodařilo načíst (je prázdný). Zkus ho vybrat znovu.</div>";
+      btn.disabled = false;
+      btn.textContent = "Nahrát materiál";
+      return;
+    }
+    const contentType = file.type || "application/octet-stream";
+    const blob = new Blob([buf], { type: contentType });
+    const ext = (file.name.split(".").pop() || "bin").toLowerCase();
+    const path = Date.now() + "_" + Math.random().toString(36).slice(2, 8) + "." + ext;
+    const { error: uploadError } = await sb.storage.from("practice-materials").upload(path, blob, { upsert: true, contentType });
+    if (uploadError) {
+      errorEl.innerHTML = "<div class='error-note'>Nepodařilo se nahrát soubor: " + esc(uploadError.message) + "</div>";
+      btn.disabled = false;
+      btn.textContent = "Nahrát materiál";
+      return;
+    }
+    const { error: rpcError } = await sb.rpc("create_practice_material", {
+      p_title: title,
+      p_file_name: file.name,
+      p_storage_path: path,
+      p_mime_type: file.type || null,
+      p_file_size: file.size,
+    });
+    btn.disabled = false;
+    btn.textContent = "Nahrát materiál";
+    if (rpcError) {
+      errorEl.innerHTML = "<div class='error-note'>Nepodařilo se uložit materiál: " + esc(rpcError.message) + "</div>";
+      return;
+    }
+    showScreen("practice-materials");
+  } catch (e) {
+    errorEl.innerHTML = "<div class='error-note'>Nastala chyba: " + esc(e.message || String(e)) + "</div>";
+    btn.disabled = false;
+    btn.textContent = "Nahrát materiál";
+  }
+}
+
+async function deleteMaterialConfirm(m) {
+  if (!confirm("Opravdu smazat materiál „" + m.title + "“?")) return;
+  await sb.storage.from("practice-materials").remove([m.storage_path]);
+  const { error } = await sb.rpc("delete_practice_material", { p_id: m.id });
+  if (error) {
+    alert("Nepodařilo se smazat materiál: " + error.message);
+    return;
+  }
+  await renderPracticeMaterials();
 }
 
 function shuffleArray(arr) {
