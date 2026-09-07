@@ -1063,19 +1063,23 @@
         <div id="teacherQuizzesContent" class="hidden">
           <button class="btn-primary" id="teacherQuizzesCreateBtn" onclick="openQuizCreate()">+ Vytvořit nový kvíz</button>
           <button class="btn-primary" id="teacherQuizzesApproveBtn" style="margin-top:10px;background:var(--dark);" onclick="showScreen('quiz-submissions-admin')">Schválit kvíz</button>
-          <div id="unpublishedQuizzesWrap" class="hidden" style="margin-top:14px;">
-            <h2 class="section-title">Nezveřejněné kvízy</h2>
-            <p class="help-text" style="margin-top:-8px;">Připravené kvízy, které zatím nevidí žádný student. Klepnutím na kvíz vyberete, pro které ročníky ho zveřejnit (rovnou, nebo naplánovaně na později).</p>
-            <div id="unpublishedQuizzesList"></div>
-          </div>
+          <button class="btn-primary" id="teacherQuizzesUnpublishedBtn" style="margin-top:10px;background:var(--dark);" onclick="showScreen('quiz-unpublished')">Nezveřejněné kvízy</button>
           <h2 class="section-title">Vaše kvízy</h2>
           <div id="quizListAdmin"></div>
         </div>
       </div>
 
+      <!-- NEZVEŘEJNĚNÉ KVÍZY (jen mistrová) -->
+      <div class="screen hidden" id="screen-quiz-unpublished">
+        <span class="back-link" onclick="showScreen('quizzes')">&larr; Zpět na kvízy</span>
+        <h2 class="section-title">Nezveřejněné kvízy</h2>
+        <p class="help-text" style="margin-top:-8px;">Připravené kvízy, které zatím nevidí žádný student. Klepnutím na kvíz vyberete, pro které ročníky ho zveřejnit (rovnou, nebo naplánovaně na později) - tlačítkem Upravit obsah kvízu ještě před zveřejněním doladíš.</p>
+        <div id="unpublishedQuizzesList"></div>
+      </div>
+
       <!-- ZVEŘEJNĚNÍ NEZVEŘEJNĚNÉHO KVÍZU (jen mistrová) -->
       <div class="screen hidden" id="screen-quiz-publish">
-        <span class="back-link" onclick="showScreen('quizzes')">&larr; Zpět na kvízy</span>
+        <span class="back-link" onclick="showScreen('quiz-unpublished')">&larr; Zpět na nezveřejněné kvízy</span>
         <h2 class="section-title" id="qpTitle">Zveřejnit kvíz</h2>
         <p class="help-text" id="qpMeta"></p>
         <div class="field">
@@ -1155,7 +1159,7 @@
             <button class="btn-secondary" style="flex:1;color:var(--red);" onclick="reviewStudentQuiz('rejected')">Zamítnout</button>
           </div>
         </div>
-        <button class="btn-primary hidden" style="margin-top:14px;" id="qcEditSaveBtn" onclick="saveQuizEdit()" disabled>Uložit</button>
+        <button class="btn-primary hidden" style="margin-top:14px;" id="qcEditSaveBtn" onclick="handleQuizEditorEditSave()" disabled>Uložit</button>
         <div id="qcError"></div>
       </div>
 
@@ -3251,6 +3255,7 @@ function showScreen(name) {
     "quiz-locked": ["Kvíz zamčen", "Zkus to znovu později"],
     "quiz-create": ["Nový kvíz", "Vytvořit kvíz"],
     "quiz-submissions-admin": ["Návrhy od studentů", "Kvízy čekající na posouzení"],
+    "quiz-unpublished": ["Nezveřejněné kvízy", "Čeká na zveřejnění"],
     "quiz-publish": ["Zveřejnit kvíz", "Vyber ročníky"],
     "personality-take": ["Test osobnosti", "Pár otázek o tobě"],
     "personality-result": ["Test osobnosti", "Tvůj výsledek"],
@@ -3296,6 +3301,7 @@ function showScreen(name) {
   if (name === "home") renderHome();
   if (name === "quizzes") renderQuizList();
   if (name === "quiz-submissions-admin") loadQuizSubmissionsAdmin();
+  if (name === "quiz-unpublished") renderUnpublishedQuizzes();
   if (name === "quiz-review") renderQuizReview();
   if (name === "challenges") renderChallenges();
   if (name === "challenge-approvals") loadChallengesAdmin();
@@ -4153,8 +4159,7 @@ async function renderQuizList() {
     const canEditQuizzes = user.role === "mistrova";
     document.getElementById("teacherQuizzesCreateBtn").classList.toggle("hidden", !canEditQuizzes);
     document.getElementById("teacherQuizzesApproveBtn").classList.toggle("hidden", !canEditQuizzes);
-    document.getElementById("unpublishedQuizzesWrap").classList.toggle("hidden", !canEditQuizzes);
-    if (canEditQuizzes) renderUnpublishedQuizzes();
+    document.getElementById("teacherQuizzesUnpublishedBtn").classList.toggle("hidden", !canEditQuizzes);
     loadQuizzesAdmin();
     return;
   }
@@ -4361,6 +4366,12 @@ async function renderUnpublishedQuizzes() {
     div.innerHTML =
       '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + meta + "</div></div>" +
       '<span class="badge-pts">Zveřejnit</span>';
+    const editBtn = document.createElement("button");
+    editBtn.className = "toggle-btn";
+    editBtn.style.marginLeft = "8px";
+    editBtn.textContent = "Upravit";
+    editBtn.onclick = (e) => { e.stopPropagation(); openQuizDraftEdit(q.id); };
+    div.appendChild(editBtn);
     div.onclick = () => openQuizPublish(q);
     el.appendChild(div);
   });
@@ -4427,7 +4438,7 @@ async function publishQuizNow() {
     errorEl.innerHTML = "<div class='error-note'>Nepodařilo se zveřejnit: " + esc(error.message) + "</div>";
     return;
   }
-  showScreen("quizzes");
+  showScreen("quiz-unpublished");
 }
 
 async function scheduleQuizPublishSave() {
@@ -4458,7 +4469,7 @@ async function scheduleQuizPublishSave() {
     return;
   }
   await renderUnpublishedQuizzes();
-  showScreen("quizzes");
+  showScreen("quiz-unpublished");
 }
 
 async function cancelQuizSchedule() {
@@ -4468,7 +4479,7 @@ async function cancelQuizSchedule() {
     return;
   }
   await renderUnpublishedQuizzes();
-  showScreen("quizzes");
+  showScreen("quiz-unpublished");
 }
 
 let currentQuizStudentsCtx = null;
@@ -4629,6 +4640,45 @@ function quizSubmissionStatusLabel(status) {
 // dřív schválený studentský návrh. Na rozdíl od "review" (fronta ke
 // schválení) tu není komentář ani schválit/zamítnout - jen jedno tlačítko
 // Uložit, které je aktivní, teprve když se opravdu něco změnilo.
+// Upraví obsah kvízu, který ještě čeká na zveřejnění (status='draft') - na
+// rozdíl od openQuizEdit tu není ročník (ten se řeší až při zveřejnění, kdy
+// jde vybrat i víc ročníků najednou), jinak stejný editor otázek.
+async function openQuizDraftEdit(quizId) {
+  quizEditorMode = "draft-edit";
+  quizEditorReviewId = quizId;
+  quizEditorReturnTo = "quiz-unpublished";
+  document.getElementById("qcBackLink").onclick = () => showScreen(quizEditorReturnTo);
+  document.getElementById("qcHeading").textContent = "Upravit koncept kvízu";
+  setQuizEditorFieldsVisible({ rocnik: false, visibility: false, points: true, comment: false, saveBtn: false, reviewBtns: false, editSaveBtn: true });
+  document.getElementById("qcAuthorNote").classList.add("hidden");
+  document.getElementById("qcEditSaveBtn").disabled = true;
+  document.getElementById("qcEditSaveBtn").textContent = "Uložit";
+  document.getElementById("qcError").innerHTML = "<div class='empty-note'>Načítám...</div>";
+  document.getElementById("qcQuestions").innerHTML = "";
+  document.getElementById("qcQuestionStats").classList.add("hidden");
+  document.getElementById("qcQuestionStats").innerHTML = "";
+  document.getElementById("qcSuggestedQuestions").classList.add("hidden");
+  document.getElementById("qcSuggestedQuestions").innerHTML = "";
+  showScreen("quiz-create");
+  document.getElementById("topbarTitle").textContent = "Upravit koncept kvízu";
+  document.getElementById("topbarSub").textContent = "Ještě nezveřejněno - uprav a ulož";
+
+  const { data, error } = await sb.rpc("get_quiz_submission_detail", { p_quiz_id: quizId });
+  document.getElementById("qcError").innerHTML = "";
+  if (error || !data || !data[0]) {
+    document.getElementById("qcError").innerHTML = "<div class='error-note'>Nepodařilo se načíst kvíz.</div>";
+    return;
+  }
+  const s = data[0];
+  document.getElementById("qcTitle").value = s.title;
+  document.getElementById("qcPoints").value = s.points || 0;
+  quizDraft = (s.questions && s.questions.length ? s.questions : [{ q: "", options: ["", ""], correct: 0 }])
+    .map((q) => ({ q: q.q, options: q.options.slice(), correct: q.correct }));
+  renderQuizDraft();
+  quizEditorOriginalSnapshot = currentQuizEditorSnapshot();
+  checkQuizEditorDirty();
+}
+
 async function openQuizEdit(quizId, returnTo) {
   quizEditorMode = "teacher-edit";
   quizEditorReviewId = quizId;
@@ -4745,10 +4795,10 @@ function currentQuizEditorSnapshot() {
   });
 }
 
-// Zapíná/vypíná tlačítko Uložit v režimu "teacher-edit" podle toho, jestli
-// se obsah formuláře opravdu liší od stavu, se kterým se otevřel.
+// Zapíná/vypíná tlačítko Uložit v režimu "teacher-edit"/"draft-edit" podle
+// toho, jestli se obsah formuláře opravdu liší od stavu, se kterým se otevřel.
 function checkQuizEditorDirty() {
-  if (quizEditorMode !== "teacher-edit") return;
+  if (quizEditorMode !== "teacher-edit" && quizEditorMode !== "draft-edit") return;
   const btn = document.getElementById("qcEditSaveBtn");
   if (!btn) return;
   btn.disabled = currentQuizEditorSnapshot() === quizEditorOriginalSnapshot;
@@ -4785,6 +4835,60 @@ async function saveQuizEdit() {
     p_rocnik: rocnik,
     p_status: "approved",
     p_comment: quizEditorLoadedComment,
+  });
+
+  btn.textContent = "Uložit";
+
+  if (error) {
+    btn.disabled = false;
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se uložit: " + esc(error.message) + "</div>";
+    return;
+  }
+
+  quizEditorOriginalSnapshot = currentQuizEditorSnapshot();
+  showScreen(quizEditorReturnTo);
+}
+
+// Sdílené tlačítko "Uložit" v editoru otázek slouží dvěma různým režimům
+// (úprava už živého kvízu vs. úprava zatím nezveřejněného konceptu) - podle
+// toho, ve kterém z nich zrovna jsme, se rozhodne, kterou uloženou funkci
+// zavolat.
+function handleQuizEditorEditSave() {
+  if (quizEditorMode === "draft-edit") {
+    saveQuizDraftEdit();
+  } else {
+    saveQuizEdit();
+  }
+}
+
+// Uloží úpravu obsahu ještě nezveřejněného kvízu (status='draft') - na
+// rozdíl od saveQuizEdit nemění ročník ani stav, ty se řeší až při zveřejnění.
+async function saveQuizDraftEdit() {
+  const errorEl = document.getElementById("qcError");
+  errorEl.innerHTML = "";
+  const title = document.getElementById("qcTitle").value.trim();
+  const points = parseInt(document.getElementById("qcPoints").value, 10);
+
+  if (!title) {
+    errorEl.innerHTML = "<div class='error-note'>Zadejte prosím název kvízu.</div>";
+    return;
+  }
+  if (isNaN(points) || points < 0) {
+    errorEl.innerHTML = "<div class='error-note'>Zadejte platný počet bodů.</div>";
+    return;
+  }
+  if (!validateQuizDraftQuestions(errorEl)) return;
+
+  const btn = document.getElementById("qcEditSaveBtn");
+  btn.disabled = true;
+  btn.textContent = "Ukládám...";
+
+  const payload = quizDraft.map((q) => ({ q: q.q.trim(), options: q.options.map((o) => o.trim()), correct: q.correct }));
+  const { error } = await sb.rpc("update_quiz_draft", {
+    p_quiz_id: quizEditorReviewId,
+    p_title: title,
+    p_points: points,
+    p_questions: payload,
   });
 
   btn.textContent = "Uložit";
