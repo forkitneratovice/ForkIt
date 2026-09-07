@@ -4395,6 +4395,7 @@ function openQuizPublish(q) {
     cb.value = r;
     cb.checked = preselected.has(r);
     cb.className = "qp-rocnik-check";
+    cb.style.cssText = "width:16px;height:16px;min-width:16px;padding:0;margin:0;border:none;background:transparent;flex-shrink:0;";
     label.appendChild(cb);
     label.appendChild(document.createTextNode(r));
     checksEl.appendChild(label);
