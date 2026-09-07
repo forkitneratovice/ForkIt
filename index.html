@@ -1309,6 +1309,9 @@
         <p class="lb-note" style="text-align:center;">Klepni na kartičku a otoč ji. Otočenou klepni znovu a zvětší se, ať obrázek pořádně poznáš.</p>
         <div id="pexesoMovesCounter" style="text-align:center;font-weight:700;font-size:13px;color:var(--dark);margin-bottom:2px;">Tahy: 0</div>
         <div id="pexesoBestScore" style="text-align:center;font-size:12.5px;color:var(--primary);margin-bottom:6px;"></div>
+        <div style="text-align:center;margin-bottom:10px;">
+          <span id="pexesoRestartLink" onclick="restartPexesoRound()" style="font-size:12.5px;color:var(--text-muted);text-decoration:underline;cursor:pointer;">&#128256; Zamíchat a začít znovu</span>
+        </div>
         <div id="pexesoGrid" class="pexeso-grid"></div>
         <div id="pexesoDoneState" class="hidden">
           <div class="result-box">
@@ -6461,6 +6464,17 @@ function tryResumePexeso() {
   document.getElementById("pexesoBonusMsg").textContent = "";
   renderPexesoGrid();
   return true;
+}
+
+// Ruční "začít znovu" i uprostřed rozehraného kola (viditelné nad mřížkou po
+// celou dobu hry, ne jen na obrazovce Hotovo) - protože appka teď rozehrané
+// kolo mezi otevřeními appky pamatuje, dřív by se ho student jinak nezbavil.
+// Pokud už udělal aspoň jeden tah a kolo ještě neskončilo, radši se zeptáme,
+// ať o rozehranou hru nepřijde jen omylem.
+function restartPexesoRound() {
+  const inProgress = pexesoMoves > 0 && !pexesoCards.every((c) => c.matched);
+  if (inProgress && !confirm("Opravdu chceš zahodit rozehrané kolo a zamíchat nové?")) return;
+  startPexesoRound();
 }
 
 function startPexesoRound() {
