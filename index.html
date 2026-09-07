@@ -6445,15 +6445,31 @@ function viewMaterial(m) {
   window.open(finalUrl, "_blank");
 }
 
-function downloadMaterial(m) {
+// Mobilní Safari (iPhone) atribut "download" na odkazu mimo vlastní doménu
+// v podstatě ignoruje - místo stažení se pak snaží soubor rovnou "zobrazit"
+// v nové záložce, a u typů, které neumí vykreslit (Word, PowerPoint...), to
+// skončí jen věčně se točícím načítáním. Řešením je soubor nejdřív stáhnout
+// do paměti (fetch) a z něj vyrobit lokální blob URL - ten už je z pohledu
+// prohlížeče "vlastní" a atribut download na něm funguje spolehlivě všude.
+async function downloadMaterial(m) {
   const url = materialPublicUrl(m.storage_path);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = m.file_name || m.title;
-  a.target = "_blank";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const blob = await resp.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = m.file_name || m.title;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+  } catch (e) {
+    // Když se soubor nepodaří stáhnout do paměti (např. výpadek sítě), radši
+    // otevřeme aspoň přímý odkaz, než aby se úplně nic nestalo.
+    window.open(url, "_blank");
+  }
 }
 
 async function renderPracticeMaterials() {
