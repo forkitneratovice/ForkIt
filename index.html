@@ -5825,11 +5825,55 @@ async function loadChallengesAdminOverview() {
   });
 }
 
+// Rozepsaná nová výzva (mistrová) se stejně jako rozepsaná odpověď studenta
+// (viz challengeDraftStorageKey výše) ukládá do localStorage, ať se ztratí
+// jen tehdy, když ji mistrová sama odešle - ne při každém odchodu z
+// obrazovky. Na rozdíl od studentské výzvy tahle ještě nemá žádné id (v DB
+// ještě neexistuje), takže stačí jeden klíč na uživatele.
+function newChallengeDraftStorageKey() {
+  return "forkit_new_challenge_draft_" + (user ? user.id : "anon");
+}
+function persistNewChallengeDraft() {
+  try {
+    const title = document.getElementById("ccTitle").value;
+    const description = document.getElementById("ccDescription").value;
+    const points = document.getElementById("ccPoints").value;
+    if (title.trim() || description.trim()) {
+      localStorage.setItem(newChallengeDraftStorageKey(), JSON.stringify({ title, description, points }));
+    } else {
+      localStorage.removeItem(newChallengeDraftStorageKey());
+    }
+  } catch (e) {}
+}
+function readNewChallengeDraft() {
+  try {
+    const raw = localStorage.getItem(newChallengeDraftStorageKey());
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+function clearNewChallengeDraft() {
+  try {
+    localStorage.removeItem(newChallengeDraftStorageKey());
+  } catch (e) {}
+}
+
 function openChallengeCreate() {
-  document.getElementById("ccTitle").value = "";
-  document.getElementById("ccDescription").value = "";
-  document.getElementById("ccPoints").value = "30";
+  const titleEl = document.getElementById("ccTitle");
+  const descEl = document.getElementById("ccDescription");
+  const pointsEl = document.getElementById("ccPoints");
+  const draft = readNewChallengeDraft();
+  titleEl.value = draft ? draft.title : "";
+  descEl.value = draft ? draft.description : "";
+  pointsEl.value = (draft && draft.points) || "30";
   document.getElementById("ccError").innerHTML = "";
+  if (!titleEl.dataset.draftWired) {
+    titleEl.addEventListener("input", persistNewChallengeDraft);
+    descEl.addEventListener("input", persistNewChallengeDraft);
+    pointsEl.addEventListener("input", persistNewChallengeDraft);
+    titleEl.dataset.draftWired = "1";
+  }
   showScreen("challenge-create");
 }
 
@@ -5867,6 +5911,7 @@ async function saveChallengeDraft() {
     return;
   }
 
+  clearNewChallengeDraft();
   showScreen("challenges");
 }
 
