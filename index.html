@@ -1826,8 +1826,9 @@
 
         <div class="help-section">
           <h2 class="section-title">&#128260; Procvičování</h2>
-          <p class="help-text">V sekci Procvičování si můžete trénovat bez tlaku – kvízy nanečisto (bez bodů a bez omezení pokusů) a kartičky se slovíčky na opakování.</p>
+          <p class="help-text">V sekci Procvičování si můžete trénovat bez tlaku – kvízy nanečisto (bez bodů a bez omezení pokusů), kartičky se slovíčky na opakování a pexeso.</p>
           <p class="help-text">Ideální na rozehřátí před ostrým pokusem u kvízu.</p>
+          <p class="help-text"><strong>Pexeso:</strong> hledáte dvojice název pojmu + odpovídající obrázek, pokaždé z náhodně vylosovaných 10 dvojic z celého balíku. Klepnutím kartičku otočíte, dalším klepnutím na tu samou (i tu druhou, právě odkrytou) ji zvětšíte, ať obrázek pořádně poznáte – další klepnutí ji zase zmenší. Bez bodování, jen pro procvičení.</p>
         </div>
         </div>
       </div>
@@ -6271,6 +6272,7 @@ let pexesoCards = [];       // [{ pairId, kind: "term"|"image", content, flipped
 let pexesoFlippedIndex = null;  // index jediné aktuálně otočené (ještě nespárované) kartičky
 let pexesoZoomedIndex = null;   // index kartičky zvětšené na celou obrazovku
 let pexesoBusy = false;         // krátké zamčení, než se špatná dvojice otočí zpátky
+let pexesoMismatchPair = null;  // [indexA, indexB] obou špatně spárovaných kartiček, dokud čekají na otočení zpátky
 
 function shuffleArray(arr) {
   const a = arr.slice();
@@ -6292,6 +6294,7 @@ function startPexesoRound() {
   pexesoFlippedIndex = null;
   pexesoZoomedIndex = null;
   pexesoBusy = false;
+  pexesoMismatchPair = null;
   document.getElementById("pexesoGrid").classList.remove("hidden");
   document.getElementById("pexesoDoneState").classList.add("hidden");
   renderPexesoGrid();
@@ -6325,17 +6328,20 @@ function pexesoUnzoom() {
 }
 
 function pexesoCardClick(i) {
-  if (pexesoBusy) return;
   const card = pexesoCards[i];
   if (card.matched) return;
 
-  // Kartička, co už je jediná otočená (čeká na dvojici) - další klepnutí ji
-  // jen zvětší/zmenší, ať student obrázek pořádně pozná.
-  if (i === pexesoFlippedIndex) {
+  // Kartička, co už je jediná otočená (čeká na dvojici), NEBO jedna ze dvou
+  // právě odkrytých špatně spárovaných kartiček (čekajících na otočení
+  // zpátky) - další klepnutí na ni ji jen zvětší/zmenší, ať student obrázek
+  // pořádně pozná, i tu druhou. Funguje i během pexesoBusy zámku.
+  if (i === pexesoFlippedIndex || (pexesoMismatchPair && pexesoMismatchPair.includes(i))) {
     pexesoZoomedIndex = pexesoZoomedIndex === i ? null : i;
     renderPexesoGrid();
     return;
   }
+
+  if (pexesoBusy) return;
 
   if (pexesoZoomedIndex !== null) pexesoZoomedIndex = null;
 
@@ -6365,13 +6371,16 @@ function pexesoCardClick(i) {
     }
   } else {
     pexesoBusy = true;
+    pexesoMismatchPair = [pexesoFlippedIndex, i];
     setTimeout(() => {
       first.flipped = false;
       card.flipped = false;
       pexesoFlippedIndex = null;
+      pexesoMismatchPair = null;
+      pexesoZoomedIndex = null;
       pexesoBusy = false;
       renderPexesoGrid();
-    }, 900);
+    }, 1800);
   }
 }
 
