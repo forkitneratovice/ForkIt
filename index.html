@@ -1307,7 +1307,8 @@
       <div class="screen hidden" id="screen-pexeso">
         <span class="back-link" onclick="showScreen('practice-hub')">&larr; Zpět na procvičování</span>
         <p class="lb-note" style="text-align:center;">Klepni na kartičku a otoč ji. Otočenou klepni znovu a zvětší se, ať obrázek pořádně poznáš.</p>
-        <div id="pexesoMovesCounter" style="text-align:center;font-weight:700;font-size:13px;color:var(--dark);margin-bottom:6px;">Tahy: 0</div>
+        <div id="pexesoMovesCounter" style="text-align:center;font-weight:700;font-size:13px;color:var(--dark);margin-bottom:2px;">Tahy: 0</div>
+        <div id="pexesoBestScore" style="text-align:center;font-size:12.5px;color:var(--primary);margin-bottom:6px;"></div>
         <div id="pexesoGrid" class="pexeso-grid"></div>
         <div id="pexesoDoneState" class="hidden">
           <div class="result-box">
@@ -1844,7 +1845,7 @@
           <p class="help-text">Ideální na rozehřátí před ostrým pokusem u kvízu.</p>
           <p class="help-text"><strong>Kvízy nanečisto:</strong> stejné otázky jako ostré kvízy, ale bez omezení počtu pokusů ani čekací doby mezi nimi – klidně si kvíz zkuste vícekrát za sebou, dokud si nebudete jistí, a teprve pak ho zkuste nanečisto.</p>
           <p class="help-text"><strong>Slovíčka:</strong> kartičky ze slovníku se skutečným rozloženým opakováním (jako Anki). Klepnutím na kartičku uvidíte pojem, zkuste si v hlavě říct definici a dalším klepnutím kartičku otočíte a definici zkontrolujete. Pak se sami ohodnotíte – Neumím / Chci si to ještě procvičit vrátí slovíčko brzy zpátky, Umím ho na pár dní schová a samo se vrátí k ověření později (čím déle ho umíte, tím delší přestávku dostane). Když nemáte zrovna nic na opakování, appka vám to napíše.</p>
-          <p class="help-text"><strong>Pexeso:</strong> hledáte dvojice název pojmu + odpovídající obrázek, pokaždé z náhodně vylosovaných 10 dvojic z celého balíku. Appka počítá tahy (kolikrát jste porovnávali dvojici kartiček) – čím míň, tím lepší skóre, a appka vám ukáže, jestli jste právě překonali svůj rekord. Klepnutím kartičku otočíte, dalším klepnutím na tu samou (i tu druhou, právě odkrytou, nebo i libovolnou už spárovanou) ji zvětšíte, ať obrázek pořádně poznáte – zůstane zvětšená, dokud na ni znovu neklepnete. U špatné dvojice se pak obě hned otočí zpátky; u poslední spárované dvojice kola se hned potom appka přepne na obrazovku Hotovo. Nikam ale spěchat nemusíte, ale ani čekat – kdo nepotřebuje tolik času, může rovnou klepnout na další kartičku a špatná dvojice se sama hned otočí zpátky.</p>
+          <p class="help-text"><strong>Pexeso:</strong> hledáte dvojice název pojmu + odpovídající obrázek, pokaždé z náhodně vylosovaných 10 dvojic z celého balíku. Appka počítá tahy (kolikrát jste porovnávali dvojici kartiček) – čím míň, tím lepší skóre. Nad kartičkami se vám pořád zobrazuje váš dosavadní rekord (nejméně tahů v dohraném kole), takže rovnou vidíte, na co hrajete a jak se zlepšujete, a po dohrání appka ukáže, jestli jste ho zrovna překonali. Klepnutím kartičku otočíte, dalším klepnutím na tu samou (i tu druhou, právě odkrytou, nebo i libovolnou už spárovanou) ji zvětšíte, ať obrázek pořádně poznáte – zůstane zvětšená, dokud na ni znovu neklepnete. U špatné dvojice se pak obě hned otočí zpátky; u poslední spárované dvojice kola se hned potom appka přepne na obrazovku Hotovo. Nikam ale spěchat nemusíte, ale ani čekat – kdo nepotřebuje tolik času, může rovnou klepnout na další kartičku a špatná dvojice se sama hned otočí zpátky.</p>
           <p class="help-text"><strong>Body za procvičování:</strong> za první dokončený kvíz nanečisto, první splněné opakování slovíček a první dohrané kolo pexesa v daný den dostanete +1 bod – nejvýš 3 body denně dohromady, ať procvičujete v jedné sekci nebo ve všech třech. Je to jen malá odměna navíc, hlavní body pořád nesou ostré kvízy a výzvy.</p>
           <p class="help-text">Za pravidelné procvičování jsou i odznáčky v sekci Úspěchy: Pilná píle (procvičuj 5 různých dnů), Procvičovací týden (denní bonus 7 dní v řadě), Trenér/ka (10 kvízů nanečisto), Slovní expert (50 slovíček poprvé jako Umím) a Pexeso mistr/mistryně (20 kol pexesa).</p>
         </div>
@@ -2618,7 +2619,7 @@ function hasPersistedSupabaseSession() {
 // o pár řádků níž – kdyby byl RESUMABLE_SCREENS deklarovaný až za tím
 // (přes const), skončilo by to chybou "Cannot access before initialization"
 // a celá appka by se nenačetla.)
-const RESUMABLE_SCREENS = ["home", "quizzes", "quiz-take", "personality-take", "challenges", "practice-hub", "practice-quizzes", "flashcards", "slovnik", "leaderboard", "competitors", "achievements", "messages", "profile"];
+const RESUMABLE_SCREENS = ["home", "quizzes", "quiz-take", "personality-take", "challenges", "practice-hub", "practice-quizzes", "flashcards", "pexeso", "slovnik", "leaderboard", "competitors", "achievements", "messages", "profile"];
 
 if (!hasPersistedSupabaseSession()) {
   showScreen("login");
@@ -3243,7 +3244,7 @@ function showScreen(name) {
   if (name === "competitors") renderCompetitors();
   if (name === "practice-quizzes") renderPracticeQuizzes();
   if (name === "flashcards") openFlashcards();
-  if (name === "pexeso") startPexesoRound();
+  if (name === "pexeso") { startPexesoRound(); refreshPexesoBest(); }
   if (name === "faq") renderFaqFeedback();
   if (name === "help") resetAppSearch();
   if (name === "inactive-students") renderInactiveStudents();
@@ -6263,6 +6264,14 @@ async function awardPracticeBonus(kind, refId, msgElementId, metric) {
     const row = data && data[0] ? data[0] : null;
     const awarded = row ? row.points_awarded : 0;
     if (awarded > 0) user.points += awarded;
+    if (kind === "pexeso" && row && row.best_metric != null) {
+      // Rovnou aktualizuje i trvale zobrazený rekord nad mřížkou, ať se
+      // student nemusí spoléhat jen na hlášku po dohrání kola - vidí ho
+      // hned, i když třeba hraje kolo za kolem bez návratu do menu.
+      pexesoBestMoves = row.best_metric;
+      const bestEl = document.getElementById("pexesoBestScore");
+      if (bestEl) bestEl.textContent = "Tvůj rekord: " + row.best_metric + " tahů";
+    }
     const el = document.getElementById(msgElementId);
     if (!el) return;
     const parts = [];
@@ -6355,6 +6364,27 @@ let pexesoMismatchPair = null;  // [indexA, indexB] obou špatně spárovaných 
 let pexesoMismatchTimeout = null; // id naplánovaného automatického otočení zpátky (zastavuje se, když si student kartičku zvětší)
 let pexesoMoves = 0;            // počet porovnání dvojice kartiček v aktuálním kole - čím míň, tím lepší skóre
 let pexesoRoundDoneTimeout = null; // id naplánovaného přechodu na obrazovku Hotovo po spárování poslední dvojice (zastavuje se, když si student poslední dvojici zvětší)
+let pexesoBestMoves = null;     // studentův dosavadní rekord (nejméně tahů v dokončeném kole) - null, pokud ještě žádné kolo nedohrál
+
+// Zobrazí studentův dosavadní rekord (nejméně tahů) nad mřížkou, ať vidí cíl,
+// který se snaží překonat, hned jak na Pexeso otevře - ne až po dohrání kola.
+async function refreshPexesoBest() {
+  const el = document.getElementById("pexesoBestScore");
+  if (!el) return;
+  if (!user || user.role !== "student") { el.textContent = ""; return; }
+  const { data, error } = await sb
+    .from("practice_activity_log")
+    .select("metric_value")
+    .eq("kind", "pexeso")
+    .not("metric_value", "is", null)
+    .order("metric_value", { ascending: true })
+    .limit(1);
+  if (error) return;
+  pexesoBestMoves = data && data[0] ? data[0].metric_value : null;
+  el.textContent = pexesoBestMoves != null
+    ? "Tvůj rekord: " + pexesoBestMoves + " tahů"
+    : "Zatím žádný rekord - tohle je tvé první dohrané kolo!";
+}
 
 function shuffleArray(arr) {
   const a = arr.slice();
