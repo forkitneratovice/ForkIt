@@ -1063,9 +1063,37 @@
         <div id="teacherQuizzesContent" class="hidden">
           <button class="btn-primary" id="teacherQuizzesCreateBtn" onclick="openQuizCreate()">+ Vytvořit nový kvíz</button>
           <button class="btn-primary" id="teacherQuizzesApproveBtn" style="margin-top:10px;background:var(--dark);" onclick="showScreen('quiz-submissions-admin')">Schválit kvíz</button>
+          <div id="unpublishedQuizzesWrap" class="hidden" style="margin-top:14px;">
+            <h2 class="section-title">Nezveřejněné kvízy</h2>
+            <p class="help-text" style="margin-top:-8px;">Připravené kvízy, které zatím nevidí žádný student. Klepnutím na kvíz vyberete, pro které ročníky ho zveřejnit (rovnou, nebo naplánovaně na později).</p>
+            <div id="unpublishedQuizzesList"></div>
+          </div>
           <h2 class="section-title">Vaše kvízy</h2>
           <div id="quizListAdmin"></div>
         </div>
+      </div>
+
+      <!-- ZVEŘEJNĚNÍ NEZVEŘEJNĚNÉHO KVÍZU (jen mistrová) -->
+      <div class="screen hidden" id="screen-quiz-publish">
+        <span class="back-link" onclick="showScreen('quizzes')">&larr; Zpět na kvízy</span>
+        <h2 class="section-title" id="qpTitle">Zveřejnit kvíz</h2>
+        <p class="help-text" id="qpMeta"></p>
+        <div class="field">
+          <label>Pro které ročníky zveřejnit</label>
+          <div id="qpRocnikChecks" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;"></div>
+          <span onclick="toggleAllPublishRocniky()" style="display:inline-block;margin-top:8px;font-size:12.5px;color:var(--text-muted);text-decoration:underline;cursor:pointer;">Vybrat/zrušit všechny ročníky</span>
+        </div>
+        <div id="qpError"></div>
+        <button class="btn-primary" onclick="publishQuizNow()">Zveřejnit hned</button>
+
+        <h2 class="section-title" style="margin-top:22px;">Nebo naplánovat na později</h2>
+        <div id="qpScheduledInfo" class="hidden card" style="margin-bottom:10px;"></div>
+        <div class="field">
+          <label>Datum a čas zveřejnění</label>
+          <input type="datetime-local" id="qpScheduleAt">
+        </div>
+        <button class="btn-secondary" onclick="scheduleQuizPublishSave()">Naplánovat zveřejnění</button>
+        <button class="btn-secondary hidden" id="qpCancelScheduleBtn" style="margin-top:8px;color:var(--red);" onclick="cancelQuizSchedule()">Zrušit naplánování</button>
       </div>
 
       <!-- NÁVRHY KVÍZŮ OD STUDENTŮ (jen mistrová) -->
@@ -3223,6 +3251,7 @@ function showScreen(name) {
     "quiz-locked": ["Kvíz zamčen", "Zkus to znovu později"],
     "quiz-create": ["Nový kvíz", "Vytvořit kvíz"],
     "quiz-submissions-admin": ["Návrhy od studentů", "Kvízy čekající na posouzení"],
+    "quiz-publish": ["Zveřejnit kvíz", "Vyber ročníky"],
     "personality-take": ["Test osobnosti", "Pár otázek o tobě"],
     "personality-result": ["Test osobnosti", "Tvůj výsledek"],
     "quiz-students": ["Studenti", "Jak si vedli"],
@@ -4124,6 +4153,8 @@ async function renderQuizList() {
     const canEditQuizzes = user.role === "mistrova";
     document.getElementById("teacherQuizzesCreateBtn").classList.toggle("hidden", !canEditQuizzes);
     document.getElementById("teacherQuizzesApproveBtn").classList.toggle("hidden", !canEditQuizzes);
+    document.getElementById("unpublishedQuizzesWrap").classList.toggle("hidden", !canEditQuizzes);
+    if (canEditQuizzes) renderUnpublishedQuizzes();
     loadQuizzesAdmin();
     return;
   }
@@ -4298,6 +4329,146 @@ async function loadQuizzesAdmin() {
     div.onclick = () => openQuizStudents(q.id, q.title, q.points);
     list.appendChild(div);
   });
+}
+
+// ---------- NEZVEŘEJNĚNÉ KVÍZY (jen mistrová) ----------
+const ALL_QUIZ_ROCNIKY = ["KČ1", "KČ2", "KČ3", "HT1", "HT2", "HT3", "HT4"];
+let currentPublishQuiz = null;
+
+function formatCzechDateTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString("cs-CZ") + " " + d.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" });
+}
+
+async function renderUnpublishedQuizzes() {
+  const el = document.getElementById("unpublishedQuizzesList");
+  el.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const { data, error } = await sb.rpc("get_unpublished_quizzes");
+  if (error) {
+    el.innerHTML = "<div class='empty-note'>Nepodařilo se načíst: " + esc(error.message) + "</div>";
+    return;
+  }
+  if (!data || data.length === 0) {
+    el.innerHTML = "<div class='empty-note'>Žádné rozpracované kvízy čekající na zveřejnění.</div>";
+    return;
+  }
+  el.innerHTML = "";
+  data.forEach((q) => {
+    const div = document.createElement("div");
+    div.className = "list-item";
+    let meta = q.question_count + " otázky · " + q.points + " b.";
+    if (q.scheduled_publish_at) meta += " · &#128197; naplánováno na " + formatCzechDateTime(q.scheduled_publish_at);
+    div.innerHTML =
+      '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + meta + "</div></div>" +
+      '<span class="badge-pts">Zveřejnit</span>';
+    div.onclick = () => openQuizPublish(q);
+    el.appendChild(div);
+  });
+}
+
+function openQuizPublish(q) {
+  currentPublishQuiz = q;
+  document.getElementById("qpTitle").textContent = q.title;
+  document.getElementById("qpMeta").textContent = q.question_count + " otázky · " + q.points + " bodů";
+  document.getElementById("qpError").innerHTML = "";
+  document.getElementById("qpScheduleAt").value = "";
+
+  const checksEl = document.getElementById("qpRocnikChecks");
+  checksEl.innerHTML = "";
+  const preselected = new Set(q.scheduled_rocniky || []);
+  ALL_QUIZ_ROCNIKY.forEach((r) => {
+    const label = document.createElement("label");
+    label.style.cssText = "display:flex;align-items:center;gap:5px;font-size:13.5px;padding:6px 10px;border:1px solid #E0DCD3;border-radius:8px;cursor:pointer;";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.value = r;
+    cb.checked = preselected.has(r);
+    cb.className = "qp-rocnik-check";
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(r));
+    checksEl.appendChild(label);
+  });
+
+  const scheduledEl = document.getElementById("qpScheduledInfo");
+  const cancelBtn = document.getElementById("qpCancelScheduleBtn");
+  if (q.scheduled_publish_at) {
+    scheduledEl.classList.remove("hidden");
+    scheduledEl.innerHTML = "Aktuálně naplánováno na <b>" + formatCzechDateTime(q.scheduled_publish_at) + "</b> pro: " + (q.scheduled_rocniky || []).join(", ");
+    cancelBtn.classList.remove("hidden");
+  } else {
+    scheduledEl.classList.add("hidden");
+    scheduledEl.innerHTML = "";
+    cancelBtn.classList.add("hidden");
+  }
+
+  showScreen("quiz-publish");
+}
+
+function toggleAllPublishRocniky() {
+  const checks = [...document.querySelectorAll(".qp-rocnik-check")];
+  const allChecked = checks.every((c) => c.checked);
+  checks.forEach((c) => { c.checked = !allChecked; });
+}
+
+function selectedPublishRocniky() {
+  return [...document.querySelectorAll(".qp-rocnik-check:checked")].map((c) => c.value);
+}
+
+async function publishQuizNow() {
+  const errorEl = document.getElementById("qpError");
+  errorEl.innerHTML = "";
+  const rocniky = selectedPublishRocniky();
+  if (rocniky.length === 0) {
+    errorEl.innerHTML = "<div class='error-note'>Vyber aspoň jeden ročník.</div>";
+    return;
+  }
+  const { error } = await sb.rpc("publish_quiz_now", { p_quiz_id: currentPublishQuiz.id, p_rocniky: rocniky });
+  if (error) {
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se zveřejnit: " + esc(error.message) + "</div>";
+    return;
+  }
+  showScreen("quizzes");
+}
+
+async function scheduleQuizPublishSave() {
+  const errorEl = document.getElementById("qpError");
+  errorEl.innerHTML = "";
+  const rocniky = selectedPublishRocniky();
+  if (rocniky.length === 0) {
+    errorEl.innerHTML = "<div class='error-note'>Vyber aspoň jeden ročník.</div>";
+    return;
+  }
+  const raw = document.getElementById("qpScheduleAt").value;
+  if (!raw) {
+    errorEl.innerHTML = "<div class='error-note'>Vyber datum a čas zveřejnění.</div>";
+    return;
+  }
+  const publishAt = new Date(raw);
+  if (isNaN(publishAt.getTime()) || publishAt <= new Date()) {
+    errorEl.innerHTML = "<div class='error-note'>Čas zveřejnění musí být v budoucnosti.</div>";
+    return;
+  }
+  const { error } = await sb.rpc("schedule_quiz_publish", {
+    p_quiz_id: currentPublishQuiz.id,
+    p_rocniky: rocniky,
+    p_publish_at: publishAt.toISOString(),
+  });
+  if (error) {
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se naplánovat: " + esc(error.message) + "</div>";
+    return;
+  }
+  await renderUnpublishedQuizzes();
+  showScreen("quizzes");
+}
+
+async function cancelQuizSchedule() {
+  const { error } = await sb.rpc("unschedule_quiz_publish", { p_quiz_id: currentPublishQuiz.id });
+  if (error) {
+    alert("Nepodařilo se zrušit naplánování: " + error.message);
+    return;
+  }
+  await renderUnpublishedQuizzes();
+  showScreen("quizzes");
 }
 
 let currentQuizStudentsCtx = null;
