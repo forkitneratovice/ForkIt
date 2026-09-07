@@ -6719,6 +6719,10 @@ function viewMaterial(m) {
   const viewableInline = /\.(pdf|jpe?g|png|gif|webp)$/i.test(m.file_name || "");
   const finalUrl = viewableInline ? url : ("https://docs.google.com/viewer?embedded=true&url=" + encodeURIComponent(url));
   window.open(finalUrl, "_blank");
+  // Zaznamenáme zobrazení, ať mistrová vidí, kolik studentů si materiál
+  // otevřelo - RPC sama počítá jen skutečné studenty, takže je bezpečné volat
+  // ji odsud bez ohledu na roli (u mistrové/náhledu se prostě nic nezapíše).
+  Promise.resolve(sb.rpc("record_material_view", { p_material_id: m.id })).catch(() => {});
 }
 
 // Mobilní Safari (iPhone) atribut "download" na odkazu mimo vlastní doménu
@@ -6752,11 +6756,17 @@ async function renderPracticeMaterials() {
   const el = document.getElementById("materialsList");
   el.innerHTML = "<div class='empty-note'>Načítám...</div>";
   const isTeacher = user.role === "mistrova";
+  const canSeeStats = user.role === "mistrova" || user.role === "mistrova_view";
   document.getElementById("materialsUploadBtn").classList.toggle("hidden", !isTeacher);
 
-  const { data, error } = await sb.from("practice_materials")
-    .select("id,title,file_name,storage_path,mime_type,file_size,created_at")
-    .order("created_at", { ascending: false });
+  // Mistrová (a mistrová v náhledu) navíc vidí, kolik studentů si který
+  // materiál zobrazilo - proto pro ně jedeme přes RPC, která tohle k
+  // materiálům rovnou dopočítá, místo prostého výběru z tabulky.
+  const { data, error } = canSeeStats
+    ? await sb.rpc("get_practice_materials_admin")
+    : await sb.from("practice_materials")
+        .select("id,title,file_name,storage_path,mime_type,file_size,created_at")
+        .order("created_at", { ascending: false });
   if (error) {
     el.innerHTML = "<div class='empty-note'>Nepodařilo se načíst materiály: " + esc(error.message) + "</div>";
     return;
@@ -6771,9 +6781,13 @@ async function renderPracticeMaterials() {
     const div = document.createElement("div");
     div.className = "card";
     const sizeLabel = formatMaterialSize(m.file_size);
+    const statsLabel = canSeeStats
+      ? "<div style='font-size:12.5px;color:var(--text-muted);margin-top:4px;'>&#128065; " + m.viewed_count + " / " + m.total_students + " student" + (m.total_students === 1 ? "" : "ů") + " zobrazilo</div>"
+      : "";
     div.innerHTML =
       "<div style=\"font-weight:800;font-size:15px;color:var(--dark);font-family:'Poppins',sans-serif;\">" + esc(m.title) + "</div>" +
       "<div style='font-size:12.5px;color:var(--text-muted);margin-top:2px;'>" + esc(m.file_name) + (sizeLabel ? " · " + sizeLabel : "") + "</div>" +
+      statsLabel +
       "<div style='display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;'>" +
       "<button class='btn-secondary' style='width:auto;padding:8px 14px;font-size:13px;' data-view>Zobrazit</button>" +
       "<button class='btn-secondary' style='width:auto;padding:8px 14px;font-size:13px;' data-download>Stáhnout</button>" +
