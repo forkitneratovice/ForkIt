@@ -418,11 +418,11 @@
   }
   .media-lightbox-stage img, .media-lightbox-stage video { max-width: 92vw; max-height: 82vh; border-radius: 12px; }
   .media-lightbox-close {
-    position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.15); color: white;
+    position: absolute; top: calc(16px + env(safe-area-inset-top)); right: 16px; background: rgba(255,255,255,0.15); color: white;
     border: none; width: 40px; height: 40px; border-radius: 50%; font-size: 20px; line-height: 1;
   }
   .media-lightbox-counter {
-    position: absolute; top: 22px; left: 50%; transform: translateX(-50%); color: white; font-size: 12.5px;
+    position: absolute; top: calc(22px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); color: white; font-size: 12.5px;
     font-weight: 700; background: rgba(255,255,255,0.15); padding: 5px 14px; border-radius: 20px;
   }
   .media-lightbox-nav {
