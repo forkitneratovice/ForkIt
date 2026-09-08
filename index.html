@@ -5690,6 +5690,10 @@ function renderChallengeDetail() {
 }
 
 const CHALLENGE_MEDIA_MAX = 20;
+// 50 MB je aktuálně tvrdý strop celého Supabase projektu na free tarifu (na
+// vyšším tarifu by šlo zvýšit) - dávat sem víc by stejně skončilo chybou při
+// nahrávání na server, i kdybychom to tady na telefonu propustili.
+const CHALLENGE_VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 
 async function submitChallengeForm() {
   if (blockedInPreview()) return;
@@ -5718,8 +5722,8 @@ async function submitChallengeForm() {
       errorEl.innerHTML = "<div class='error-note'>Podporované jsou jen obrázky nebo videa.</div>";
       return;
     }
-    if (isVideo && f.size > 25 * 1024 * 1024) {
-      errorEl.innerHTML = "<div class='error-note'>Video „" + esc(f.name) + "“ je moc velké (max 25 MB) – zkus kratší nebo nižší kvalitu.</div>";
+    if (isVideo && f.size > CHALLENGE_VIDEO_MAX_BYTES) {
+      errorEl.innerHTML = "<div class='error-note'>Video „" + esc(f.name) + "“ je moc velké (max 50 MB) – zkus kratší nebo nižší kvalitu.</div>";
       return;
     }
   }
