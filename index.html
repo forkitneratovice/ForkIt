@@ -1051,6 +1051,9 @@
 
       <!-- KVIZY LIST -->
       <div class="screen hidden" id="screen-quizzes">
+        <div class="field">
+          <input type="text" id="quizSearchInput" placeholder="Hledat kvíz…" oninput="filterQuizzes()">
+        </div>
         <div id="studentQuizzesContent">
           <button class="btn-secondary" onclick="openStudentQuizCreate()">+ Navrhnout vlastní kvíz</button>
           <div id="myQuizSubmissionsWrap" class="hidden" style="margin-top:14px;">
@@ -1058,6 +1061,17 @@
             <div id="myQuizSubmissionsList"></div>
           </div>
           <h2 class="section-title">Kvízy pro váš ročník</h2>
+          <div class="field" style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:18px;flex-shrink:0;" aria-hidden="true">&#8645;</span>
+            <select id="quizSortSelect" onchange="filterQuizzes()" style="flex:1;">
+              <option value="newest">Řadit: Nejnovější</option>
+              <option value="oldest">Řadit: Nejstarší</option>
+              <option value="completed">Řadit: Splněné</option>
+              <option value="uncompleted">Řadit: Nesplněné</option>
+              <option value="best">Řadit: Nejlepší skóre</option>
+              <option value="worst">Řadit: Nejhorší skóre</option>
+            </select>
+          </div>
           <div id="quizListFull"></div>
         </div>
         <div id="teacherQuizzesContent" class="hidden">
@@ -1165,8 +1179,22 @@
 
       <!-- VÝZVY -->
       <div class="screen hidden" id="screen-challenges">
+        <div class="field">
+          <input type="text" id="challengeSearchInput" placeholder="Hledat výzvu…" oninput="filterChallenges()">
+        </div>
         <div id="studentChallengesContent">
           <h2 class="section-title">Výzvy</h2>
+          <div class="field" style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:18px;flex-shrink:0;" aria-hidden="true">&#8645;</span>
+            <select id="challengeSortSelect" onchange="filterChallenges()" style="flex:1;">
+              <option value="newest">Řadit: Nejnovější</option>
+              <option value="oldest">Řadit: Nejstarší</option>
+              <option value="completed">Řadit: Splněné</option>
+              <option value="uncompleted">Řadit: Nesplněné</option>
+              <option value="best">Řadit: Nejlepší skóre</option>
+              <option value="worst">Řadit: Nejhorší skóre</option>
+            </select>
+          </div>
           <div id="challengeListStudent"></div>
         </div>
         <div id="teacherChallengesContent" class="hidden">
@@ -1186,7 +1214,7 @@
       <!-- VYTVOŘENÍ VÝZVY (jen mistrová) -->
       <div class="screen hidden" id="screen-challenge-create">
         <span class="back-link" onclick="showScreen('challenges')">&larr; Zpět na výzvy</span>
-        <h2 class="section-title">Nová výzva</h2>
+        <h2 class="section-title" id="ccHeading">Nová výzva</h2>
         <div class="field">
           <label>Název výzvy</label>
           <input type="text" id="ccTitle" placeholder="např. Uvař bramborovou kaši">
@@ -1264,6 +1292,9 @@
       <div class="screen hidden" id="screen-practice-materials">
         <span class="back-link" onclick="showScreen('practice-hub')">&larr; Zpět na procvičování</span>
         <button class="btn-primary hidden" id="materialsUploadBtn" onclick="openMaterialUpload()">+ Nahrát materiál</button>
+        <div class="field" style="margin-top:10px;">
+          <input type="text" id="materialsSearchInput" placeholder="Hledat materiál…" oninput="filterMaterials()">
+        </div>
         <div id="materialsList" style="margin-top:10px;"><div class="empty-note">Načítám...</div></div>
       </div>
 
@@ -1287,6 +1318,9 @@
       <div class="screen hidden" id="screen-practice-quizzes">
         <span class="back-link" onclick="showScreen('practice-hub')">&larr; Zpět na procvičování</span>
         <div class="practice-banner">Tréninkový režim – bez bodů, bez omezení pokusů.</div>
+        <div class="field">
+          <input type="text" id="practiceQuizSearchInput" placeholder="Hledat kvíz…" oninput="filterPracticeQuizzes()">
+        </div>
         <div id="practiceQuizList"><div class="empty-note">Načítám...</div></div>
       </div>
 
@@ -1911,6 +1945,11 @@
           <p class="help-text"><strong>Pexeso:</strong> hledáte dvojice název pojmu + odpovídající obrázek, pokaždé z náhodně vylosovaných 10 dvojic z celého balíku. Appka počítá tahy (kolikrát jste porovnávali dvojici kartiček) – čím míň, tím lepší skóre. Nad kartičkami se vám pořád zobrazuje váš dosavadní rekord (nejméně tahů v dohraném kole), takže rovnou vidíte, na co hrajete a jak se zlepšujete, a po dohrání appka ukáže, jestli jste ho zrovna překonali. Klepnutím kartičku otočíte, dalším klepnutím na tu samou (i tu druhou, právě odkrytou, nebo i libovolnou už spárovanou) ji zvětšíte, ať obrázek pořádně poznáte – zůstane zvětšená, dokud na ni znovu neklepnete. U špatné dvojice se pak obě hned otočí zpátky; u poslední spárované dvojice kola se hned potom appka přepne na obrazovku Hotovo. Nikam ale spěchat nemusíte, ale ani čekat – kdo nepotřebuje tolik času, může rovnou klepnout na další kartičku a špatná dvojice se sama hned otočí zpátky.</p>
           <p class="help-text"><strong>Body za procvičování:</strong> za první dokončený kvíz nanečisto, první splněné opakování slovíček a první dohrané kolo pexesa v daný den dostanete +1 bod – nejvýš 3 body denně dohromady, ať procvičujete v jedné sekci nebo ve všech třech. Je to jen malá odměna navíc, hlavní body pořád nesou ostré kvízy a výzvy.</p>
           <p class="help-text">Za pravidelné procvičování jsou i odznáčky v sekci Úspěchy: Pilná píle (procvičuj 5 různých dnů), Procvičovací týden (denní bonus 7 dní v řadě), Trenér/ka (10 kvízů nanečisto), Slovní expert (50 slovíček poprvé jako Umím) a Pexeso mistr/mistryně (20 kol pexesa).</p>
+        </div>
+
+        <div class="help-section">
+          <h2 class="section-title">&#128196; Materiály</h2>
+          <p class="help-text">V Procvičování najdete i sekci Materiály – podklady ke kvízům ke stažení, ať si látku můžete v klidu projít předem nebo si ji zopakovat. Ke každému tématu bývá studijní materiál jako dokument (shrnutí učiva) a k němu prezentace se stejnou látkou.</p>
         </div>
         </div>
       </div>
@@ -4148,6 +4187,73 @@ async function postAnnouncement() {
   errorEl.innerHTML = "<div class='demo-note'><b>Hotovo:</b> aktualita byla zveřejněna.</div>";
 }
 
+function filterQuizzes() {
+  if (user && (user.role === "mistrova" || user.role === "mistrova_view")) {
+    renderQuizzesAdminFiltered();
+  } else {
+    renderQuizListFiltered();
+  }
+}
+
+// Pořadí, v jakém RPC get_quizzes_for_my_rocnik() vrací kvízy, je vždy podle
+// created_at vzestupně (od nejstaršího) - díky tomu tenhle proxy funguje bez
+// nutnosti tahat created_at zvlášť na klienta.
+function applyQuizSort(rows) {
+  const sel = document.getElementById("quizSortSelect");
+  const mode = sel ? sel.value : "newest";
+  const arr = rows.slice();
+  if (mode === "newest") return arr.reverse();
+  if (mode === "oldest") return arr;
+  if (mode === "completed") return arr.sort((a, b) => (b.attempts_used > 0 ? 1 : 0) - (a.attempts_used > 0 ? 1 : 0));
+  if (mode === "uncompleted") return arr.sort((a, b) => (a.attempts_used > 0 ? 1 : 0) - (b.attempts_used > 0 ? 1 : 0));
+  if (mode === "best") return arr.sort((a, b) => (b.best_points || 0) - (a.best_points || 0));
+  if (mode === "worst") return arr.sort((a, b) => (a.best_points || 0) - (b.best_points || 0));
+  return arr;
+}
+
+function renderQuizListFiltered() {
+  const list = document.getElementById("quizListFull");
+  const query = (document.getElementById("quizSearchInput").value || "").trim().toLowerCase();
+  list.innerHTML = "";
+
+  if (!query) {
+    const pdiv = document.createElement("div");
+    pdiv.className = "list-item " + (personalityResult ? "status-green" : "status-yellow");
+    pdiv.innerHTML =
+      "<div><div class='name'>Test osobnosti</div><div class='meta'>" +
+      (personalityResult ? "Tvůj výsledek: " + esc(personalityResult.type_code) : "Vyplň a zjisti svůj výsledek &middot; cca 5 minut") +
+      "</div></div><span class='badge-pts'>" + (personalityResult ? "Hotovo" : "Nový") + "</span>";
+    pdiv.onclick = () => openPersonalityTest("quizzes");
+    list.appendChild(pdiv);
+  }
+
+  if (quizzes.length === 0) {
+    const emptyDiv = document.createElement("div");
+    emptyDiv.className = "empty-note";
+    emptyDiv.textContent = "Zatím tu pro váš ročník nejsou žádné kvízy.";
+    list.appendChild(emptyDiv);
+    return;
+  }
+  let rows = query ? quizzes.filter((q) => q.title.toLowerCase().includes(query)) : quizzes;
+  rows = applyQuizSort(rows);
+  if (rows.length === 0) {
+    const emptyDiv = document.createElement("div");
+    emptyDiv.className = "empty-note";
+    emptyDiv.textContent = "Žádný kvíz neodpovídá hledání.";
+    list.appendChild(emptyDiv);
+    return;
+  }
+  rows.forEach((q) => {
+    const div = document.createElement("div");
+    div.className = "list-item " + quizStatusClass(q);
+    div.innerHTML =
+      '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + q.questions.length + " otázky · " + q.points + " bodů" + (q.author_name ? " &middot; Autor: " + esc(q.author_name) : "") + "</div></div>" +
+      quizBadge(q);
+    div.onclick = () => openQuiz(q.id);
+    list.appendChild(div);
+  });
+}
+
 async function renderQuizList() {
   if (!user) return;
 
@@ -4160,11 +4266,13 @@ async function renderQuizList() {
     document.getElementById("teacherQuizzesCreateBtn").classList.toggle("hidden", !canEditQuizzes);
     document.getElementById("teacherQuizzesApproveBtn").classList.toggle("hidden", !canEditQuizzes);
     document.getElementById("teacherQuizzesUnpublishedBtn").classList.toggle("hidden", !canEditQuizzes);
-    loadQuizzesAdmin();
+    document.getElementById("quizSearchInput").value = "";
+    await loadQuizzesAdmin();
     return;
   }
   document.getElementById("studentQuizzesContent").classList.remove("hidden");
   document.getElementById("teacherQuizzesContent").classList.add("hidden");
+  document.getElementById("quizSearchInput").value = "";
 
   // Kvízy se (na rozdíl od výzev) při přihlášení natáhnou jen jednou a pak
   // žijí v paměti - pokud appka zůstane dlouho otevřená (typicky mobil, co
@@ -4173,34 +4281,7 @@ async function renderQuizList() {
   // se tu vždy při vstupu na tuhle obrazovku natáhnou znovu čerstvě ze
   // serveru - stejně jako to už dělá renderChallenges() u výzev.
   await loadQuizzes();
-
-  const list = document.getElementById("quizListFull");
-  list.innerHTML = "";
-
-  const pdiv = document.createElement("div");
-  pdiv.className = "list-item " + (personalityResult ? "status-green" : "status-yellow");
-  pdiv.innerHTML =
-    "<div><div class='name'>Test osobnosti</div><div class='meta'>" +
-    (personalityResult ? "Tvůj výsledek: " + esc(personalityResult.type_code) : "Vyplň a zjisti svůj výsledek &middot; cca 5 minut") +
-    "</div></div><span class='badge-pts'>" + (personalityResult ? "Hotovo" : "Nový") + "</span>";
-  pdiv.onclick = () => openPersonalityTest("quizzes");
-  list.appendChild(pdiv);
-
-  if (quizzes.length === 0) {
-    const emptyDiv = document.createElement("div");
-    emptyDiv.className = "empty-note";
-    emptyDiv.textContent = "Zatím tu pro váš ročník nejsou žádné kvízy.";
-    list.appendChild(emptyDiv);
-  }
-  quizzes.forEach((q) => {
-    const div = document.createElement("div");
-    div.className = "list-item " + quizStatusClass(q);
-    div.innerHTML =
-      '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + q.questions.length + " otázky · " + q.points + " bodů" + (q.author_name ? " &middot; Autor: " + esc(q.author_name) : "") + "</div></div>" +
-      quizBadge(q);
-    div.onclick = () => openQuiz(q.id);
-    list.appendChild(div);
-  });
+  renderQuizListFiltered();
 
   await markSeen("forkit_seen_quiz_ids", quizzes.map((q) => q.id));
   setNavBadge("quizzes", 0);
@@ -4280,6 +4361,7 @@ async function loadQuizSubmissionsAdmin() {
 async function renderPracticeQuizzes() {
   const list = document.getElementById("practiceQuizList");
   list.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  document.getElementById("practiceQuizSearchInput").value = "";
 
   const { data, error } = await sb.rpc("get_quizzes_for_practice");
   if (error) {
@@ -4287,12 +4369,27 @@ async function renderPracticeQuizzes() {
     return;
   }
   practiceQuizzes = data || [];
+  renderPracticeQuizzesFiltered();
+}
+
+function filterPracticeQuizzes() {
+  renderPracticeQuizzesFiltered();
+}
+
+function renderPracticeQuizzesFiltered() {
+  const list = document.getElementById("practiceQuizList");
   if (practiceQuizzes.length === 0) {
     list.innerHTML = "<div class='empty-note'>Zatím tu nejsou žádné kvízy k procvičení.</div>";
     return;
   }
+  const query = (document.getElementById("practiceQuizSearchInput").value || "").trim().toLowerCase();
+  const rows = query ? practiceQuizzes.filter((q) => q.title.toLowerCase().includes(query)) : practiceQuizzes;
+  if (rows.length === 0) {
+    list.innerHTML = "<div class='empty-note'>Žádný kvíz neodpovídá hledání.</div>";
+    return;
+  }
   list.innerHTML = "";
-  practiceQuizzes.forEach((q) => {
+  rows.forEach((q) => {
     const div = document.createElement("div");
     div.className = "list-item";
     div.innerHTML =
@@ -4303,19 +4400,33 @@ async function renderPracticeQuizzes() {
 }
 
 // ---------- KVÍZY: ADMINISTRACE (jen mistrová) ----------
+let quizzesAdminData = [];
+
 async function loadQuizzesAdmin() {
   const { data, error } = await sb.rpc("get_quizzes_admin");
   const list = document.getElementById("quizListAdmin");
-  list.innerHTML = "";
   if (error) {
     list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst kvízy: " + esc(error.message) + "</div>";
     return;
   }
-  if (!data || data.length === 0) {
+  quizzesAdminData = data || [];
+  renderQuizzesAdminFiltered();
+}
+
+function renderQuizzesAdminFiltered() {
+  const list = document.getElementById("quizListAdmin");
+  list.innerHTML = "";
+  if (quizzesAdminData.length === 0) {
     list.innerHTML = "<div class='empty-note'>Zatím jste nevytvořila žádný kvíz.</div>";
     return;
   }
-  data.forEach((q) => {
+  const query = (document.getElementById("quizSearchInput").value || "").trim().toLowerCase();
+  const rows = query ? quizzesAdminData.filter((q) => q.title.toLowerCase().includes(query)) : quizzesAdminData;
+  if (rows.length === 0) {
+    list.innerHTML = "<div class='empty-note'>Žádný kvíz neodpovídá hledání.</div>";
+    return;
+  }
+  rows.forEach((q) => {
     const div = document.createElement("div");
     div.className = "list-item";
     div.innerHTML =
@@ -5521,6 +5632,55 @@ async function loadChallenges() {
   challenges = error ? [] : (data || []);
 }
 
+function filterChallenges() {
+  if (user && (user.role === "mistrova" || user.role === "mistrova_view")) {
+    renderChallengesAdminFiltered();
+  } else {
+    renderChallengeListFiltered();
+  }
+}
+
+// Pořadí, v jakém RPC get_my_challenges() vrací výzvy, je vždy podle
+// created_at sestupně (od nejnovější) - díky tomu tenhle proxy funguje bez
+// nutnosti tahat created_at zvlášť na klienta.
+function applyChallengeSort(rows) {
+  const sel = document.getElementById("challengeSortSelect");
+  const mode = sel ? sel.value : "newest";
+  const arr = rows.slice();
+  if (mode === "newest") return arr;
+  if (mode === "oldest") return arr.reverse();
+  if (mode === "completed") return arr.sort((a, b) => (b.my_status === "approved" ? 1 : 0) - (a.my_status === "approved" ? 1 : 0));
+  if (mode === "uncompleted") return arr.sort((a, b) => (a.my_status === "approved" ? 1 : 0) - (b.my_status === "approved" ? 1 : 0));
+  if (mode === "best") return arr.sort((a, b) => (b.my_best_points || 0) - (a.my_best_points || 0));
+  if (mode === "worst") return arr.sort((a, b) => (a.my_best_points || 0) - (b.my_best_points || 0));
+  return arr;
+}
+
+function renderChallengeListFiltered() {
+  const list = document.getElementById("challengeListStudent");
+  list.innerHTML = "";
+  if (challenges.length === 0) {
+    list.innerHTML = "<div class='empty-note'>Zatím tu nejsou žádné výzvy.</div>";
+    return;
+  }
+  const query = (document.getElementById("challengeSearchInput").value || "").trim().toLowerCase();
+  let rows = query ? challenges.filter((c) => c.title.toLowerCase().includes(query)) : challenges;
+  rows = applyChallengeSort(rows);
+  if (rows.length === 0) {
+    list.innerHTML = "<div class='empty-note'>Žádná výzva neodpovídá hledání.</div>";
+    return;
+  }
+  rows.forEach((c) => {
+    const div = document.createElement("div");
+    div.className = "list-item " + challengeStatusClass(c);
+    div.innerHTML =
+      '<div><div class="name">' + esc(c.title) + '</div><div class="meta">' + challengeStatusLabel(c) + "</div></div>" +
+      "<span class='badge-pts'>" + challengePointsLabel(c) + "</span>";
+    div.onclick = () => openChallenge(c.id);
+    list.appendChild(div);
+  });
+}
+
 async function renderChallenges() {
   if (!user) return;
 
@@ -5532,35 +5692,23 @@ async function renderChallenges() {
     const canEditChallenges = user.role === "mistrova";
     document.getElementById("teacherChallengesCreateBtn").classList.toggle("hidden", !canEditChallenges);
     document.getElementById("teacherChallengesApproveBtn").classList.toggle("hidden", !canEditChallenges);
-    loadChallengesAdminOverview();
+    document.getElementById("challengeSearchInput").value = "";
+    await loadChallengesAdminOverview();
     return;
   }
   document.getElementById("studentChallengesContent").classList.remove("hidden");
   document.getElementById("teacherChallengesContent").classList.add("hidden");
+  document.getElementById("challengeSearchInput").value = "";
 
   const { data, error } = previewStudentId
     ? await sb.rpc("preview_get_my_challenges", { p_student_id: previewStudentId })
     : await sb.rpc("get_my_challenges");
-  const list = document.getElementById("challengeListStudent");
-  list.innerHTML = "";
   if (error) {
-    list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst výzvy: " + esc(error.message) + "</div>";
+    document.getElementById("challengeListStudent").innerHTML = "<div class='empty-note'>Nepodařilo se načíst výzvy: " + esc(error.message) + "</div>";
     return;
   }
   challenges = data || [];
-  if (challenges.length === 0) {
-    list.innerHTML = "<div class='empty-note'>Zatím tu nejsou žádné výzvy.</div>";
-    return;
-  }
-  challenges.forEach((c) => {
-    const div = document.createElement("div");
-    div.className = "list-item " + challengeStatusClass(c);
-    div.innerHTML =
-      '<div><div class="name">' + esc(c.title) + '</div><div class="meta">' + challengeStatusLabel(c) + "</div></div>" +
-      "<span class='badge-pts'>" + challengePointsLabel(c) + "</span>";
-    div.onclick = () => openChallenge(c.id);
-    list.appendChild(div);
-  });
+  renderChallengeListFiltered();
 
   // "Viděno" se sleduje podle konkrétního posouzení (submission id +
   // reviewed_at), ne podle id výzvy - díky tomu se odznáček objeví znovu i
@@ -5807,24 +5955,61 @@ async function submitChallengeForm() {
 }
 
 // ---------- VÝZVY: ADMINISTRACE (jen mistrová) ----------
+let challengesAdminData = [];
+
 async function loadChallengesAdminOverview() {
   const { data, error } = await sb.rpc("get_challenges_admin");
   const list = document.getElementById("challengeListAdminOverview");
-  list.innerHTML = "";
   if (error) {
     list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst výzvy: " + esc(error.message) + "</div>";
     return;
   }
-  if (!data || data.length === 0) {
+  challengesAdminData = data || [];
+  renderChallengesAdminFiltered();
+}
+
+function renderChallengesAdminFiltered() {
+  const list = document.getElementById("challengeListAdminOverview");
+  list.innerHTML = "";
+  if (challengesAdminData.length === 0) {
     list.innerHTML = "<div class='empty-note'>Zatím jste nevytvořila žádnou výzvu.</div>";
     return;
   }
-  data.forEach((c) => {
+  const query = (document.getElementById("challengeSearchInput").value || "").trim().toLowerCase();
+  const rows = query ? challengesAdminData.filter((c) => c.title.toLowerCase().includes(query)) : challengesAdminData;
+  if (rows.length === 0) {
+    list.innerHTML = "<div class='empty-note'>Žádná výzva neodpovídá hledání.</div>";
+    return;
+  }
+  rows.forEach((c) => {
     const div = document.createElement("div");
     div.className = "list-item";
     div.innerHTML =
       '<div><div class="name">' + esc(c.title) + '</div><div class="meta">' + c.points + " b. · splnilo " + c.approved_count + " · čeká " + c.pending_count + "</div></div>";
     div.onclick = () => openChallengeStudents(c.id, c.title, c.points);
+    // "Upravit"/"Smazat" jsou zásah do výzvy - jen skutečná mistrová, mistrová
+    // (náhled) může kliknutím na řádek jen prohlížet výsledky studentů.
+    if (user.role === "mistrova") {
+      const actions = document.createElement("div");
+      actions.style.display = "flex";
+      actions.style.gap = "6px";
+      actions.style.flexShrink = "0";
+
+      const editBtn = document.createElement("button");
+      editBtn.className = "toggle-btn";
+      editBtn.textContent = "Upravit";
+      editBtn.onclick = (e) => { e.stopPropagation(); openChallengeEdit(c); };
+
+      const delBtn = document.createElement("button");
+      delBtn.className = "toggle-btn";
+      delBtn.style.color = "var(--red)";
+      delBtn.textContent = "Smazat";
+      delBtn.onclick = (e) => { e.stopPropagation(); deleteChallengeConfirm(c); };
+
+      actions.appendChild(editBtn);
+      actions.appendChild(delBtn);
+      div.appendChild(actions);
+    }
     list.appendChild(div);
   });
 }
@@ -5838,6 +6023,10 @@ function newChallengeDraftStorageKey() {
   return "forkit_new_challenge_draft_" + (user ? user.id : "anon");
 }
 function persistNewChallengeDraft() {
+  // V režimu úpravy existující výzvy se rozepsaný text neukládá jako
+  // "rozepsaná nová výzva" - jinak by se při příštím otevření "+ Vytvořit
+  // výzvu" omylem nabídl obsah právě upravované výzvy.
+  if (challengeEditMode) return;
   try {
     const title = document.getElementById("ccTitle").value;
     const description = document.getElementById("ccDescription").value;
@@ -5863,7 +6052,14 @@ function clearNewChallengeDraft() {
   } catch (e) {}
 }
 
+let challengeEditMode = false;
+let challengeEditId = null;
+
 function openChallengeCreate() {
+  challengeEditMode = false;
+  challengeEditId = null;
+  document.getElementById("ccHeading").textContent = "Nová výzva";
+  document.getElementById("ccSaveBtn").textContent = "Uložit výzvu";
   const titleEl = document.getElementById("ccTitle");
   const descEl = document.getElementById("ccDescription");
   const pointsEl = document.getElementById("ccPoints");
@@ -5879,6 +6075,32 @@ function openChallengeCreate() {
     titleEl.dataset.draftWired = "1";
   }
   showScreen("challenge-create");
+}
+
+// Úprava existující výzvy (jen skutečná mistrová) - stejná obrazovka jako
+// vytvoření nové, jen předvyplněná a bez ukládání do localStorage draftu.
+function openChallengeEdit(c) {
+  challengeEditMode = true;
+  challengeEditId = c.id;
+  document.getElementById("ccHeading").textContent = "Upravit výzvu";
+  document.getElementById("ccSaveBtn").textContent = "Uložit změny";
+  document.getElementById("ccTitle").value = c.title || "";
+  document.getElementById("ccDescription").value = c.description || "";
+  document.getElementById("ccPoints").value = c.points || 0;
+  document.getElementById("ccError").innerHTML = "";
+  showScreen("challenge-create");
+  document.getElementById("topbarTitle").textContent = "Upravit výzvu";
+  document.getElementById("topbarSub").textContent = "Uprav a ulož změny";
+}
+
+async function deleteChallengeConfirm(c) {
+  if (!confirm("Opravdu smazat výzvu „" + c.title + "“ včetně všech odevzdání studentů?")) return;
+  const { error } = await sb.rpc("delete_challenge", { p_challenge_id: c.id });
+  if (error) {
+    alert("Nepodařilo se smazat výzvu: " + error.message);
+    return;
+  }
+  await loadChallengesAdminOverview();
 }
 
 async function saveChallengeDraft() {
@@ -5901,21 +6123,19 @@ async function saveChallengeDraft() {
   btn.disabled = true;
   btn.textContent = "Ukládám...";
 
-  const { error } = await sb.rpc("create_challenge", {
-    p_title: title,
-    p_description: description,
-    p_points: points,
-  });
+  const { error } = challengeEditMode
+    ? await sb.rpc("update_challenge", { p_challenge_id: challengeEditId, p_title: title, p_description: description, p_points: points })
+    : await sb.rpc("create_challenge", { p_title: title, p_description: description, p_points: points });
 
   btn.disabled = false;
-  btn.textContent = "Uložit výzvu";
+  btn.textContent = challengeEditMode ? "Uložit změny" : "Uložit výzvu";
 
   if (error) {
     errorEl.innerHTML = "<div class='error-note'>Nepodařilo se uložit výzvu: " + esc(error.message) + "</div>";
     return;
   }
 
-  clearNewChallengeDraft();
+  if (!challengeEditMode) clearNewChallengeDraft();
   showScreen("challenges");
 }
 
@@ -6801,17 +7021,21 @@ async function downloadMaterial(m) {
   }
 }
 
+let materialsIsTeacher = false;
+let materialsCanSeeStats = false;
+
 async function renderPracticeMaterials() {
   const el = document.getElementById("materialsList");
   el.innerHTML = "<div class='empty-note'>Načítám...</div>";
-  const isTeacher = user.role === "mistrova";
-  const canSeeStats = user.role === "mistrova" || user.role === "mistrova_view";
-  document.getElementById("materialsUploadBtn").classList.toggle("hidden", !isTeacher);
+  materialsIsTeacher = user.role === "mistrova";
+  materialsCanSeeStats = user.role === "mistrova" || user.role === "mistrova_view";
+  document.getElementById("materialsUploadBtn").classList.toggle("hidden", !materialsIsTeacher);
+  document.getElementById("materialsSearchInput").value = "";
 
   // Mistrová (a mistrová v náhledu) navíc vidí, kolik studentů si který
   // materiál zobrazilo - proto pro ně jedeme přes RPC, která tohle k
   // materiálům rovnou dopočítá, místo prostého výběru z tabulky.
-  const { data, error } = canSeeStats
+  const { data, error } = materialsCanSeeStats
     ? await sb.rpc("get_practice_materials_admin")
     : await sb.from("practice_materials")
         .select("id,title,file_name,storage_path,mime_type,file_size,created_at")
@@ -6821,16 +7045,31 @@ async function renderPracticeMaterials() {
     return;
   }
   allMaterials = data || [];
+  renderMaterialsListFiltered();
+}
+
+function filterMaterials() {
+  renderMaterialsListFiltered();
+}
+
+function renderMaterialsListFiltered() {
+  const el = document.getElementById("materialsList");
   if (allMaterials.length === 0) {
     el.innerHTML = "<div class='empty-note'>Zatím tu nejsou žádné materiály.</div>";
     return;
   }
+  const query = (document.getElementById("materialsSearchInput").value || "").trim().toLowerCase();
+  const rows = query ? allMaterials.filter((m) => (m.title || "").toLowerCase().includes(query)) : allMaterials;
+  if (rows.length === 0) {
+    el.innerHTML = "<div class='empty-note'>Žádný materiál neodpovídá hledání.</div>";
+    return;
+  }
   el.innerHTML = "";
-  allMaterials.forEach((m) => {
+  rows.forEach((m) => {
     const div = document.createElement("div");
     div.className = "card";
     const sizeLabel = formatMaterialSize(m.file_size);
-    const statsLabel = canSeeStats
+    const statsLabel = materialsCanSeeStats
       ? "<div style='font-size:12.5px;color:var(--text-muted);margin-top:4px;'>&#128065; " + m.viewed_count + " / " + m.total_students + " student" + (m.total_students === 1 ? "" : "ů") + " zobrazilo</div>"
       : "";
     div.innerHTML =
@@ -6840,11 +7079,11 @@ async function renderPracticeMaterials() {
       "<div style='display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;'>" +
       "<button class='btn-secondary' style='width:auto;padding:8px 14px;font-size:13px;' data-view>Zobrazit</button>" +
       "<button class='btn-secondary' style='width:auto;padding:8px 14px;font-size:13px;' data-download>Stáhnout</button>" +
-      (isTeacher ? "<button class='btn-secondary' style='width:auto;padding:8px 14px;font-size:13px;color:var(--red);' data-delete>Smazat</button>" : "") +
+      (materialsIsTeacher ? "<button class='btn-secondary' style='width:auto;padding:8px 14px;font-size:13px;color:var(--red);' data-delete>Smazat</button>" : "") +
       "</div>";
     div.querySelector("[data-view]").onclick = () => viewMaterial(m);
     div.querySelector("[data-download]").onclick = () => downloadMaterial(m);
-    if (isTeacher) div.querySelector("[data-delete]").onclick = () => deleteMaterialConfirm(m);
+    if (materialsIsTeacher) div.querySelector("[data-delete]").onclick = () => deleteMaterialConfirm(m);
     el.appendChild(div);
   });
 }
