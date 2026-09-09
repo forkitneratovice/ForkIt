@@ -1446,9 +1446,28 @@
 
       <!-- DETAIL KVÍZU: VŠICHNI STUDENTI DANÉHO ROČNÍKU (jen mistrová) -->
       <div class="screen hidden" id="screen-quiz-students">
-        <span class="back-link" onclick="showScreen('quizzes')">&larr; Zpět na kvízy</span>
+        <span class="back-link" id="quizStudentsBackLink" onclick="showScreen('quizzes')">&larr; Zpět na kvízy</span>
         <div id="quizStudentsHeader"></div>
         <div id="quizStudentsList"></div>
+      </div>
+
+      <!-- DETAIL KVÍZU: ROZPAD PODLE ROČNÍKŮ + PŘIDÁNÍ DALŠÍHO ROČNÍKU (jen mistrová) -->
+      <div class="screen hidden" id="screen-quiz-group-detail">
+        <span class="back-link" onclick="showScreen('quizzes')">&larr; Zpět na kvízy</span>
+        <h2 class="section-title" id="qgdTitle">Kvíz</h2>
+        <p class="help-text" id="qgdMeta" style="margin-top:-8px;"></p>
+
+        <div id="qgdAddRocnikWrap" class="hidden">
+          <div class="field">
+            <label>Přidat ročník (kvíz uvidí i studenti tohoto ročníku)</label>
+            <div id="qgdAddRocnikChecks" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;"></div>
+          </div>
+          <div id="qgdAddRocnikError"></div>
+          <button class="btn-secondary" onclick="addQuizGroupRocniky()">Přidat ročník</button>
+        </div>
+
+        <h2 class="section-title" style="margin-top:22px;">Podle ročníku</h2>
+        <div id="qgdRocnikList"></div>
       </div>
 
       <!-- QUIZ TAKING -->
@@ -3326,6 +3345,7 @@ function showScreen(name) {
     "personality-take": ["Test osobnosti", "Pár otázek o tobě"],
     "personality-result": ["Test osobnosti", "Tvůj výsledek"],
     "quiz-students": ["Studenti", "Jak si vedli"],
+    "quiz-group-detail": ["Kvíz", "Podle ročníku"],
     challenges: ["Výzvy", "Praktické úkoly"],
     "challenge-detail": ["Výzva", "Detail výzvy"],
     "challenge-create": ["Nová výzva", "Vytvořit výzvu"],
@@ -3369,6 +3389,7 @@ function showScreen(name) {
   if (name === "quiz-submissions-admin") loadQuizSubmissionsAdmin();
   if (name === "quiz-unpublished") renderUnpublishedQuizzes();
   if (name === "my-authored-quizzes") renderMyAuthoredQuizzes();
+  if (name === "quiz-group-detail") renderQuizGroupDetail();
   if (name === "quiz-review") renderQuizReview();
   if (name === "challenges") renderChallenges();
   if (name === "challenge-approvals") loadChallengesAdmin();
@@ -4496,10 +4517,14 @@ function renderPracticeQuizzesFiltered() {
 }
 
 // ---------- KVÍZY: ADMINISTRACE (jen mistrová) ----------
+// Seznam je seskupený podle názvu kvízu - i když je stejný kvíz (napřklad
+// "Školní řád") založený zvlášť pro víc ročníků (víc řádků v DB), tady se
+// ukáže jen jednou, s celkovým součtem "kolik z kolika ho splnilo". Rozpad
+// po jednotlivých ročnících je až v detailu (openQuizGroupDetail).
 let quizzesAdminData = [];
 
 async function loadQuizzesAdmin() {
-  const { data, error } = await sb.rpc("get_quizzes_admin");
+  const { data, error } = await sb.rpc("get_quizzes_admin_grouped");
   const list = document.getElementById("quizListAdmin");
   if (error) {
     list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst kvízy: " + esc(error.message) + "</div>";
@@ -4526,19 +4551,12 @@ function renderQuizzesAdminFiltered() {
     const div = document.createElement("div");
     div.className = "list-item";
     div.innerHTML =
-      '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + quizRocnikLabel(q.rocnik, q.rocniky) + " · " + q.question_count + " otázky · " + q.points + " b.</div></div>" +
+      '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + q.question_count + " otázky · " + q.points + " b.</div></div>" +
       '<span class="badge-pts">' + q.completed_count + "/" + q.total_students + "</span>";
-    // "Upravit" je zásah do obsahu kvízu - jen skutečná mistrová, mistrová
-    // (náhled) může kliknutím na řádek jen prohlížet výsledky studentů.
-    if (user.role === "mistrova") {
-      const editBtn = document.createElement("button");
-      editBtn.className = "toggle-btn";
-      editBtn.style.marginLeft = "8px";
-      editBtn.textContent = "Upravit";
-      editBtn.onclick = (e) => { e.stopPropagation(); openQuizEdit(q.id, "quizzes"); };
-      div.appendChild(editBtn);
-    }
-    div.onclick = () => openQuizStudents(q.id, q.title, q.points);
+    // Klik otevře rozpad podle ročníku (viz openQuizGroupDetail) - tam je i
+    // "Upravit" pro konkrétní ročníkovou kopii kvízu a možnost přidat další
+    // ročník, ať se to sem na hlavní seznam nemusí cpát všechno najednou.
+    div.onclick = () => openQuizGroupDetail(q.title);
     list.appendChild(div);
   });
 }
@@ -4724,18 +4742,27 @@ async function cancelQuizSchedule() {
 
 let currentQuizStudentsCtx = null;
 
-async function openQuizStudents(id, title, points) {
-  currentQuizStudentsCtx = { id, title, points };
+// targetRocnik: u kvízu, jehož jeden řádek platí pro víc ročníků najednou
+// (sloupec rocniky), řekne, na kterou konkrétní ročníkovou položku se z
+// detailu kliklo - ať se ukážou studenti jen z toho jednoho ročníku, ne ze
+// všech, co ten řádek pokrývá. returnTo: kam se vrátit zpátky (buď rovnou na
+// seznam kvízů, nebo do rozpadu podle ročníku, odkud se sem přišlo).
+async function openQuizStudents(id, title, points, targetRocnik, returnTo) {
+  currentQuizStudentsCtx = { id, title, points, targetRocnik, returnTo: returnTo || "quizzes" };
+  const backLink = document.getElementById("quizStudentsBackLink");
+  backLink.textContent = returnTo === "quiz-group-detail" ? "← Zpět na kvíz" : "← Zpět na kvízy";
+  backLink.onclick = () => showScreen(currentQuizStudentsCtx.returnTo);
   showScreen("quiz-students");
   await loadQuizStudents();
 }
 
 async function loadQuizStudents() {
   const ctx = currentQuizStudentsCtx;
-  document.getElementById("quizStudentsHeader").innerHTML = "<h2 class='section-title'>" + esc(ctx.title) + "</h2>";
+  const headerTitle = ctx.targetRocnik ? ctx.title + " · " + ctx.targetRocnik : ctx.title;
+  document.getElementById("quizStudentsHeader").innerHTML = "<h2 class='section-title'>" + esc(headerTitle) + "</h2>";
   const list = document.getElementById("quizStudentsList");
   list.innerHTML = "<div class='empty-note'>Načítám...</div>";
-  const { data, error } = await sb.rpc("get_quiz_students", { p_quiz_id: ctx.id });
+  const { data, error } = await sb.rpc("get_quiz_students", { p_quiz_id: ctx.id, p_target_rocnik: ctx.targetRocnik || null });
   list.innerHTML = "";
   if (error) {
     list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst: " + esc(error.message) + "</div>";
@@ -4766,6 +4793,98 @@ async function loadQuizStudents() {
       "<div class='pts'>" + pts + "</div>";
     list.appendChild(div);
   });
+}
+
+// ---------- KVÍZ: ROZPAD PODLE ROČNÍKU + PŘIDÁNÍ DALŠÍHO ROČNÍKU (jen mistrová) ----------
+let currentQuizGroupTitle = null;
+
+async function openQuizGroupDetail(title) {
+  currentQuizGroupTitle = title;
+  showScreen("quiz-group-detail");
+  await renderQuizGroupDetail();
+}
+
+async function renderQuizGroupDetail() {
+  const title = currentQuizGroupTitle;
+  document.getElementById("qgdTitle").textContent = title;
+  document.getElementById("qgdMeta").textContent = "";
+  const addWrap = document.getElementById("qgdAddRocnikWrap");
+  const addChecksEl = document.getElementById("qgdAddRocnikChecks");
+  const addErrorEl = document.getElementById("qgdAddRocnikError");
+  addErrorEl.innerHTML = "";
+  const list = document.getElementById("qgdRocnikList");
+  list.innerHTML = "<div class='empty-note'>Načítám...</div>";
+
+  const { data, error } = await sb.rpc("get_quiz_group_detail", { p_title: title });
+  if (error) {
+    list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst: " + esc(error.message) + "</div>";
+    addWrap.classList.add("hidden");
+    return;
+  }
+  const rows = data || [];
+  document.getElementById("qgdMeta").textContent =
+    rows.length > 0 ? rows[0].points + " b. za splnění" : "";
+
+  // "Přidat ročník" smí jen skutečná mistrová (ne náhled) - už pokryté
+  // ročníky se ukážou zaškrtnuté a needitovatelné, ať se dá jen přidávat, ne
+  // omylem "odebrat" ročník, který kvíz už léta vidí (a mít tak nechtěně
+  // dopad na historii jeho výsledků).
+  addWrap.classList.toggle("hidden", user.role !== "mistrova");
+  const covered = new Set(rows.map((r) => r.rocnik));
+  addChecksEl.innerHTML = "";
+  ALL_QUIZ_ROCNIKY.forEach((r) => {
+    const label = document.createElement("label");
+    label.style.cssText = "display:flex;align-items:center;gap:5px;font-size:13.5px;padding:6px 10px;border:1px solid #E0DCD3;border-radius:8px;cursor:pointer;" + (covered.has(r) ? "opacity:0.55;" : "");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.value = r;
+    cb.checked = covered.has(r);
+    cb.disabled = covered.has(r);
+    cb.className = "qgd-add-rocnik-check";
+    cb.style.cssText = "width:16px;height:16px;min-width:16px;padding:0;margin:0;border:none;background:transparent;flex-shrink:0;";
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(r));
+    addChecksEl.appendChild(label);
+  });
+
+  list.innerHTML = "";
+  if (rows.length === 0) {
+    list.innerHTML = "<div class='empty-note'>Kvíz zatím nemá žádný ročník.</div>";
+    return;
+  }
+  rows.forEach((r) => {
+    const div = document.createElement("div");
+    div.className = "list-item";
+    div.innerHTML =
+      "<div><div class='name'>" + esc(r.rocnik) + "</div></div>" +
+      "<span class='badge-pts'>" + r.completed_count + "/" + r.total_students + "</span>";
+    if (user.role === "mistrova") {
+      const editBtn = document.createElement("button");
+      editBtn.className = "toggle-btn";
+      editBtn.style.marginLeft = "8px";
+      editBtn.textContent = "Upravit";
+      editBtn.onclick = (e) => { e.stopPropagation(); openQuizEdit(r.quiz_id, "quiz-group-detail"); };
+      div.appendChild(editBtn);
+    }
+    div.onclick = () => openQuizStudents(r.quiz_id, title, r.points, r.rocnik, "quiz-group-detail");
+    list.appendChild(div);
+  });
+}
+
+async function addQuizGroupRocniky() {
+  const errorEl = document.getElementById("qgdAddRocnikError");
+  errorEl.innerHTML = "";
+  const toAdd = [...document.querySelectorAll(".qgd-add-rocnik-check:checked:not(:disabled)")].map((c) => c.value);
+  if (toAdd.length === 0) {
+    errorEl.innerHTML = "<div class='error-note'>Zaškrtněte aspoň jeden nový ročník.</div>";
+    return;
+  }
+  const { error } = await sb.rpc("add_quiz_rocniky", { p_title: currentQuizGroupTitle, p_add_rocniky: toAdd });
+  if (error) {
+    errorEl.innerHTML = "<div class='error-note'>Nepodařilo se přidat ročník: " + esc(error.message) + "</div>";
+    return;
+  }
+  await renderQuizGroupDetail();
 }
 
 // ---------- VYTVOŘENÍ KVÍZU (jen mistrová) ----------
