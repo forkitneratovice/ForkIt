@@ -1154,6 +1154,10 @@
             <option value="HT4">HT4</option>
             <option value="all">Všechny ročníky</option>
           </select>
+          <div class="hidden" id="qcRocnikChecksWrap">
+            <div id="qcRocnikChecks" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;"></div>
+            <span onclick="toggleAllReviewRocniky()" style="display:inline-block;margin-top:8px;font-size:12.5px;color:var(--text-muted);text-decoration:underline;cursor:pointer;">Vybrat/zrušit všechny ročníky</span>
+          </div>
         </div>
         <div class="field hidden" id="qcVisibilityField">
           <label>Pro koho bude kvíz, až ho mistrová schválí</label>
@@ -4485,7 +4489,7 @@ function renderPracticeQuizzesFiltered() {
     const div = document.createElement("div");
     div.className = "list-item";
     div.innerHTML =
-      "<div><div class='name'>" + esc(q.title) + "</div><div class='meta'>" + quizRocnikLabel(q.rocnik) + " · " + q.questions.length + " otázky</div></div>";
+      "<div><div class='name'>" + esc(q.title) + "</div><div class='meta'>" + quizRocnikLabel(q.rocnik, q.rocniky) + " · " + q.questions.length + " otázky</div></div>";
     div.onclick = () => openPracticeQuiz(q.id);
     list.appendChild(div);
   });
@@ -4522,7 +4526,7 @@ function renderQuizzesAdminFiltered() {
     const div = document.createElement("div");
     div.className = "list-item";
     div.innerHTML =
-      '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + quizRocnikLabel(q.rocnik) + " · " + q.question_count + " otázky · " + q.points + " b.</div></div>" +
+      '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + quizRocnikLabel(q.rocnik, q.rocniky) + " · " + q.question_count + " otázky · " + q.points + " b.</div></div>" +
       '<span class="badge-pts">' + q.completed_count + "/" + q.total_students + "</span>";
     // "Upravit" je zásah do obsahu kvízu - jen skutečná mistrová, mistrová
     // (náhled) může kliknutím na řádek jen prohlížet výsledky studentů.
@@ -4627,6 +4631,38 @@ function toggleAllPublishRocniky() {
 
 function selectedPublishRocniky() {
   return [...document.querySelectorAll(".qp-rocnik-check:checked")].map((c) => c.value);
+}
+
+// Stejný vzor zaškrtávacích políček jako u "Zveřejnit kvíz" (qpRocnikChecks),
+// ale pro obrazovku posouzení studentského návrhu (qcRocnikChecks) - mistrová
+// tu může při schválení zaškrtnout rovnou víc ročníků najednou.
+function renderReviewRocnikChecks(preselected) {
+  const checksEl = document.getElementById("qcRocnikChecks");
+  checksEl.innerHTML = "";
+  const preselectedSet = new Set(preselected || []);
+  ALL_QUIZ_ROCNIKY.forEach((r) => {
+    const label = document.createElement("label");
+    label.style.cssText = "display:flex;align-items:center;gap:5px;font-size:13.5px;padding:6px 10px;border:1px solid #E0DCD3;border-radius:8px;cursor:pointer;";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.value = r;
+    cb.checked = preselectedSet.has(r);
+    cb.className = "qc-rocnik-check";
+    cb.style.cssText = "width:16px;height:16px;min-width:16px;padding:0;margin:0;border:none;background:transparent;flex-shrink:0;";
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(r));
+    checksEl.appendChild(label);
+  });
+}
+
+function toggleAllReviewRocniky() {
+  const checks = [...document.querySelectorAll(".qc-rocnik-check")];
+  const allChecked = checks.every((c) => c.checked);
+  checks.forEach((c) => { c.checked = !allChecked; });
+}
+
+function selectedReviewRocniky() {
+  return [...document.querySelectorAll(".qc-rocnik-check:checked")].map((c) => c.value);
 }
 
 async function publishQuizNow() {
@@ -4739,8 +4775,10 @@ let quizDraft = [];
 // vlastní kvíz (teacher-create), student navrhuje kvíz ke schválení
 // (student-create), nebo mistrová posuzuje/upravuje studentův návrh
 // (review) - sdílejí stejný editor otázek, jen se liší pár polí a tlačítka.
-function setQuizEditorFieldsVisible({ rocnik, visibility, points, authorBonus, comment, saveBtn, reviewBtns, editSaveBtn }) {
+function setQuizEditorFieldsVisible({ rocnik, rocnikMulti, visibility, points, authorBonus, comment, saveBtn, reviewBtns, editSaveBtn }) {
   document.getElementById("qcRocnikField").classList.toggle("hidden", !rocnik);
+  document.getElementById("qcRocnik").classList.toggle("hidden", !rocnik || rocnikMulti);
+  document.getElementById("qcRocnikChecksWrap").classList.toggle("hidden", !rocnik || !rocnikMulti);
   document.getElementById("qcVisibilityField").classList.toggle("hidden", !visibility);
   document.getElementById("qcPointsField").classList.toggle("hidden", !points);
   document.getElementById("qcAuthorBonusField").classList.toggle("hidden", !authorBonus);
@@ -4803,7 +4841,7 @@ async function openQuizReview(quizId, returnTo) {
   quizEditorReturnTo = returnTo || "quiz-submissions-admin";
   document.getElementById("qcBackLink").onclick = () => showScreen(quizEditorReturnTo);
   document.getElementById("qcHeading").textContent = "Posouzení návrhu";
-  setQuizEditorFieldsVisible({ rocnik: true, visibility: false, points: true, authorBonus: true, comment: true, saveBtn: false, reviewBtns: true, editSaveBtn: false });
+  setQuizEditorFieldsVisible({ rocnik: true, rocnikMulti: true, visibility: false, points: true, authorBonus: true, comment: true, saveBtn: false, reviewBtns: true, editSaveBtn: false });
   document.getElementById("qcAuthorNote").classList.add("hidden");
   document.getElementById("qcQuestionStats").classList.add("hidden");
   document.getElementById("qcQuestionStats").innerHTML = "";
@@ -4824,7 +4862,11 @@ async function openQuizReview(quizId, returnTo) {
   const s = data[0];
   quizEditorCurrentStatus = s.status;
   document.getElementById("qcTitle").value = s.title;
-  document.getElementById("qcRocnik").value = s.rocnik == null ? "all" : String(s.rocnik);
+  // Zaškrtnutí víc ročníků najednou: přednost má rocniky (víc konkrétních
+  // ročníků najednou), jinak buď jeden konkrétní ročník, nebo (rocnik i
+  // rocniky prázdné = "všechny ročníky") rovnou předzaškrtnuté všechny.
+  const preselectedRocniky = (s.rocniky && s.rocniky.length) ? s.rocniky : (s.rocnik == null ? ALL_QUIZ_ROCNIKY.slice() : [s.rocnik]);
+  renderReviewRocnikChecks(preselectedRocniky);
   document.getElementById("qcPoints").value = s.points || 0;
   // U ještě nerozhodnutého návrhu nabídne rovnou výchozí bonus (5 bodů), ať
   // na něj mistrová nezapomene - u už dřív rozhodnutého se ukáže přesně to,
@@ -5323,14 +5365,17 @@ async function reviewStudentQuiz(status) {
   const errorEl = document.getElementById("qcError");
   errorEl.innerHTML = "";
   const title = document.getElementById("qcTitle").value.trim();
-  const rocnikRaw = document.getElementById("qcRocnik").value;
-  const rocnik = rocnikRaw === "all" ? null : rocnikRaw;
+  const rocniky = selectedReviewRocniky();
   const points = parseInt(document.getElementById("qcPoints").value, 10);
   const authorBonusPoints = parseInt(document.getElementById("qcAuthorBonus").value, 10);
   const comment = document.getElementById("qcComment").value.trim();
 
   if (!title) {
     errorEl.innerHTML = "<div class='error-note'>Zadejte prosím název kvízu.</div>";
+    return;
+  }
+  if (rocniky.length === 0) {
+    errorEl.innerHTML = "<div class='error-note'>Vyberte aspoň jeden ročník.</div>";
     return;
   }
   if (isNaN(points) || points < 0) {
@@ -5350,7 +5395,8 @@ async function reviewStudentQuiz(status) {
     p_title: title,
     p_questions: payload,
     p_points: points,
-    p_rocnik: rocnik,
+    p_rocnik: null,
+    p_rocniky: rocniky,
     p_status: status,
     p_comment: comment || null,
   });
@@ -8048,7 +8094,8 @@ function rocnikLabel(rocnik, short) {
 // ktery mel tesne pred promoci do Vyučení).
 // Cílový ročník kvízu - na rozdíl od rocnikLabel() tu null znamená "pro
 // všechny ročníky" (kvíz bez omezení), ne testovací účet.
-function quizRocnikLabel(rocnik) {
+function quizRocnikLabel(rocnik, rocniky) {
+  if (rocniky && rocniky.length) return rocniky.join(", ");
   return rocnik == null ? "Všechny ročníky" : rocnik;
 }
 
