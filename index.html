@@ -1867,14 +1867,8 @@
 
         <div id="compDetailPersonality"></div>
 
-        <h2 class="section-title">Procvičování</h2>
-        <div id="compDetailPractice"></div>
-
-        <h2 class="section-title">Kvízy</h2>
-        <div id="compDetailQuizList"><div class="empty-note">Načítám...</div></div>
-
-        <h2 class="section-title">Výzvy</h2>
-        <div id="compDetailChallengeList"><div class="empty-note">Načítám...</div></div>
+        <h2 class="section-title">Rozdělení bodů</h2>
+        <div class="comp-stat-grid" id="compDetailPointsCategories" style="grid-template-columns: repeat(2, 1fr);"><div class="empty-note">Načítám...</div></div>
 
         <h2 class="section-title">Odznáčky</h2>
         <div id="compDetailBadges"></div>
@@ -1884,6 +1878,14 @@
           <p class="help-text">Nevratně smaže účet i všechna data studenta (body, kvízy, výzvy, zprávy, odznáčky...). Použij např. u falešné registrace nebo studenta, který už školu ukončil.</p>
           <button class="btn-secondary" style="color:var(--red);" onclick="openDeleteStudentModal()">Smazat studenta</button>
         </div>
+      </div>
+
+      <!-- DETAIL JEDNÉ KATEGORIE BODŮ STUDENTA (mistrová - rozklik dlaždice z Rozdělení bodů) -->
+      <div class="screen hidden" id="screen-competitor-category-detail">
+        <span class="back-link" onclick="showScreen('competitor-detail')">&larr; Zpět na studenta</span>
+        <h2 class="section-title" id="ccdTitle">Kvízy</h2>
+        <p class="help-text" id="ccdMeta" style="margin-top:-8px;"></p>
+        <div id="ccdContent"></div>
       </div>
 
       <!-- ZPRÁVY -->
@@ -3366,6 +3368,7 @@ function showScreen(name) {
     leaderboard: ["Žebříček", "Jak si vedeš"],
     competitors: ["Soutěžící", "Přehled studentů"],
     "competitor-detail": ["Student", "Detail studenta"],
+    "competitor-category-detail": ["Rozdělení bodů", "Detail kategorie"],
     achievements: ["Úspěchy", "Tvoje odznáčky"],
     messages: ["Zprávy", "Chat"],
     "chat-thread": ["Zprávy", "Chat"],
@@ -8404,29 +8407,34 @@ async function openCompetitorDetail(id) {
   document.getElementById("compDetailQuizCount").textContent = "…";
   document.getElementById("compDetailChallengeCount").textContent = "…";
   document.getElementById("compDetailStreak").textContent = "…";
-  document.getElementById("compDetailQuizList").innerHTML = "<div class='empty-note'>Načítám...</div>";
-  document.getElementById("compDetailChallengeList").innerHTML = "<div class='empty-note'>Načítám...</div>";
+  document.getElementById("compDetailPointsCategories").innerHTML = "<div class='empty-note'>Načítám...</div>";
   document.getElementById("compDetailBadges").innerHTML = "";
   document.getElementById("compDetailPersonality").innerHTML = "";
-  document.getElementById("compDetailPractice").innerHTML = "<div class='empty-note'>Načítám...</div>";
 
-  const [statsRes, quizRes, challengeRes, persRes] = await Promise.all([
+  const [statsRes, quizRes, challengeRes, persRes, practiceRes, authoredRes] = await Promise.all([
     sb.rpc("get_student_badges_stats", { p_student_id: id }),
     sb.rpc("get_student_quiz_results", { p_student_id: id }),
     sb.rpc("get_student_challenge_results", { p_student_id: id }),
     sb.rpc("get_student_personality", { p_student_id: id }),
+    sb.rpc("get_practice_points_breakdown", { p_student_id: id }),
+    sb.rpc("get_my_authored_quizzes", { p_student_id: id }),
   ]);
 
   if (currentCompetitorId !== id) return; // mezitím otevřela detail jiného studenta
 
-  // Uloženo pro exportCompetitorExcel() - ať export nemusí data tahat znovu.
+  // Uloženo pro exportCompetitorExcel() a pro rozklik jednotlivých dlaždic
+  // v openCompetitorCategoryDetail() - ať se data netahají znovu.
   currentCompetitorExportData = {
     student: r,
     stats: (!statsRes.error && statsRes.data && statsRes.data[0]) ? statsRes.data[0] : null,
     quizzes: quizRes.data || [],
     challenges: challengeRes.data || [],
     personality: (!persRes.error && persRes.data && persRes.data[0]) ? persRes.data[0] : null,
+    practice: practiceRes.data || [],
+    authored: authoredRes.data || [],
   };
+
+  renderCompetitorPointsCategories(currentCompetitorExportData);
 
   if (!statsRes.error && statsRes.data && statsRes.data[0]) {
     const b = statsRes.data[0];
@@ -8434,12 +8442,10 @@ async function openCompetitorDetail(id) {
     document.getElementById("compDetailChallengeCount").textContent = b.challenges_completed;
     document.getElementById("compDetailStreak").textContent = b.login_streak || 0;
     renderCompetitorBadges(b);
-    renderCompetitorPractice(b);
   } else {
     document.getElementById("compDetailQuizCount").textContent = "0";
     document.getElementById("compDetailChallengeCount").textContent = "0";
     document.getElementById("compDetailStreak").textContent = "0";
-    document.getElementById("compDetailPractice").innerHTML = "<div class='empty-note'>Nepodařilo se načíst statistiky procvičování.</div>";
   }
 
   const persEl = document.getElementById("compDetailPersonality");
@@ -8456,79 +8462,102 @@ async function openCompetitorDetail(id) {
   } else {
     persEl.innerHTML = "<h2 class='section-title'>Test osobnosti</h2><div class='empty-note'>Zatím nevyplnil/a test osobnosti.</div>";
   }
-
-  const quizListEl = document.getElementById("compDetailQuizList");
-  if (quizRes.error) {
-    quizListEl.innerHTML = "<div class='empty-note'>Nepodařilo se načíst kvízy: " + esc(quizRes.error.message) + "</div>";
-  } else if (!quizRes.data || quizRes.data.length === 0) {
-    quizListEl.innerHTML = "<div class='empty-note'>Zatím nesplnil/a žádný kvíz.</div>";
-  } else {
-    quizListEl.innerHTML = "";
-    quizRes.data.forEach((q) => {
-      const div = document.createElement("div");
-      div.className = "comp-quiz-row";
-      const pct = q.best_total > 0 ? Math.round((q.best_score / q.best_total) * 100) : 0;
-      div.innerHTML =
-        "<div><div class='name'>" + esc(q.quiz_title) + "</div>" +
-        "<div class='sub'>" + q.best_score + "/" + q.best_total + " (" + pct + " %) · " + q.attempts_count + "× " + czPokusy(q.attempts_count) + "</div></div>" +
-        "<div class='pts'>" + q.best_earned_points + " b.</div>";
-      quizListEl.appendChild(div);
-    });
-  }
-
-  const challengeListEl = document.getElementById("compDetailChallengeList");
-  if (challengeRes.error) {
-    challengeListEl.innerHTML = "<div class='empty-note'>Nepodařilo se načíst výzvy: " + esc(challengeRes.error.message) + "</div>";
-  } else if (!challengeRes.data || challengeRes.data.length === 0) {
-    challengeListEl.innerHTML = "<div class='empty-note'>Zatím se nepustil/a do žádné výzvy.</div>";
-  } else {
-    challengeListEl.innerHTML = "";
-    challengeRes.data.forEach((c) => {
-      const div = document.createElement("div");
-      div.className = "comp-quiz-row";
-      let statusLabel;
-      if (c.my_status === "pending") statusLabel = "Čeká na schválení";
-      else if (c.my_status === "approved") statusLabel = "Schváleno";
-      else statusLabel = "Zamítnuto";
-      div.innerHTML =
-        "<div><div class='name'>" + esc(c.challenge_title) + "</div>" +
-        "<div class='sub'>" + statusLabel + " &middot; " + c.attempts_used + "× " + czPokusy(c.attempts_used) + "</div></div>" +
-        "<div class='pts'>" + (c.best_points != null ? c.best_points : 0) + " b.</div>";
-      challengeListEl.appendChild(div);
-    });
-  }
 }
 
 function renderCompetitorBadges(b) {
   renderBadgeCatalogInto(document.getElementById("compDetailBadges"), buildBadgeCatalog(b));
 }
 
-// Přehled, jak moc student využívá dobrovolné Procvičování (kvízy nanečisto,
-// slovíčka, pexeso) - mistrová podle toho pozná, jestli to studenti berou,
-// aniž by musela procházet jednotlivé pokusy. Vychází ze stejných čísel jako
-// odznáčky (get_student_badges_stats), jen je tu zobrazuje rovnou v součtech.
-function renderCompetitorPractice(b) {
-  const el = document.getElementById("compDetailPractice");
-  const quizTotal = b.practice_quiz_total || 0;
-  const flashTotal = b.flashcards_sessions_total || 0;
-  const pexesoTotal = b.pexeso_rounds_total || 0;
-  if (quizTotal === 0 && flashTotal === 0 && pexesoTotal === 0) {
-    el.innerHTML = "<div class='empty-note'>Zatím nevyužil/a Procvičování (ani kvízy nanečisto, ani slovíčka, ani pexeso).</div>";
-    return;
+// Rozdělení bodů studenta do dlaždic (Kvízy/Výzvy/Moje kvízy/Procvičování) v
+// detailu studenta (mistrová) - nahrazuje dřívější rovnou vypsané seznamy.
+// "Moje kvízy" se ukáže jen když student má aspoň jeden schválený autorský
+// kvíz (stejné pravidlo jako v buildPointsBreakdownHtml pro studentův vlastní
+// rozpis bodů). Klik na dlaždici otevře detail přes openCompetitorCategoryDetail().
+function renderCompetitorPointsCategories(data) {
+  const container = document.getElementById("compDetailPointsCategories");
+  const quizTotal = (data.quizzes || []).reduce((s, q) => s + (q.best_earned_points || 0), 0);
+  const challengeTotal = (data.challenges || []).reduce((s, c) => s + (c.best_points || 0), 0);
+  const authorTotal = (data.authored || []).reduce((s, q) => s + (q.author_bonus_points || 0), 0);
+  const practiceByKind = {};
+  (data.practice || []).forEach((row) => { practiceByKind[row.kind] = row; });
+  const practiceTotal = PRACTICE_KIND_ORDER.reduce((s, k) => s + ((practiceByKind[k] && practiceByKind[k].points) || 0), 0);
+
+  const tile = (label, points, category) =>
+    "<div class='comp-stat-card' style='cursor:pointer;' onclick=\"openCompetitorCategoryDetail('" + category + "')\">" +
+    "<div class='comp-stat-num'>" + points + " b.</div>" +
+    "<div class='comp-stat-label'>" + esc(label) + "</div></div>";
+
+  let html = tile("Kvízy", quizTotal, "quizzes") + tile("Výzvy", challengeTotal, "challenges");
+  if ((data.authored || []).length > 0) html += tile("Moje kvízy", authorTotal, "authored");
+  html += tile("Procvičování", practiceTotal, "practice");
+  container.innerHTML = html;
+}
+
+// Detail jedné kategorie bodů (rozklik dlaždice z renderCompetitorPointsCategories) -
+// vykreslí stejné položky (kvíz/výzva/autorský kvíz/den procvičování), jaké se
+// dřív zobrazovaly rovnou v detailu studenta, jen teď na vlastní obrazovce.
+// Bere data z currentCompetitorExportData - žádný nový network round-trip.
+function openCompetitorCategoryDetail(category) {
+  const data = currentCompetitorExportData;
+  if (!data) return;
+  showScreen("competitor-category-detail");
+  const titleEl = document.getElementById("ccdTitle");
+  const metaEl = document.getElementById("ccdMeta");
+  const contentEl = document.getElementById("ccdContent");
+
+  if (category === "quizzes") {
+    const rows = data.quizzes || [];
+    const total = rows.reduce((s, q) => s + (q.best_earned_points || 0), 0);
+    titleEl.textContent = "Kvízy";
+    metaEl.textContent = total + " b. celkem";
+    contentEl.innerHTML = rows.length === 0
+      ? "<div class='empty-note'>Zatím nesplnil/a žádný kvíz.</div>"
+      : rows.map((q) => {
+          const pct = q.best_total > 0 ? Math.round((q.best_score / q.best_total) * 100) : 0;
+          return "<div class='comp-quiz-row'><div><div class='name'>" + esc(q.quiz_title) + "</div>" +
+            "<div class='sub'>" + q.best_score + "/" + q.best_total + " (" + pct + " %) · " + q.attempts_count + "× " + czPokusy(q.attempts_count) + "</div></div>" +
+            "<div class='pts'>" + q.best_earned_points + " b.</div></div>";
+        }).join("");
+  } else if (category === "challenges") {
+    const rows = data.challenges || [];
+    const total = rows.reduce((s, c) => s + (c.best_points || 0), 0);
+    titleEl.textContent = "Výzvy";
+    metaEl.textContent = total + " b. celkem";
+    contentEl.innerHTML = rows.length === 0
+      ? "<div class='empty-note'>Zatím se nepustil/a do žádné výzvy.</div>"
+      : rows.map((c) => {
+          let statusLabel;
+          if (c.my_status === "pending") statusLabel = "Čeká na schválení";
+          else if (c.my_status === "approved") statusLabel = "Schváleno";
+          else statusLabel = "Zamítnuto";
+          return "<div class='comp-quiz-row'><div><div class='name'>" + esc(c.challenge_title) + "</div>" +
+            "<div class='sub'>" + statusLabel + " &middot; " + c.attempts_used + "× " + czPokusy(c.attempts_used) + "</div></div>" +
+            "<div class='pts'>" + (c.best_points != null ? c.best_points : 0) + " b.</div></div>";
+        }).join("");
+  } else if (category === "authored") {
+    const rows = data.authored || [];
+    const total = rows.reduce((s, q) => s + (q.author_bonus_points || 0), 0);
+    titleEl.textContent = "Moje kvízy";
+    metaEl.textContent = total + " b. celkem";
+    contentEl.innerHTML = rows.length === 0
+      ? "<div class='empty-note'>Zatím nemá žádný schválený kvíz.</div>"
+      : rows.map((q) =>
+          "<div class='comp-quiz-row'><div><div class='name'>" + esc(q.title) + "</div></div>" +
+          "<div class='pts'>" + (q.author_bonus_points || 0) + " b.</div></div>"
+        ).join("");
+  } else if (category === "practice") {
+    const practiceByKind = {};
+    (data.practice || []).forEach((row) => { practiceByKind[row.kind] = row; });
+    const total = PRACTICE_KIND_ORDER.reduce((s, k) => s + ((practiceByKind[k] && practiceByKind[k].points) || 0), 0);
+    titleEl.textContent = "Procvičování";
+    metaEl.textContent = total + " b. celkem";
+    contentEl.innerHTML = PRACTICE_KIND_ORDER.map((kind) => {
+      const row = practiceByKind[kind] || { points: 0, days: 0 };
+      return "<div class='comp-quiz-row'><div><div class='name'>" + PRACTICE_KIND_LABELS[kind] + "</div>" +
+        "<div class='sub'>" + czDny(row.days) + "</div></div>" +
+        "<div class='pts'>" + row.points + " b.</div></div>";
+    }).join("");
   }
-  const lastLabel = b.last_practice_at ? new Date(b.last_practice_at).toLocaleDateString("cs-CZ") : "—";
-  el.innerHTML =
-    "<div class='comp-stat-grid' style='grid-template-columns: repeat(3, 1fr);'>" +
-    "<div class='comp-stat-card'><div class='comp-stat-num'>" + quizTotal + "</div><div class='comp-stat-label'>kvízů nanečisto</div></div>" +
-    "<div class='comp-stat-card'><div class='comp-stat-num'>" + flashTotal + "</div><div class='comp-stat-label'>kontrol slovíček</div></div>" +
-    "<div class='comp-stat-card'><div class='comp-stat-num'>" + pexesoTotal + "</div><div class='comp-stat-label'>kol pexesa</div></div>" +
-    "</div>" +
-    "<div class='comp-stat-grid' style='grid-template-columns: repeat(3, 1fr); margin-top:8px;'>" +
-    "<div class='comp-stat-card'><div class='comp-stat-num'>" + (b.words_known_first_time || 0) + "</div><div class='comp-stat-label'>naučených slov</div></div>" +
-    "<div class='comp-stat-card'><div class='comp-stat-num'>" + (b.practice_days_active || 0) + "</div><div class='comp-stat-label'>aktivních dní</div></div>" +
-    "<div class='comp-stat-card'><div class='comp-stat-num'>" + (b.practice_streak || 0) + "</div><div class='comp-stat-label'>dní v řadě</div></div>" +
-    "</div>" +
-    "<p class='help-text' style='margin-top:8px;'>Naposledy procvičoval/a: " + esc(lastLabel) + "</p>";
 }
 
 // ---------- Přesun studenta do konkrétního ročníku (např. opakuje ročník) ----------
