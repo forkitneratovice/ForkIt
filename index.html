@@ -1056,6 +1056,7 @@
         </div>
         <div id="studentQuizzesContent">
           <button class="btn-secondary" onclick="openStudentQuizCreate()">+ Navrhnout vlastní kvíz</button>
+          <button class="btn-secondary" style="margin-top:8px;" onclick="showScreen('my-authored-quizzes')">Moje kvízy</button>
           <div id="myQuizSubmissionsWrap" class="hidden" style="margin-top:14px;">
             <h2 class="section-title">Moje navržené kvízy</h2>
             <div id="myQuizSubmissionsList"></div>
@@ -1081,6 +1082,22 @@
           <h2 class="section-title">Vaše kvízy</h2>
           <div id="quizListAdmin"></div>
         </div>
+      </div>
+
+      <!-- MOJE KVÍZY (student - vlastní schválené a živé kvízy + statistika splnění) -->
+      <div class="screen hidden" id="screen-my-authored-quizzes">
+        <span class="back-link" onclick="showScreen('quizzes')">&larr; Zpět na kvízy</span>
+        <h2 class="section-title">Moje kvízy</h2>
+        <p class="help-text" style="margin-top:-8px;">Kvízy, které jste navrhli a mistrová je schválila. U každého vidíte, kolik studentů ho zatím splnilo z celkového počtu.</p>
+        <div id="myAuthoredQuizzesList"></div>
+      </div>
+
+      <!-- MOJE KVÍZY: DETAIL (student - jen náhled vlastních otázek, nic se needituje) -->
+      <div class="screen hidden" id="screen-my-authored-quiz-view">
+        <span class="back-link" onclick="showScreen('my-authored-quizzes')">&larr; Zpět na moje kvízy</span>
+        <h2 class="section-title" id="maqvTitle">Kvíz</h2>
+        <p class="help-text" id="maqvMeta" style="margin-top:-8px;"></p>
+        <div id="maqvQuestions"></div>
       </div>
 
       <!-- NEZVEŘEJNĚNÉ KVÍZY (jen mistrová) -->
@@ -1152,6 +1169,10 @@
         <div class="field" id="qcPointsField">
           <label>Body za splnění</label>
           <input type="number" id="qcPoints" min="0" value="5" oninput="checkQuizEditorDirty()">
+        </div>
+        <div class="hidden field" id="qcAuthorBonusField">
+          <label>Body pro autora navíc (za vytvoření kvízu)</label>
+          <input type="number" id="qcAuthorBonus" min="0" value="5">
         </div>
         <div class="hidden" id="qcAuthorNote" style="font-size:13px;color:var(--text-muted);margin-bottom:14px;"></div>
         <div class="hidden" id="qcQuestionStats"></div>
@@ -3295,6 +3316,8 @@ function showScreen(name) {
     "quiz-create": ["Nový kvíz", "Vytvořit kvíz"],
     "quiz-submissions-admin": ["Návrhy od studentů", "Kvízy čekající na posouzení"],
     "quiz-unpublished": ["Nezveřejněné kvízy", "Čeká na zveřejnění"],
+    "my-authored-quizzes": ["Moje kvízy", "Vaše schválené kvízy"],
+    "my-authored-quiz-view": ["Kvíz", "Náhled otázek"],
     "quiz-publish": ["Zveřejnit kvíz", "Vyber ročníky"],
     "personality-take": ["Test osobnosti", "Pár otázek o tobě"],
     "personality-result": ["Test osobnosti", "Tvůj výsledek"],
@@ -3341,6 +3364,7 @@ function showScreen(name) {
   if (name === "quizzes") renderQuizList();
   if (name === "quiz-submissions-admin") loadQuizSubmissionsAdmin();
   if (name === "quiz-unpublished") renderUnpublishedQuizzes();
+  if (name === "my-authored-quizzes") renderMyAuthoredQuizzes();
   if (name === "quiz-review") renderQuizReview();
   if (name === "challenges") renderChallenges();
   if (name === "challenge-approvals") loadChallengesAdmin();
@@ -4245,11 +4269,14 @@ function renderQuizListFiltered() {
   }
   rows.forEach((q) => {
     const div = document.createElement("div");
-    div.className = "list-item " + quizStatusClass(q);
+    // Vlastní navržený kvíz autor nesmí vyplnit sám za sebe (viz submit_quiz
+    // a review_student_quiz) - místo běžného odznaku a otevření kvízu ho tu
+    // jen označí a klik pošle na Moje kvízy, kde vidí statistiku splnění.
+    div.className = "list-item " + (q.is_own ? "" : quizStatusClass(q));
     div.innerHTML =
       '<div><div class="name">' + esc(q.title) + '</div><div class="meta">' + q.questions.length + " otázky · " + q.points + " bodů" + (q.author_name ? " &middot; Autor: " + esc(q.author_name) : "") + "</div></div>" +
-      quizBadge(q);
-    div.onclick = () => openQuiz(q.id);
+      (q.is_own ? "<span class='badge-pts' style='background:var(--text-muted);'>Váš kvíz</span>" : quizBadge(q));
+    div.onclick = q.is_own ? () => showScreen("my-authored-quizzes") : () => openQuiz(q.id);
     list.appendChild(div);
   });
 }
@@ -4326,6 +4353,71 @@ async function renderMyQuizSubmissions() {
   // ne jen z těch zobrazených výše - schválené se totiž hned potom objeví v
   // běžném seznamu kvízů, ale odznak "nové rozhodnutí" musí zmizet taky.
   await markSeen("forkit_seen_quiz_submission_decisions", myQuizSubmissions.filter((s) => s.status !== "pending" && s.reviewed_at).map(quizSubmissionDecisionKey));
+}
+
+// ---------- MOJE KVÍZY (student - vlastní schválené kvízy + statistika) ----------
+// Na rozdíl od myQuizSubmissions (které ukazuje jen čekající/zamítnuté návrhy)
+// tahle sekce ukazuje kvízy, co student navrhl a mistrová je schválila - tedy
+// kvízy, co jsou teď živé a vyplňují je ostatní. Počet "kolik ho splnilo" je
+// záměrně celkový počet studentů školy, ne jen jeho ročníku (viz
+// get_my_authored_quizzes) - i kdyby kvíz platil jen pro jeden ročník.
+async function renderMyAuthoredQuizzes() {
+  const list = document.getElementById("myAuthoredQuizzesList");
+  if (!list) return;
+  list.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const { data, error } = await sb.rpc("get_my_authored_quizzes");
+  if (error) {
+    list.innerHTML = "<div class='empty-note'>Nepodařilo se načíst: " + esc(error.message) + "</div>";
+    return;
+  }
+  const rows = data || [];
+  if (rows.length === 0) {
+    list.innerHTML = "<div class='empty-note'>Zatím nemáte žádný schválený kvíz. Navrhněte ho tlačítkem výše.</div>";
+    return;
+  }
+  list.innerHTML = "";
+  rows.forEach((q) => {
+    const div = document.createElement("div");
+    div.className = "list-item";
+    div.innerHTML =
+      "<div><div class='name'>" + esc(q.title) + "</div><div class='meta'>" + q.question_count + " otázek · " + q.points + " b. za splnění" +
+      (q.author_bonus_points > 0 ? " · " + q.author_bonus_points + " b. jste dostali za vytvoření" : "") +
+      "<br>Vyplnilo " + q.completed_count + " z " + q.total_students + " studentů</div></div>";
+    div.onclick = () => openMyAuthoredQuizView(q);
+    list.appendChild(div);
+  });
+}
+
+// Náhled vlastních otázek u schváleného kvízu (jen ke čtení - nic se tu
+// needituje). get_quiz_submission_detail je zdroj i pro tohle, protože
+// autora ke čtení svého kvízu pouští už teď (viz její "is authorized"
+// podmínka), takže netřeba nové RPC.
+async function openMyAuthoredQuizView(q) {
+  showScreen("my-authored-quiz-view");
+  document.getElementById("maqvTitle").textContent = q.title;
+  document.getElementById("maqvMeta").textContent =
+    q.points + " b. za splnění" + (q.author_bonus_points > 0 ? " · " + q.author_bonus_points + " b. jste dostali za vytvoření" : "") +
+    " · Vyplnilo " + q.completed_count + " z " + q.total_students + " studentů";
+  const container = document.getElementById("maqvQuestions");
+  container.innerHTML = "<div class='empty-note'>Načítám...</div>";
+
+  const { data, error } = await sb.rpc("get_quiz_submission_detail", { p_quiz_id: q.id });
+  if (error || !data || !data[0]) {
+    container.innerHTML = "<div class='error-note'>Nepodařilo se načíst otázky.</div>";
+    return;
+  }
+  const questions = data[0].questions || [];
+  container.innerHTML = "";
+  questions.forEach((qq, qi) => {
+    const box = document.createElement("div");
+    box.className = "quiz-question";
+    let html = "<p class='q'>" + (qi + 1) + ". " + esc(qq.q) + "</p>";
+    qq.options.forEach((opt, oi) => {
+      html += "<div class='quiz-option" + (oi === qq.correct ? " correct" : "") + "'>" + esc(opt) + "</div>";
+    });
+    box.innerHTML = html;
+    container.appendChild(box);
+  });
 }
 
 // ---------- NÁVRHY OD STUDENTŮ (mistrová) ----------
@@ -4647,10 +4739,11 @@ let quizDraft = [];
 // vlastní kvíz (teacher-create), student navrhuje kvíz ke schválení
 // (student-create), nebo mistrová posuzuje/upravuje studentův návrh
 // (review) - sdílejí stejný editor otázek, jen se liší pár polí a tlačítka.
-function setQuizEditorFieldsVisible({ rocnik, visibility, points, comment, saveBtn, reviewBtns, editSaveBtn }) {
+function setQuizEditorFieldsVisible({ rocnik, visibility, points, authorBonus, comment, saveBtn, reviewBtns, editSaveBtn }) {
   document.getElementById("qcRocnikField").classList.toggle("hidden", !rocnik);
   document.getElementById("qcVisibilityField").classList.toggle("hidden", !visibility);
   document.getElementById("qcPointsField").classList.toggle("hidden", !points);
+  document.getElementById("qcAuthorBonusField").classList.toggle("hidden", !authorBonus);
   document.getElementById("qcCommentField").classList.toggle("hidden", !comment);
   document.getElementById("qcSaveBtn").classList.toggle("hidden", !saveBtn);
   document.getElementById("qcReviewButtons").classList.toggle("hidden", !reviewBtns);
@@ -4710,7 +4803,7 @@ async function openQuizReview(quizId, returnTo) {
   quizEditorReturnTo = returnTo || "quiz-submissions-admin";
   document.getElementById("qcBackLink").onclick = () => showScreen(quizEditorReturnTo);
   document.getElementById("qcHeading").textContent = "Posouzení návrhu";
-  setQuizEditorFieldsVisible({ rocnik: true, visibility: false, points: true, comment: true, saveBtn: false, reviewBtns: true, editSaveBtn: false });
+  setQuizEditorFieldsVisible({ rocnik: true, visibility: false, points: true, authorBonus: true, comment: true, saveBtn: false, reviewBtns: true, editSaveBtn: false });
   document.getElementById("qcAuthorNote").classList.add("hidden");
   document.getElementById("qcQuestionStats").classList.add("hidden");
   document.getElementById("qcQuestionStats").innerHTML = "";
@@ -4733,10 +4826,15 @@ async function openQuizReview(quizId, returnTo) {
   document.getElementById("qcTitle").value = s.title;
   document.getElementById("qcRocnik").value = s.rocnik == null ? "all" : String(s.rocnik);
   document.getElementById("qcPoints").value = s.points || 0;
+  // U ještě nerozhodnutého návrhu nabídne rovnou výchozí bonus (5 bodů), ať
+  // na něj mistrová nezapomene - u už dřív rozhodnutého se ukáže přesně to,
+  // co bylo (nebo by bylo) přiznáno, i kdyby to bylo 0.
+  document.getElementById("qcAuthorBonus").value = s.status === "pending" ? (s.author_bonus_points || 5) : s.author_bonus_points;
   document.getElementById("qcComment").value = s.review_comment || "";
   const authorEl = document.getElementById("qcAuthorNote");
   authorEl.classList.remove("hidden");
-  authorEl.textContent = "Autor: " + s.author_name + " · Stav: " + quizSubmissionStatusLabel(s.status);
+  authorEl.textContent = "Autor: " + s.author_name + " · Stav: " + quizSubmissionStatusLabel(s.status) +
+    (s.status === "approved" ? " · Bonus za vytvoření už byl přiznán (" + s.author_bonus_points + " b.) a další úpravou se znovu nepřičte." : "");
   quizDraft = (s.questions && s.questions.length ? s.questions : [{ q: "", options: ["", ""], correct: 0 }])
     .map((q) => ({ q: q.q, options: q.options.slice(), correct: q.correct }));
   renderQuizDraft();
@@ -5228,6 +5326,7 @@ async function reviewStudentQuiz(status) {
   const rocnikRaw = document.getElementById("qcRocnik").value;
   const rocnik = rocnikRaw === "all" ? null : rocnikRaw;
   const points = parseInt(document.getElementById("qcPoints").value, 10);
+  const authorBonusPoints = parseInt(document.getElementById("qcAuthorBonus").value, 10);
   const comment = document.getElementById("qcComment").value.trim();
 
   if (!title) {
@@ -5238,11 +5337,16 @@ async function reviewStudentQuiz(status) {
     errorEl.innerHTML = "<div class='error-note'>Zadejte platný počet bodů.</div>";
     return;
   }
+  if (isNaN(authorBonusPoints) || authorBonusPoints < 0) {
+    errorEl.innerHTML = "<div class='error-note'>Zadejte platný počet bodů pro autora.</div>";
+    return;
+  }
   if (!validateQuizDraftQuestions(errorEl)) return;
 
   const payload = quizDraft.map((q) => ({ q: q.q.trim(), options: q.options.map((o) => o.trim()), correct: q.correct }));
   const { error } = await sb.rpc("review_student_quiz", {
     p_quiz_id: quizEditorReviewId,
+    p_author_bonus_points: authorBonusPoints,
     p_title: title,
     p_questions: payload,
     p_points: points,
@@ -5315,6 +5419,15 @@ function openQuiz(id, restoredAnswers) {
   if (!q) return;
 
   if (user.role !== "mistrova") {
+    // Vlastní navržený kvíz se nedá vyplnit vůbec (viz submit_quiz na
+    // serveru) - tohle je jen pojistka pro případ, že se sem někdo dostane
+    // jinudy než klikem ze seznamu (ten už rovnou vede na Moje kvízy).
+    // Bez tohohle by to spadlo do obecného "zamčeno" stavu níž s matoucím
+    // odpočtem, protože can_attempt je pro vlastní kvíz vždy false.
+    if (q.is_own) {
+      alert("Tohle je váš vlastní kvíz - nemůžete si ho vyplnit sám/sama za body. Body za jeho vytvoření dostanete od mistrové zvlášť.");
+      return;
+    }
     if (q.attempts_used >= 3) {
       alert("U tohoto kvízu jsi už vyčerpal/a všechny 3 pokusy. Nejlepší výsledek: " + q.best_points + " b.");
       return;
@@ -5460,6 +5573,9 @@ async function submitQuiz() {
       alert("Tento kvíz můžeš zkusit znovu až za 24 hodin od posledního pokusu.");
       clearQuizProgress();
       if (!isPracticeMode) sb.rpc("mark_activity_finished", { p_kind: "quiz", p_ref_id: currentQuiz.id }).then(null, () => {});
+    } else if (error.message && error.message.includes("OWN_QUIZ")) {
+      alert("Svůj vlastní kvíz si nemůžeš vyplnit na body - body za jeho vytvoření dostaneš od mistrové zvlášť.");
+      clearQuizProgress();
     } else {
       alert("Něco se nepovedlo: " + error.message);
     }
