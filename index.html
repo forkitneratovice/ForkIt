@@ -1816,7 +1816,7 @@
         </div>
         <div class="hidden" id="compDetailLastYear" style="font-size:13px;color:var(--text);background:#F3F0E9;border-radius:10px;padding:10px 12px;margin-bottom:12px;"></div>
         <div class="comp-stat-grid">
-          <div class="comp-stat-card">
+          <div class="comp-stat-card" style="cursor:pointer;" onclick="openStudentPointsBreakdown(currentCompetitorId)">
             <div class="comp-stat-num" id="compDetailPoints">0</div>
             <div class="comp-stat-label">bodů</div>
           </div>
@@ -3569,22 +3569,28 @@ async function closeCelebration() {
 // nesedí (např. staré/ruční úpravy bodů z dřívějška appky).
 let pointsBreakdownReturnTo = "home";
 
-function openPointsBreakdown(returnTo) {
+async function openPointsBreakdown(returnTo) {
   pointsBreakdownReturnTo = returnTo || "home";
-  renderPointsBreakdown();
+  await renderPointsBreakdown();
   showScreen("points-breakdown");
 }
 
-function renderPointsBreakdown() {
-  const container = document.getElementById("pointsBreakdownContent");
-  const attemptedQuizzes = quizzes.filter((q) => (q.best_points || 0) > 0 || q.attempts_used > 0);
-  const attemptedChallenges = challenges.filter((c) => c.my_status && c.my_status !== "none");
+// Popisky a pořadí tří druhů dobrovolného Procvičování (viz record_practice_activity) -
+// sdílené mezi studentovou vlastní obrazovkou Body a učitelčiným pohledem na
+// studenta, ať se to nerozjede na dvou místech jinak.
+const PRACTICE_KIND_ORDER = ["flashcards", "pexeso", "quiz"];
+const PRACTICE_KIND_LABELS = { flashcards: "Slovíčka", pexeso: "Pexeso", quiz: "Kvízy" };
 
-  const quizTotal = quizzes.reduce((sum, q) => sum + (q.best_points || 0), 0);
-  const challengeTotal = challenges.reduce((sum, c) => sum + (c.my_best_points || 0), 0);
-  const personalityTotal = personalityResult ? 5 : 0;
-  const total = user.points || 0;
-  const other = total - quizTotal - challengeTotal - personalityTotal;
+// Sdílené vykreslení rozpadu bodů (souhrn + jednotlivé položky) - stejná
+// šablona pro studentovu vlastní obrazovku "Body" i pro učitelčin detail
+// studenta v Soutěžících, ať vidí úplně to samé.
+function buildPointsBreakdownHtml({ total, quizTotal, challengeTotal, personalityTotal, authoredQuizzes, practiceRows, quizItemsHtml, quizEmptyText, challengeItemsHtml, challengeEmptyText }) {
+  const practiceByKind = {};
+  (practiceRows || []).forEach((r) => { practiceByKind[r.kind] = r; });
+  const practiceTotal = PRACTICE_KIND_ORDER.reduce((sum, k) => sum + ((practiceByKind[k] && practiceByKind[k].points) || 0), 0);
+  const authorRows = authoredQuizzes || [];
+  const authorTotal = authorRows.reduce((sum, q) => sum + (q.author_bonus_points || 0), 0);
+  const other = total - quizTotal - challengeTotal - personalityTotal - practiceTotal - authorTotal;
 
   let html =
     "<div class='card' style='text-align:center;margin-bottom:16px;'>" +
@@ -3593,6 +3599,10 @@ function renderPointsBreakdown() {
 
   html += "<div class='comp-quiz-row'><div><div class='name'>Kvízy</div></div><div class='pts'>" + quizTotal + " b.</div></div>";
   html += "<div class='comp-quiz-row'><div><div class='name'>Výzvy</div></div><div class='pts'>" + challengeTotal + " b.</div></div>";
+  if (authorRows.length > 0) {
+    html += "<div class='comp-quiz-row'><div><div class='name'>Moje kvízy</div></div><div class='pts'>" + authorTotal + " b.</div></div>";
+  }
+  html += "<div class='comp-quiz-row'><div><div class='name'>Procvičování</div></div><div class='pts'>" + practiceTotal + " b.</div></div>";
   if (personalityTotal > 0) {
     html += "<div class='comp-quiz-row'><div><div class='name'>Test osobnosti</div></div><div class='pts'>" + personalityTotal + " b.</div></div>";
   }
@@ -3600,35 +3610,134 @@ function renderPointsBreakdown() {
     html += "<div class='comp-quiz-row'><div><div class='name'>Ostatní</div></div><div class='pts'>" + other + " b.</div></div>";
   }
 
-  html += "<h2 class='section-title'>Kvízy</h2>";
-  if (attemptedQuizzes.length === 0) {
-    html += "<div class='empty-note'>Zatím jsi nezkusil/a žádný kvíz načisto.</div>";
-  } else {
-    attemptedQuizzes.forEach((q) => {
+  html += "<h2 class='section-title'>Kvízy</h2>" + (quizItemsHtml || "<div class='empty-note'>" + esc(quizEmptyText) + "</div>");
+  html += "<h2 class='section-title'>Výzvy</h2>" + (challengeItemsHtml || "<div class='empty-note'>" + esc(challengeEmptyText) + "</div>");
+
+  if (authorRows.length > 0) {
+    html += "<h2 class='section-title'>Moje kvízy</h2>";
+    authorRows.forEach((q) => {
       html +=
-        "<div class='comp-quiz-row'><div><div class='name'>" + esc(q.title) + "</div>" +
-        "<div class='sub'>" + q.attempts_used + "× " + czPokusy(q.attempts_used) + "</div></div>" +
-        "<div class='pts'>" + (q.best_points || 0) + " b.</div></div>";
+        "<div class='comp-quiz-row'><div><div class='name'>" + esc(q.title) + "</div></div>" +
+        "<div class='pts'>" + (q.author_bonus_points || 0) + " b.</div></div>";
     });
   }
 
-  html += "<h2 class='section-title'>Výzvy</h2>";
-  if (attemptedChallenges.length === 0) {
-    html += "<div class='empty-note'>Zatím ses nepustil/a do žádné výzvy.</div>";
-  } else {
-    attemptedChallenges.forEach((c) => {
-      let statusLabel;
-      if (c.my_status === "pending") statusLabel = "Čeká na schválení";
-      else if (c.my_status === "approved") statusLabel = "Schváleno";
-      else statusLabel = "Zamítnuto";
-      html +=
-        "<div class='comp-quiz-row'><div><div class='name'>" + esc(c.title) + "</div>" +
-        "<div class='sub'>" + statusLabel + " &middot; " + c.attempts_used + "× " + czPokusy(c.attempts_used) + "</div></div>" +
-        "<div class='pts'>" + (c.my_best_points != null ? c.my_best_points : 0) + " b.</div></div>";
-    });
-  }
+  html += "<h2 class='section-title'>Procvičování</h2>";
+  PRACTICE_KIND_ORDER.forEach((kind) => {
+    const row = practiceByKind[kind] || { points: 0, days: 0 };
+    html +=
+      "<div class='comp-quiz-row'><div><div class='name'>" + PRACTICE_KIND_LABELS[kind] + "</div>" +
+      "<div class='sub'>" + czDny(row.days) + "</div></div>" +
+      "<div class='pts'>" + row.points + " b.</div></div>";
+  });
 
-  container.innerHTML = html;
+  return html;
+}
+
+async function renderPointsBreakdown() {
+  const container = document.getElementById("pointsBreakdownContent");
+  container.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const attemptedQuizzes = quizzes.filter((q) => (q.best_points || 0) > 0 || q.attempts_used > 0);
+  const attemptedChallenges = challenges.filter((c) => c.my_status && c.my_status !== "none");
+
+  const quizTotal = quizzes.reduce((sum, q) => sum + (q.best_points || 0), 0);
+  const challengeTotal = challenges.reduce((sum, c) => sum + (c.my_best_points || 0), 0);
+  const personalityTotal = personalityResult ? 5 : 0;
+  const total = user.points || 0;
+
+  const [{ data: practiceData }, { data: authoredData }] = await Promise.all([
+    sb.rpc("get_practice_points_breakdown"),
+    sb.rpc("get_my_authored_quizzes"),
+  ]);
+
+  let quizItemsHtml = "";
+  attemptedQuizzes.forEach((q) => {
+    quizItemsHtml +=
+      "<div class='comp-quiz-row'><div><div class='name'>" + esc(q.title) + "</div>" +
+      "<div class='sub'>" + q.attempts_used + "× " + czPokusy(q.attempts_used) + "</div></div>" +
+      "<div class='pts'>" + (q.best_points || 0) + " b.</div></div>";
+  });
+
+  let challengeItemsHtml = "";
+  attemptedChallenges.forEach((c) => {
+    let statusLabel;
+    if (c.my_status === "pending") statusLabel = "Čeká na schválení";
+    else if (c.my_status === "approved") statusLabel = "Schváleno";
+    else statusLabel = "Zamítnuto";
+    challengeItemsHtml +=
+      "<div class='comp-quiz-row'><div><div class='name'>" + esc(c.title) + "</div>" +
+      "<div class='sub'>" + statusLabel + " &middot; " + c.attempts_used + "× " + czPokusy(c.attempts_used) + "</div></div>" +
+      "<div class='pts'>" + (c.my_best_points != null ? c.my_best_points : 0) + " b.</div></div>";
+  });
+
+  container.innerHTML = buildPointsBreakdownHtml({
+    total, quizTotal, challengeTotal, personalityTotal,
+    authoredQuizzes: authoredData || [],
+    practiceRows: practiceData || [],
+    quizItemsHtml, challengeItemsHtml,
+    quizEmptyText: "Zatím jsi nezkusil/a žádný kvíz načisto.",
+    challengeEmptyText: "Zatím ses nepustil/a do žádné výzvy.",
+  });
+}
+
+// Stejný rozpis bodů jako výše (renderPointsBreakdown), jen z pohledu
+// mistrové na konkrétního studenta - klikne se na kartičku "bodů" v detailu
+// studenta v Soutěžících. Kvízy/výzvy/osobnost bere z už načtených dat
+// z openCompetitorDetail (currentCompetitorExportData), ať se netahají znovu;
+// dotáhne se jen to nové (moje kvízy jako autor + procvičování po dnech).
+async function openStudentPointsBreakdown(studentId) {
+  const r = allCompetitors.find((c) => c.id === studentId);
+  pointsBreakdownReturnTo = "competitor-detail";
+  showScreen("points-breakdown");
+  const container = document.getElementById("pointsBreakdownContent");
+  container.innerHTML = "<div class='empty-note'>Načítám...</div>";
+
+  const cached = currentCompetitorExportData && currentCompetitorId === studentId ? currentCompetitorExportData : null;
+  const [practiceRes, authoredRes, quizRes, challengeRes] = await Promise.all([
+    sb.rpc("get_practice_points_breakdown", { p_student_id: studentId }),
+    sb.rpc("get_my_authored_quizzes", { p_student_id: studentId }),
+    cached ? Promise.resolve({ data: cached.quizzes }) : sb.rpc("get_student_quiz_results", { p_student_id: studentId }),
+    cached ? Promise.resolve({ data: cached.challenges }) : sb.rpc("get_student_challenge_results", { p_student_id: studentId }),
+  ]);
+
+  const quizRows = quizRes.data || [];
+  const challengeRows = challengeRes.data || [];
+  const total = r ? r.points : 0;
+  const quizTotal = quizRows.reduce((sum, q) => sum + (q.best_earned_points || 0), 0);
+  const challengeTotal = challengeRows.reduce((sum, c) => sum + (c.best_points || 0), 0);
+  const personality = cached ? cached.personality : null;
+  const personalityTotal = personality ? 5 : 0;
+
+  let quizItemsHtml = "";
+  quizRows.forEach((q) => {
+    quizItemsHtml +=
+      "<div class='comp-quiz-row'><div><div class='name'>" + esc(q.quiz_title) + "</div>" +
+      "<div class='sub'>" + q.attempts_count + "× " + czPokusy(q.attempts_count) + "</div></div>" +
+      "<div class='pts'>" + (q.best_earned_points || 0) + " b.</div></div>";
+  });
+
+  let challengeItemsHtml = "";
+  challengeRows.forEach((c) => {
+    let statusLabel;
+    if (c.my_status === "pending") statusLabel = "Čeká na schválení";
+    else if (c.my_status === "approved") statusLabel = "Schváleno";
+    else statusLabel = "Zamítnuto";
+    challengeItemsHtml +=
+      "<div class='comp-quiz-row'><div><div class='name'>" + esc(c.challenge_title) + "</div>" +
+      "<div class='sub'>" + statusLabel + " &middot; " + c.attempts_used + "× " + czPokusy(c.attempts_used) + "</div></div>" +
+      "<div class='pts'>" + (c.best_points != null ? c.best_points : 0) + " b.</div></div>";
+  });
+
+  const nameHeader = r ? "<div style='font-size:14px;font-weight:700;margin-bottom:10px;'>" + esc(r.name) + "</div>" : "";
+
+  container.innerHTML = nameHeader + buildPointsBreakdownHtml({
+    total, quizTotal, challengeTotal, personalityTotal,
+    authoredQuizzes: authoredRes.data || [],
+    practiceRows: practiceRes.data || [],
+    quizItemsHtml, challengeItemsHtml,
+    quizEmptyText: "Zatím nesplnil/a žádný kvíz.",
+    challengeEmptyText: "Zatím se nepustil/a do žádné výzvy.",
+  });
 }
 
 async function renderHomeLatestWord() {
