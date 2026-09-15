@@ -1468,6 +1468,7 @@
       <!-- ŠIBENICE (procvičování - hádání gastro pojmu z fronty na zveřejnění, písmeno po písmenu) -->
       <div class="screen hidden" id="screen-hangman">
         <span class="back-link" onclick="showScreen('practice-hub')">&larr; Zpět na procvičování</span>
+        <div id="hangmanStats" style="text-align:center;font-size:12.5px;color:var(--primary);margin-bottom:6px;"></div>
         <div id="hangmanBoard">
           <div class="hangman-figure-wrap">
             <svg viewBox="0 0 200 200" width="150" height="150">
@@ -1481,6 +1482,8 @@
               <line id="hmArmR" class="hidden" x1="135" y1="82" x2="158" y2="102" stroke="var(--red)" stroke-width="5" stroke-linecap="round"/>
               <line id="hmLegL" class="hidden" x1="135" y1="115" x2="115" y2="150" stroke="var(--red)" stroke-width="5" stroke-linecap="round"/>
               <line id="hmLegR" class="hidden" x1="135" y1="115" x2="155" y2="150" stroke="var(--red)" stroke-width="5" stroke-linecap="round"/>
+              <line id="hmFootL" class="hidden" x1="115" y1="150" x2="99" y2="150" stroke="var(--red)" stroke-width="7" stroke-linecap="round"/>
+              <line id="hmFootR" class="hidden" x1="155" y1="150" x2="171" y2="150" stroke="var(--red)" stroke-width="7" stroke-linecap="round"/>
             </svg>
           </div>
           <div id="hangmanWrongCounter" style="text-align:center;font-size:12.5px;color:var(--text-muted);margin-bottom:2px;"></div>
@@ -2045,7 +2048,7 @@
           <p class="help-text"><strong>Kvízy nanečisto:</strong> stejné otázky jako ostré kvízy, ale bez omezení počtu pokusů ani čekací doby mezi nimi – klidně si kvíz zkuste vícekrát za sebou, dokud si nebudete jistí, a teprve pak ho zkuste nanečisto.</p>
           <p class="help-text"><strong>Slovíčka:</strong> kartičky ze slovníku se skutečným rozloženým opakováním (jako Anki). Klepnutím na kartičku uvidíte pojem, zkuste si v hlavě říct definici a dalším klepnutím kartičku otočíte a definici zkontrolujete. Pak se sami ohodnotíte – Neumím / Chci si to ještě procvičit vrátí slovíčko brzy zpátky, Umím ho na pár dní schová a samo se vrátí k ověření později (čím déle ho umíte, tím delší přestávku dostane). Když nemáte zrovna nic na opakování, appka vám to napíše.</p>
           <p class="help-text"><strong>Pexeso:</strong> hledáte dvojice název pojmu + odpovídající obrázek, pokaždé z náhodně vylosovaných 10 dvojic z celého balíku. Appka počítá tahy (kolikrát jste porovnávali dvojici kartiček) – čím míň, tím lepší skóre. Nad kartičkami se vám pořád zobrazuje váš dosavadní rekord (nejméně tahů v dohraném kole), takže rovnou vidíte, na co hrajete a jak se zlepšujete, a po dohrání appka ukáže, jestli jste ho zrovna překonali. Klepnutím kartičku otočíte, dalším klepnutím na tu samou (i tu druhou, právě odkrytou, nebo i libovolnou už spárovanou) ji zvětšíte, ať obrázek pořádně poznáte – zůstane zvětšená, dokud na ni znovu neklepnete. U špatné dvojice se pak obě hned otočí zpátky; u poslední spárované dvojice kola se hned potom appka přepne na obrazovku Hotovo. Nikam ale spěchat nemusíte, ale ani čekat – kdo nepotřebuje tolik času, může rovnou klepnout na další kartičku a špatná dvojice se sama hned otočí zpátky.</p>
-          <p class="help-text"><strong>Šibenice:</strong> hádáte gastro pojem písmeno po písmenu – klasická pravidla, 6 špatných pokusů a je konec. Appka losuje ze všech slovíček ve Slovníku a hlídá, ať vám hned zase nevrátí to samé, co jste právě dostali. Ať kolo dopadne jakkoliv, na konci se vždycky ukáže celé slovo (i s výslovností v závorce, pokud nějakou má) a jeho definice – nejde o to vyhrát, ale procvičit si pravopis a slovní zásobu.</p>
+          <p class="help-text"><strong>Šibenice:</strong> hádáte gastro pojem písmeno po písmenu – na 8 špatných pokusů, pak je konec (panáček se dokreslí i s botami). Appka losuje ze všech slovíček ve Slovníku a hlídá, ať vám hned zase nevrátí to samé, co jste právě dostali. Ať kolo dopadne jakkoliv, na konci se vždycky ukáže celé slovo (i s výslovností v závorce, pokud nějakou má) a jeho definice – nejde o to vyhrát, ale procvičit si pravopis a slovní zásobu. Nad panáčkem vidíte i vlastní statistiku – kolik kol ze všech dosavadních se vám povedlo uhodnout.</p>
           <p class="help-text"><strong>Body za procvičování:</strong> za první dokončený kvíz nanečisto, první splněné opakování slovíček, první dohrané kolo pexesa a první dohrané kolo šibenice v daný den dostanete +1 bod – nejvýš 3 body denně dohromady, ať procvičujete v jedné sekci nebo ve všech čtyřech. Je to jen malá odměna navíc, hlavní body pořád nesou ostré kvízy a výzvy.</p>
           <p class="help-text">Za pravidelné procvičování jsou i odznáčky v sekci Úspěchy: Pilná píle (procvičuj 5 různých dnů), Procvičovací týden (denní bonus 7 dní v řadě), Trenér/ka (10 kvízů nanečisto), Slovní expert (50 slovíček poprvé jako Umím) a Pexeso mistr/mistryně (20 kol pexesa).</p>
         </div>
@@ -3462,7 +3465,7 @@ function showScreen(name) {
   if (name === "practice-quizzes") renderPracticeQuizzes();
   if (name === "flashcards") openFlashcards();
   if (name === "pexeso") { if (!tryResumePexeso()) startPexesoRound(); refreshPexesoBest(); }
-  if (name === "hangman") startHangmanRound();
+  if (name === "hangman") { startHangmanRound(); refreshHangmanStats(); }
   if (name === "practice-materials") renderPracticeMaterials();
   if (name === "faq") renderFaqFeedback();
   if (name === "help") resetAppSearch();
@@ -7423,11 +7426,12 @@ async function refreshPexesoBest() {
 // co už student dostal, a posílá to jako vyloučené id, ať se mu stejné slovo
 // hned zase nevrátí - jakmile takhle "vyčerpá" celý balík, appka to bere od
 // znovu (a hangmanPlayedIds se sama restartuje, viz startHangmanRound).
-// Klasická pravidla: 6 špatných pokusů, pak konec (panáček dokreslený).
+// 8 špatných pokusů, pak konec (panáček dokreslený i s botami) - o něco
+// benevolentnější než klasická 6, ať to není tak těžké.
 // Slovo i definice se ukážou vždycky na konci kola - ať kolo dopadne
 // jakkoliv - protože jde o procvičení, ne o "vyhrát/prohrát".
-const HANGMAN_MAX_WRONG = 6;
-const HANGMAN_FIGURE_STAGES = ["hmHead", "hmBody", "hmArmL", "hmArmR", "hmLegL", "hmLegR"];
+const HANGMAN_MAX_WRONG = 8;
+const HANGMAN_FIGURE_STAGES = ["hmHead", "hmBody", "hmArmL", "hmArmR", "hmLegL", "hmLegR", "hmFootL", "hmFootR"];
 // Abeceda pro virtuální klávesnici - běžná latinka (i písmena, která se v
 // češtině nepoužívají, protože slovník má spoustu cizích přejatých pojmů:
 // q, w, x) + česká diakritika + dvě francouzské hlásky, co se ve frontě
@@ -7548,7 +7552,7 @@ function guessHangmanLetter(ch) {
   }
 }
 
-function finishHangmanRound(won) {
+async function finishHangmanRound(won) {
   hangmanDone = true;
   renderHangmanWord();
   document.querySelectorAll("#hangmanKeyboard .hm-key").forEach((b) => (b.disabled = true));
@@ -7560,7 +7564,30 @@ function finishHangmanRound(won) {
   document.getElementById("hangmanRevealWord").textContent = hangmanWordRow.word;
   document.getElementById("hangmanRevealDef").textContent = hangmanWordRow.definition || "";
 
-  awardPracticeBonus("hangman", hangmanWordRow.id, "hangmanBonusMsg", hangmanWrong);
+  await awardPracticeBonus("hangman", hangmanWordRow.id, "hangmanBonusMsg", hangmanWrong);
+  // Rovnou přepočítá i osobní statistiku (X z Y kol), ať student vidí novou
+  // hodnotu hned, i když hraje kolo za kolem bez návratu do menu.
+  refreshHangmanStats();
+}
+
+// Ukáže studentovi nad panáčkem, kolik kol ze všech dosavadních zvládl
+// uhodnout (metric_value = počet špatných pokusů; kolo je "uhodnuté", pokud
+// skončilo dřív, než došlo na max. počet špatných pokusů - viz finishHangmanRound).
+async function refreshHangmanStats() {
+  const el = document.getElementById("hangmanStats");
+  if (!el) return;
+  if (!user || user.role !== "student") { el.textContent = ""; return; }
+  const { data, error } = await sb
+    .from("practice_activity_log")
+    .select("metric_value")
+    .eq("kind", "hangman")
+    .not("metric_value", "is", null);
+  if (error) return;
+  const attempts = data ? data.length : 0;
+  const solved = data ? data.filter((r) => r.metric_value < HANGMAN_MAX_WRONG).length : 0;
+  el.textContent = attempts > 0
+    ? "Uhodnuto: " + solved + " z " + attempts + " kol"
+    : "Zatím jsi nehrál/a - tohle je tvé první kolo!";
 }
 
 // ---------- MATERIÁLY (studijní materiály ke zobrazení/stažení, jen mistrová je nahrává) ----------
