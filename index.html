@@ -493,6 +493,22 @@
   .pexeso-zoom-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 590; }
   .pexeso-zoom-backdrop.hidden { display: none; }
 
+  /* Šibenice (procvičování - hádání gastro pojmu z fronty na zveřejnění) */
+  .hangman-figure-wrap { display: flex; justify-content: center; margin-bottom: 2px; }
+  .hm-word { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin: 8px 0 18px; }
+  .hm-letter, .hm-gap { min-width: 16px; height: 28px; text-align: center; font-size: 20px; font-weight: 800; color: var(--dark); font-family: 'Poppins', sans-serif; }
+  .hm-letter.hm-blank { border-bottom: 3px solid var(--dark); }
+  .hm-letter:not(.hm-blank) { border-bottom: 3px solid var(--primary); }
+  .hm-gap { border: none; min-width: 10px; }
+  .hm-keyboard { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .hm-key {
+    padding: 9px 0; border-radius: 8px; border: 1px solid #e2ded8; background: white;
+    font-size: 14px; font-weight: 700; color: var(--dark); cursor: pointer;
+  }
+  .hm-key:disabled { cursor: default; opacity: 0.5; }
+  .hm-key-correct { background: #e3efe5; border-color: #7fbf8c; color: #2f7a3d; }
+  .hm-key-wrong { background: #f8dcdc; border-color: var(--red); color: var(--red); }
+
   /* Quiz */
   .quiz-question { background: var(--card); border-radius: 14px; padding: 15px; margin-bottom: 12px; }
   .quiz-question p.q { font-weight: 700; font-size: 14px; margin: 0 0 10px; color: var(--dark); }
@@ -1306,6 +1322,11 @@
           <span class="title">Pexeso</span>
           <span class="desc">Najdi dvojice název + obrázek. Pokaždé jiná sada pojmů.</span>
         </button>
+        <button class="practice-hub-btn" onclick="showScreen('hangman')">
+          <span class="icon">&#128289;</span>
+          <span class="title">Šibenice</span>
+          <span class="desc">Hádej gastro pojem písmeno po písmenu, než se panáček pověsí.</span>
+        </button>
         <button class="practice-hub-btn" onclick="showScreen('practice-materials')">
           <span class="icon">&#128196;</span>
           <span class="title">Materiály</span>
@@ -1443,6 +1464,41 @@
         </div>
       </div>
       <div class="pexeso-zoom-backdrop hidden" id="pexesoZoomBackdrop" onclick="pexesoUnzoom()"></div>
+
+      <!-- ŠIBENICE (procvičování - hádání gastro pojmu z fronty na zveřejnění, písmeno po písmenu) -->
+      <div class="screen hidden" id="screen-hangman">
+        <span class="back-link" onclick="showScreen('practice-hub')">&larr; Zpět na procvičování</span>
+        <div id="hangmanBoard">
+          <div class="hangman-figure-wrap">
+            <svg viewBox="0 0 200 200" width="150" height="150">
+              <line x1="20" y1="185" x2="120" y2="185" stroke="var(--dark)" stroke-width="5" stroke-linecap="round"/>
+              <line x1="50" y1="185" x2="50" y2="15" stroke="var(--dark)" stroke-width="5" stroke-linecap="round"/>
+              <line x1="50" y1="15" x2="135" y2="15" stroke="var(--dark)" stroke-width="5" stroke-linecap="round"/>
+              <line x1="135" y1="15" x2="135" y2="40" stroke="var(--dark)" stroke-width="5" stroke-linecap="round"/>
+              <circle id="hmHead" class="hidden" cx="135" cy="55" r="14" stroke="var(--red)" stroke-width="5" fill="none"/>
+              <line id="hmBody" class="hidden" x1="135" y1="69" x2="135" y2="115" stroke="var(--red)" stroke-width="5" stroke-linecap="round"/>
+              <line id="hmArmL" class="hidden" x1="135" y1="82" x2="112" y2="102" stroke="var(--red)" stroke-width="5" stroke-linecap="round"/>
+              <line id="hmArmR" class="hidden" x1="135" y1="82" x2="158" y2="102" stroke="var(--red)" stroke-width="5" stroke-linecap="round"/>
+              <line id="hmLegL" class="hidden" x1="135" y1="115" x2="115" y2="150" stroke="var(--red)" stroke-width="5" stroke-linecap="round"/>
+              <line id="hmLegR" class="hidden" x1="135" y1="115" x2="155" y2="150" stroke="var(--red)" stroke-width="5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div id="hangmanWrongCounter" style="text-align:center;font-size:12.5px;color:var(--text-muted);margin-bottom:2px;"></div>
+          <div id="hangmanWord" class="hm-word"></div>
+          <div id="hangmanKeyboard" class="hm-keyboard"></div>
+        </div>
+        <div id="hangmanDoneState" class="hidden">
+          <div class="result-box">
+            <div id="hangmanResultIcon" style="font-size:38px;margin-bottom:6px;"></div>
+            <div class="msg" id="hangmanResultMsg"></div>
+            <div style="font-weight:800;font-size:17px;color:var(--dark);margin-top:8px;font-family:'Poppins',sans-serif;" id="hangmanRevealWord"></div>
+            <p class="help-text" id="hangmanRevealDef" style="margin-top:4px;"></p>
+            <div class="msg" id="hangmanBonusMsg"></div>
+            <button class="btn-primary" onclick="startHangmanRound()">Další slovo</button>
+            <button class="btn-secondary" onclick="showScreen('practice-hub')">Zpět na procvičování</button>
+          </div>
+        </div>
+      </div>
 
       <!-- DETAIL KVÍZU: VŠICHNI STUDENTI DANÉHO ROČNÍKU (jen mistrová) -->
       <div class="screen hidden" id="screen-quiz-students">
@@ -1984,12 +2040,13 @@
 
         <div class="help-section">
           <h2 class="section-title">&#128260; Procvičování</h2>
-          <p class="help-text">V sekci Procvičování si můžete trénovat bez tlaku – kvízy nanečisto (bez omezení pokusů), kartičky se slovíčky na opakování a pexeso.</p>
+          <p class="help-text">V sekci Procvičování si můžete trénovat bez tlaku – kvízy nanečisto (bez omezení pokusů), kartičky se slovíčky na opakování, pexeso a šibenici.</p>
           <p class="help-text">Ideální na rozehřátí před ostrým pokusem u kvízu.</p>
           <p class="help-text"><strong>Kvízy nanečisto:</strong> stejné otázky jako ostré kvízy, ale bez omezení počtu pokusů ani čekací doby mezi nimi – klidně si kvíz zkuste vícekrát za sebou, dokud si nebudete jistí, a teprve pak ho zkuste nanečisto.</p>
           <p class="help-text"><strong>Slovíčka:</strong> kartičky ze slovníku se skutečným rozloženým opakováním (jako Anki). Klepnutím na kartičku uvidíte pojem, zkuste si v hlavě říct definici a dalším klepnutím kartičku otočíte a definici zkontrolujete. Pak se sami ohodnotíte – Neumím / Chci si to ještě procvičit vrátí slovíčko brzy zpátky, Umím ho na pár dní schová a samo se vrátí k ověření později (čím déle ho umíte, tím delší přestávku dostane). Když nemáte zrovna nic na opakování, appka vám to napíše.</p>
           <p class="help-text"><strong>Pexeso:</strong> hledáte dvojice název pojmu + odpovídající obrázek, pokaždé z náhodně vylosovaných 10 dvojic z celého balíku. Appka počítá tahy (kolikrát jste porovnávali dvojici kartiček) – čím míň, tím lepší skóre. Nad kartičkami se vám pořád zobrazuje váš dosavadní rekord (nejméně tahů v dohraném kole), takže rovnou vidíte, na co hrajete a jak se zlepšujete, a po dohrání appka ukáže, jestli jste ho zrovna překonali. Klepnutím kartičku otočíte, dalším klepnutím na tu samou (i tu druhou, právě odkrytou, nebo i libovolnou už spárovanou) ji zvětšíte, ať obrázek pořádně poznáte – zůstane zvětšená, dokud na ni znovu neklepnete. U špatné dvojice se pak obě hned otočí zpátky; u poslední spárované dvojice kola se hned potom appka přepne na obrazovku Hotovo. Nikam ale spěchat nemusíte, ale ani čekat – kdo nepotřebuje tolik času, může rovnou klepnout na další kartičku a špatná dvojice se sama hned otočí zpátky.</p>
-          <p class="help-text"><strong>Body za procvičování:</strong> za první dokončený kvíz nanečisto, první splněné opakování slovíček a první dohrané kolo pexesa v daný den dostanete +1 bod – nejvýš 3 body denně dohromady, ať procvičujete v jedné sekci nebo ve všech třech. Je to jen malá odměna navíc, hlavní body pořád nesou ostré kvízy a výzvy.</p>
+          <p class="help-text"><strong>Šibenice:</strong> hádáte gastro pojem písmeno po písmenu – klasická pravidla, 6 špatných pokusů a je konec. Appka losuje ze všech slovíček ve Slovníku a hlídá, ať vám hned zase nevrátí to samé, co jste právě dostali. Ať kolo dopadne jakkoliv, na konci se vždycky ukáže celé slovo (i s výslovností v závorce, pokud nějakou má) a jeho definice – nejde o to vyhrát, ale procvičit si pravopis a slovní zásobu.</p>
+          <p class="help-text"><strong>Body za procvičování:</strong> za první dokončený kvíz nanečisto, první splněné opakování slovíček, první dohrané kolo pexesa a první dohrané kolo šibenice v daný den dostanete +1 bod – nejvýš 3 body denně dohromady, ať procvičujete v jedné sekci nebo ve všech čtyřech. Je to jen malá odměna navíc, hlavní body pořád nesou ostré kvízy a výzvy.</p>
           <p class="help-text">Za pravidelné procvičování jsou i odznáčky v sekci Úspěchy: Pilná píle (procvičuj 5 různých dnů), Procvičovací týden (denní bonus 7 dní v řadě), Trenér/ka (10 kvízů nanečisto), Slovní expert (50 slovíček poprvé jako Umím) a Pexeso mistr/mistryně (20 kol pexesa).</p>
         </div>
 
@@ -2767,7 +2824,7 @@ function hasPersistedSupabaseSession() {
 // o pár řádků níž – kdyby byl RESUMABLE_SCREENS deklarovaný až za tím
 // (přes const), skončilo by to chybou "Cannot access before initialization"
 // a celá appka by se nenačetla.)
-const RESUMABLE_SCREENS = ["home", "quizzes", "quiz-take", "personality-take", "challenges", "practice-hub", "practice-quizzes", "flashcards", "pexeso", "practice-materials", "slovnik", "leaderboard", "competitors", "achievements", "messages", "profile"];
+const RESUMABLE_SCREENS = ["home", "quizzes", "quiz-take", "personality-take", "challenges", "practice-hub", "practice-quizzes", "flashcards", "pexeso", "hangman", "practice-materials", "slovnik", "leaderboard", "competitors", "achievements", "messages", "profile"];
 
 if (!hasPersistedSupabaseSession()) {
   showScreen("login");
@@ -3363,6 +3420,7 @@ function showScreen(name) {
     "practice-quizzes": ["Kvízy nanečisto", "Tréninkový režim"],
     flashcards: ["Slovíčka", "Procvičuj jako kartičky"],
     pexeso: ["Pexeso", "Najdi dvojice název + obrázek"],
+    hangman: ["Šibenice", "Hádej gastro pojem"],
     "practice-materials": ["Materiály", "Studijní materiály ke stažení"],
     "material-upload": ["Nový materiál", "Nahrát studijní materiál"],
     leaderboard: ["Žebříček", "Jak si vedeš"],
@@ -3404,6 +3462,7 @@ function showScreen(name) {
   if (name === "practice-quizzes") renderPracticeQuizzes();
   if (name === "flashcards") openFlashcards();
   if (name === "pexeso") { if (!tryResumePexeso()) startPexesoRound(); refreshPexesoBest(); }
+  if (name === "hangman") startHangmanRound();
   if (name === "practice-materials") renderPracticeMaterials();
   if (name === "faq") renderFaqFeedback();
   if (name === "help") resetAppSearch();
@@ -3581,8 +3640,8 @@ async function openPointsBreakdown(returnTo) {
 // Popisky a pořadí tří druhů dobrovolného Procvičování (viz record_practice_activity) -
 // sdílené mezi studentovou vlastní obrazovkou Body a učitelčiným pohledem na
 // studenta, ať se to nerozjede na dvou místech jinak.
-const PRACTICE_KIND_ORDER = ["flashcards", "pexeso", "quiz"];
-const PRACTICE_KIND_LABELS = { flashcards: "Slovíčka", pexeso: "Pexeso", quiz: "Kvízy" };
+const PRACTICE_KIND_ORDER = ["flashcards", "pexeso", "hangman", "quiz"];
+const PRACTICE_KIND_LABELS = { flashcards: "Slovíčka", pexeso: "Pexeso", hangman: "Šibenice", quiz: "Kvízy" };
 
 // Sdílené vykreslení rozpadu bodů (souhrn + jednotlivé položky) - stejná
 // šablona pro studentovu vlastní obrazovku "Body" i pro učitelčin detail
@@ -7356,6 +7415,152 @@ async function refreshPexesoBest() {
   el.textContent = pexesoBestMoves != null
     ? "Tvůj rekord: " + pexesoBestMoves + " tahů"
     : "Zatím žádný rekord - tohle je tvé první dohrané kolo!";
+}
+
+// ---------- ŠIBENICE ----------
+// Hádání slova ze všech slovíček ve Slovníku (zveřejněná i ta ve frontě) -
+// viz get_hangman_word(). hangmanPlayedIds si v rámci téhle session pamatuje,
+// co už student dostal, a posílá to jako vyloučené id, ať se mu stejné slovo
+// hned zase nevrátí - jakmile takhle "vyčerpá" celý balík, appka to bere od
+// znovu (a hangmanPlayedIds se sama restartuje, viz startHangmanRound).
+// Klasická pravidla: 6 špatných pokusů, pak konec (panáček dokreslený).
+// Slovo i definice se ukážou vždycky na konci kola - ať kolo dopadne
+// jakkoliv - protože jde o procvičení, ne o "vyhrát/prohrát".
+const HANGMAN_MAX_WRONG = 6;
+const HANGMAN_FIGURE_STAGES = ["hmHead", "hmBody", "hmArmL", "hmArmR", "hmLegL", "hmLegR"];
+// Abeceda pro virtuální klávesnici - běžná latinka (i písmena, která se v
+// češtině nepoužívají, protože slovník má spoustu cizích přejatých pojmů:
+// q, w, x) + česká diakritika + dvě francouzské hlásky, co se ve frontě
+// vyskytují (à la carte, rôtisseur).
+const HANGMAN_ALPHABET = [
+  "a", "á", "b", "c", "č", "d", "ď", "e", "é", "ě", "f", "g", "h", "i", "í",
+  "j", "k", "l", "m", "n", "ň", "o", "ó", "p", "q", "r", "ř", "s", "š", "t",
+  "ť", "u", "ú", "ů", "v", "w", "x", "y", "ý", "z", "ž", "à", "ô",
+];
+
+let hangmanWordRow = null;   // { id, word, definition } z get_hangman_word()
+let hangmanPuzzle = "";      // hangmanWordRow.word bez výslovnosti v závorce - to se hádá
+let hangmanGuessed = new Set(); // malými písmeny, co všechno už student zkusil
+let hangmanWrong = 0;
+let hangmanDone = false;
+let hangmanPlayedIds = [];   // id slovíček, co student v týhle session už dostal - viz startHangmanRound
+
+// Fronta má i výslovnost v závorce (např. "tabasco (tabasko)") - ta by hru
+// jen prozrazovala/mátla, takže se na hádání nepoužívá. Po dohrání kola se
+// ale celý originální zápis (i s výslovností) ukáže spolu s definicí.
+function hangmanStripPronunciation(raw) {
+  return (raw || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
+}
+
+async function startHangmanRound() {
+  document.getElementById("hangmanBoard").classList.remove("hidden");
+  document.getElementById("hangmanDoneState").classList.add("hidden");
+  document.getElementById("hangmanBonusMsg").textContent = "";
+  document.getElementById("hangmanWord").innerHTML = "";
+  document.getElementById("hangmanKeyboard").innerHTML = "";
+  document.getElementById("hangmanWrongCounter").textContent = "";
+  HANGMAN_FIGURE_STAGES.forEach((id) => document.getElementById(id).classList.add("hidden"));
+
+  hangmanWordRow = null;
+  hangmanPuzzle = "";
+  hangmanGuessed = new Set();
+  hangmanWrong = 0;
+  hangmanDone = false;
+
+  const { data, error } = await sb.rpc("get_hangman_word", {
+    p_exclude_ids: hangmanPlayedIds.length ? hangmanPlayedIds : null,
+  });
+  const row = data && data[0] ? data[0] : null;
+  if (error || !row) {
+    document.getElementById("hangmanWord").innerHTML =
+      "<div class='empty-note'>Momentálně není k dispozici žádné slovo k procvičení.</div>";
+    return;
+  }
+
+  // Balík se právě vyčerpal (appka vrátila slovo, co student už měl, protože
+  // nezbylo nic nového) - začít počítat vynechávaná slova znovu od tohohle.
+  if (hangmanPlayedIds.includes(row.id)) {
+    hangmanPlayedIds = [row.id];
+  } else {
+    hangmanPlayedIds.push(row.id);
+  }
+
+  hangmanWordRow = row;
+  hangmanPuzzle = hangmanStripPronunciation(row.word);
+  renderHangmanWord();
+  renderHangmanKeyboard();
+  updateHangmanWrongCounter();
+}
+
+function updateHangmanWrongCounter() {
+  document.getElementById("hangmanWrongCounter").textContent =
+    "Špatné pokusy: " + hangmanWrong + "/" + HANGMAN_MAX_WRONG;
+}
+
+function renderHangmanWord() {
+  const html = hangmanPuzzle
+    .split("")
+    .map((ch) => {
+      if (!/\p{L}/u.test(ch)) {
+        return "<span class='hm-gap'>" + esc(ch === " " ? "  " : ch) + "</span>";
+      }
+      const revealed = hangmanDone || hangmanGuessed.has(ch.toLowerCase());
+      return "<span class='hm-letter" + (revealed ? "" : " hm-blank") + "'>" + (revealed ? esc(ch) : "") + "</span>";
+    })
+    .join("");
+  document.getElementById("hangmanWord").innerHTML = html;
+}
+
+function renderHangmanKeyboard() {
+  document.getElementById("hangmanKeyboard").innerHTML = HANGMAN_ALPHABET.map(
+    (ch) => "<button class='hm-key' id='hmKey-" + ch + "' onclick=\"guessHangmanLetter('" + ch + "')\">" + ch + "</button>"
+  ).join("");
+}
+
+function guessHangmanLetter(ch) {
+  if (hangmanDone || hangmanGuessed.has(ch)) return;
+  hangmanGuessed.add(ch);
+
+  const btn = document.getElementById("hmKey-" + ch);
+  const isHit = hangmanPuzzle.toLowerCase().includes(ch);
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add(isHit ? "hm-key-correct" : "hm-key-wrong");
+  }
+
+  if (!isHit) {
+    hangmanWrong++;
+    const stage = HANGMAN_FIGURE_STAGES[hangmanWrong - 1];
+    if (stage) document.getElementById(stage).classList.remove("hidden");
+    updateHangmanWrongCounter();
+  }
+
+  renderHangmanWord();
+
+  const allLettersGuessed = hangmanPuzzle
+    .split("")
+    .every((c) => !/\p{L}/u.test(c) || hangmanGuessed.has(c.toLowerCase()));
+
+  if (allLettersGuessed) {
+    finishHangmanRound(true);
+  } else if (hangmanWrong >= HANGMAN_MAX_WRONG) {
+    finishHangmanRound(false);
+  }
+}
+
+function finishHangmanRound(won) {
+  hangmanDone = true;
+  renderHangmanWord();
+  document.querySelectorAll("#hangmanKeyboard .hm-key").forEach((b) => (b.disabled = true));
+
+  document.getElementById("hangmanBoard").classList.add("hidden");
+  document.getElementById("hangmanDoneState").classList.remove("hidden");
+  document.getElementById("hangmanResultIcon").textContent = won ? "\u{1F389}" : "\u{1F480}";
+  document.getElementById("hangmanResultMsg").textContent = won ? "Uhodl/a jsi to!" : "Tentokrát to nevyšlo.";
+  document.getElementById("hangmanRevealWord").textContent = hangmanWordRow.word;
+  document.getElementById("hangmanRevealDef").textContent = hangmanWordRow.definition || "";
+
+  awardPracticeBonus("hangman", hangmanWordRow.id, "hangmanBonusMsg", hangmanWrong);
 }
 
 // ---------- MATERIÁLY (studijní materiály ke zobrazení/stažení, jen mistrová je nahrává) ----------
