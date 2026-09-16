@@ -5907,7 +5907,7 @@ function openPracticeQuiz(id, restoredAnswers) {
 // návratu do stejného kvízu v rámci appky.
 function getSavedQuizProgressFor(id, practice) {
   let saved = null;
-  try { saved = JSON.parse(localStorage.getItem("forkit_quiz_progress") || "null"); } catch (e) {}
+  try { saved = JSON.parse(localStorage.getItem(quizProgressKey()) || "null"); } catch (e) {}
   if (!saved || !saved.quiz || saved.quiz.id !== id || !!saved.practice !== !!practice) return null;
   return saved.answers;
 }
@@ -5960,10 +5960,16 @@ function startQuizTake(q, restoredAnswers) {
 // (ne jen jeho id), aby obnovení fungovalo i u tréninkových kvízů z
 // Procvičování, jejichž seznam se na rozdíl od ostrých kvízů nenačítá hned
 // po přihlášení.
+// Klíč obsahuje id uživatele (stejný vzor jako u Wordlu/šibenice/pexesa) -
+// jinak by si na jednom zařízení různé účty navzájem "půjčovaly" rozepsaný kvíz.
+function quizProgressKey() {
+  return "forkit_quiz_progress_" + (user ? user.id : "anon");
+}
+
 function saveQuizProgress() {
   if (!currentQuiz) return;
   try {
-    localStorage.setItem("forkit_quiz_progress", JSON.stringify({
+    localStorage.setItem(quizProgressKey(), JSON.stringify({
       quiz: { id: currentQuiz.id, title: currentQuiz.title, points: currentQuiz.points, questions: currentQuiz.questions },
       answers: currentAnswers,
       practice: isPracticeMode,
@@ -5972,14 +5978,14 @@ function saveQuizProgress() {
 }
 
 function clearQuizProgress() {
-  try { localStorage.removeItem("forkit_quiz_progress"); } catch (e) {}
+  try { localStorage.removeItem(quizProgressKey()); } catch (e) {}
 }
 
 // Zkusí obnovit rozepsaný kvíz uložený v localStorage (viz saveQuizProgress).
 // Vrací true, pokud se to povedlo a appka už je na obrazovce s kvízem.
 function tryResumeQuiz() {
   let saved = null;
-  try { saved = JSON.parse(localStorage.getItem("forkit_quiz_progress") || "null"); } catch (e) {}
+  try { saved = JSON.parse(localStorage.getItem(quizProgressKey()) || "null"); } catch (e) {}
   if (!saved || !saved.quiz) return false;
   isPracticeMode = !!saved.practice;
   startQuizTake(saved.quiz, saved.answers);
@@ -7629,6 +7635,13 @@ async function startHangmanRound() {
   saveHangmanProgress();
 }
 
+// Klíč obsahuje id uživatele (stejný vzor jako u Wordlu/testu osobnosti/
+// rozepsané výzvy) - jinak by si na jednom zařízení různé účty (např.
+// mistrová a testovací účet Boba) navzájem "půjčovaly" rozehrané kolo.
+function hangmanProgressKey() {
+  return "forkit_hangman_progress_" + (user ? user.id : "anon");
+}
+
 // Uloží rozehrané (ale ještě nedohrané) kolo do localStorage, ať appka
 // kolo neztratí, když systém appku na pozadí (po přepnutí okna/aplikace)
 // "vyhodí z paměti" a při návratu ji znovu nahraje od začátku - stejný
@@ -7636,7 +7649,7 @@ async function startHangmanRound() {
 function saveHangmanProgress() {
   if (!hangmanWordRow) return;
   try {
-    localStorage.setItem("forkit_hangman_progress", JSON.stringify({
+    localStorage.setItem(hangmanProgressKey(), JSON.stringify({
       wordRow: hangmanWordRow,
       guessed: Array.from(hangmanGuessed),
       wrong: hangmanWrong,
@@ -7646,14 +7659,14 @@ function saveHangmanProgress() {
 }
 
 function clearHangmanProgress() {
-  try { localStorage.removeItem("forkit_hangman_progress"); } catch (e) {}
+  try { localStorage.removeItem(hangmanProgressKey()); } catch (e) {}
 }
 
 // Zkusí obnovit rozehrané kolo uložené v localStorage - vrací true, pokud se
 // povedlo (appka pak nežádá server o nové slovo, jen pokračuje ve starém).
 function tryResumeHangman() {
   let saved = null;
-  try { saved = JSON.parse(localStorage.getItem("forkit_hangman_progress") || "null"); } catch (e) {}
+  try { saved = JSON.parse(localStorage.getItem(hangmanProgressKey()) || "null"); } catch (e) {}
   if (!saved || !saved.wordRow || !saved.wordRow.word) return false;
 
   document.getElementById("hangmanBoard").classList.remove("hidden");
@@ -7831,8 +7844,13 @@ async function loadWordleValidWords() {
   });
 }
 
+// Klíč obsahuje i id uživatele (stejný vzor jako u ostatních rozehraných
+// věcí v appce, viz personalityProgressKey/challengeDraftStorageKey výše) -
+// jinak by si na jednom zařízení/prohlížeči (např. mistrová testující appku
+// a pak přepnutí na testovací účet Boba) různé účty navzájem "půjčovaly"
+// dohraný/rozehraný stav dnešního Wordlu.
 function wordleStorageKey(pragueDate) {
-  return "forkit_wordle_" + pragueDate;
+  return "forkit_wordle_" + (user ? user.id : "anon") + "_" + pragueDate;
 }
 
 function loadWordleState(pragueDate) {
@@ -8307,10 +8325,16 @@ function pexesoCardTerm(card) {
   return sibling ? sibling.content : null;
 }
 
+// Klíč obsahuje id uživatele (stejný vzor jako u Wordlu/šibenice) - jinak by
+// si na jednom zařízení různé účty navzájem "půjčovaly" rozehrané kolo.
+function pexesoProgressKey() {
+  return "forkit_pexeso_progress_" + (user ? user.id : "anon");
+}
+
 function savePexesoProgress() {
   if (!pexesoCards.length) return;
   try {
-    localStorage.setItem("forkit_pexeso_progress", JSON.stringify({
+    localStorage.setItem(pexesoProgressKey(), JSON.stringify({
       cards: pexesoCards.map((c) => ({ term: pexesoCardTerm(c), kind: c.kind, matched: c.matched })),
       moves: pexesoMoves,
     }));
@@ -8318,7 +8342,7 @@ function savePexesoProgress() {
 }
 
 function clearPexesoProgress() {
-  try { localStorage.removeItem("forkit_pexeso_progress"); } catch (e) {}
+  try { localStorage.removeItem(pexesoProgressKey()); } catch (e) {}
 }
 
 // Zkusí obnovit rozehrané kolo uložené v localStorage (viz savePexesoProgress
@@ -8327,7 +8351,7 @@ function clearPexesoProgress() {
 // že už uložené názvy nesedí, radši bezpečně rozdáme nové kolo.
 function tryResumePexeso() {
   let saved = null;
-  try { saved = JSON.parse(localStorage.getItem("forkit_pexeso_progress") || "null"); } catch (e) {}
+  try { saved = JSON.parse(localStorage.getItem(pexesoProgressKey()) || "null"); } catch (e) {}
   if (!saved || !Array.isArray(saved.cards) || !saved.cards.length) return false;
 
   let nextPairId = 0;
