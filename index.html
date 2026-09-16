@@ -8245,6 +8245,11 @@ async function loadRank() {
 let allCompetitors = [];
 let currentCompetitorId = null;
 let currentCompetitorExportData = null;
+// Pamatuje si naposledy zvolenou třídu (a hledaný text) na obrazovce Soutěžící,
+// ať se po návratu z detailu studenta ("Zpět") neresetuje zpátky na "Všichni" -
+// viz renderCompetitors()/filterCompetitors().
+let competitorsRocnikFilter = "all";
+let competitorsSearchText = "";
 
 // "Podložka" před celým seznamem účastníků - kdo je dlouho neaktivní (nebo
 // se ještě vůbec nepřihlásil), ať to mistrová vidí hned, ne až náhodou.
@@ -8493,8 +8498,8 @@ async function saveMaintenanceMode() {
 async function renderCompetitors() {
   const list = document.getElementById("competitorsList");
   list.innerHTML = "<div class='empty-note'>Načítám...</div>";
-  document.getElementById("compRocnikFilter").value = "all";
-  document.getElementById("compSearchInput").value = "";
+  document.getElementById("compRocnikFilter").value = competitorsRocnikFilter;
+  document.getElementById("compSearchInput").value = competitorsSearchText;
 
   const { data, error } = await sb.rpc("get_leaderboard_admin");
   if (error) {
@@ -8502,12 +8507,14 @@ async function renderCompetitors() {
     return;
   }
   allCompetitors = data || [];
-  renderCompetitorsList(allCompetitors);
+  filterCompetitors();
 }
 
 function filterCompetitors() {
   const rocnik = document.getElementById("compRocnikFilter").value;
   const q = document.getElementById("compSearchInput").value.trim().toLowerCase();
+  competitorsRocnikFilter = rocnik;
+  competitorsSearchText = document.getElementById("compSearchInput").value;
   let rows = allCompetitors;
   if (rocnik !== "all") rows = rows.filter((r) => String(r.rocnik) === rocnik);
   if (q) rows = rows.filter((r) => r.name.toLowerCase().includes(q));
