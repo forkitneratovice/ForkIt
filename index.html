@@ -500,14 +500,13 @@
   .hm-letter.hm-blank { border-bottom: 3px solid var(--dark); }
   .hm-letter:not(.hm-blank) { border-bottom: 3px solid var(--primary); }
   .hm-gap { border: none; min-width: 10px; }
-  .hm-keyboard { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
-  .hm-key {
-    padding: 9px 0; border-radius: 8px; border: 1px solid #e2ded8; background: white;
-    font-size: 14px; font-weight: 700; color: var(--dark); cursor: pointer;
+  .hm-type-input {
+    display: block; width: 100%; box-sizing: border-box; margin: 0; padding: 10px 12px;
+    border-radius: 8px; border: 1px solid #e2ded8; background: white; font-size: 15px;
+    text-align: center; letter-spacing: 2px; text-transform: uppercase; color: var(--dark);
+    font-family: 'Poppins', sans-serif;
   }
-  .hm-key:disabled { cursor: default; opacity: 0.5; }
-  .hm-key-correct { background: #e3efe5; border-color: #7fbf8c; color: #2f7a3d; }
-  .hm-key-wrong { background: #f8dcdc; border-color: var(--red); color: var(--red); }
+  .hm-type-input:disabled { opacity: 0.5; }
 
   /* Wordle dne (procvičování - jedno společné slovo pro všechny na daný den) */
   .wordle-grid { display: flex; flex-direction: column; align-items: center; gap: 5px; margin: 6px 0 16px; }
@@ -521,25 +520,15 @@
   .wordle-tile-correct { background: #7fbf8c; border-color: #7fbf8c; color: white; }
   .wordle-tile-present { background: #e8c547; border-color: #e8c547; color: white; }
   .wordle-tile-absent { background: #9b9591; border-color: #9b9591; color: white; }
+  .wordle-type-row { display: flex; gap: 8px; align-items: stretch; }
   .wordle-type-input {
-    display: block; width: 100%; box-sizing: border-box; margin: 0 0 10px; padding: 10px 12px;
+    flex: 1; min-width: 0; box-sizing: border-box; padding: 10px 12px;
     border-radius: 8px; border: 1px solid #e2ded8; background: white; font-size: 15px;
     text-align: center; letter-spacing: 2px; text-transform: uppercase; color: var(--dark);
     font-family: 'Poppins', sans-serif;
   }
   .wordle-type-input:disabled { opacity: 0.5; }
-  .wordle-keyboard { display: flex; flex-direction: column; gap: 6px; }
-  .wordle-keyboard-row { display: flex; gap: 5px; justify-content: center; }
-  .wordle-key {
-    flex: 1; min-width: 0; padding: 9px 0; border-radius: 8px; border: 1px solid #e2ded8;
-    background: white; font-size: 14px; font-weight: 700; color: var(--dark); cursor: pointer;
-  }
-  .wordle-key:disabled { cursor: default; opacity: 0.5; }
-  .wordle-key-correct { background: #7fbf8c; border-color: #7fbf8c; color: white; }
-  .wordle-key-present { background: #e8c547; border-color: #e8c547; color: white; }
-  .wordle-key-absent { background: #9b9591; border-color: #9b9591; color: white; opacity: 0.6; }
-  .wordle-key-wide { flex: 1.6; }
-  .wordle-keyboard-row-diacritics .wordle-key { font-size: 12px; padding: 7px 0; }
+  .wordle-type-submit { padding: 10px 16px; font-size: 14px; white-space: nowrap; }
   /* Zatřesení řádku, když se student pokusí odeslat neexistující slovo -
      stejný princip, jako když se v opravdovém Wordlu pokusíte odeslat
      nesmyslný pokus. */
@@ -1557,7 +1546,10 @@
           </div>
           <div id="hangmanWrongCounter" style="text-align:center;font-size:12.5px;color:var(--text-muted);margin-bottom:2px;"></div>
           <div id="hangmanWord" class="hm-word"></div>
-          <div id="hangmanKeyboard" class="hm-keyboard"></div>
+          <input id="hangmanTypeInput" class="hm-type-input" type="text" maxlength="1"
+                 autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+                 placeholder="Napiš písmeno pomocí klávesnice telefonu/počítače..."
+                 oninput="hangmanHandleTypedInput(this)" />
         </div>
         <div id="hangmanDoneState" class="hidden">
           <div class="result-box">
@@ -1580,11 +1572,13 @@
         <div id="wordleStats" style="text-align:center;font-size:12.5px;color:var(--primary);margin-bottom:6px;"></div>
         <div id="wordleBoard">
           <div id="wordleGrid" class="wordle-grid"></div>
-          <input id="wordleTypeInput" class="wordle-type-input" type="text"
-                 autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
-                 placeholder="Napiš slovo pomocí klávesnice telefonu..."
-                 oninput="wordleHandleTypedInput(this)" onkeydown="wordleHandleTypedKeydown(event)" />
-          <div id="wordleKeyboard" class="wordle-keyboard"></div>
+          <div class="wordle-type-row">
+            <input id="wordleTypeInput" class="wordle-type-input" type="text"
+                   autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+                   placeholder="Napiš slovo pomocí klávesnice telefonu/počítače..."
+                   oninput="wordleHandleTypedInput(this)" onkeydown="wordleHandleTypedKeydown(event)" />
+            <button class="btn-primary wordle-type-submit" onclick="wordleSubmitGuess()">Odeslat</button>
+          </div>
           <div id="wordleMsg" style="text-align:center;font-size:12.5px;color:var(--red);min-height:16px;margin-top:6px;"></div>
           <div style="text-align:center;margin-top:10px;">
             <span id="wordleGiveUpLink" onclick="wordleGiveUp()" style="font-size:12.5px;color:var(--text-muted);text-decoration:underline;cursor:pointer;">Vzdávám to</span>
@@ -7612,7 +7606,6 @@ async function startHangmanRound() {
   document.getElementById("hangmanDoneState").classList.add("hidden");
   document.getElementById("hangmanBonusMsg").textContent = "";
   document.getElementById("hangmanWord").innerHTML = "";
-  document.getElementById("hangmanKeyboard").innerHTML = "";
   document.getElementById("hangmanWrongCounter").textContent = "";
   HANGMAN_FIGURE_STAGES.forEach((id) => document.getElementById(id).classList.add("hidden"));
 
@@ -7643,7 +7636,7 @@ async function startHangmanRound() {
   hangmanWordRow = row;
   hangmanPuzzle = hangmanBuildPuzzle(row.word);
   renderHangmanWord();
-  renderHangmanKeyboard();
+  hangmanSyncTypeInput();
   updateHangmanWrongCounter();
   saveHangmanProgress();
 }
@@ -7697,14 +7690,7 @@ function tryResumeHangman() {
   if (!hangmanPlayedIds.includes(hangmanWordRow.id)) hangmanPlayedIds.push(hangmanWordRow.id);
 
   renderHangmanWord();
-  renderHangmanKeyboard();
-  // Obnoví vzhled klávesnice a panáčka podle už uhodnutých/špatných písmen.
-  hangmanGuessed.forEach((ch) => {
-    const btn = document.getElementById("hmKey-" + ch);
-    if (!btn) return;
-    btn.disabled = true;
-    btn.classList.add(hangmanPuzzle.toLowerCase().includes(ch) ? "hm-key-correct" : "hm-key-wrong");
-  });
+  hangmanSyncTypeInput();
   for (let i = 0; i < hangmanWrong; i++) {
     const stage = HANGMAN_FIGURE_STAGES[i];
     if (stage) document.getElementById(stage).classList.remove("hidden");
@@ -7732,23 +7718,29 @@ function renderHangmanWord() {
   document.getElementById("hangmanWord").innerHTML = html;
 }
 
-function renderHangmanKeyboard() {
+// Místo klikací klávesnice na obrazovce se písmeno zadává rovnou vlastní
+// (fyzickou nebo mobilní) klávesnicí zařízení - stejný princip jako u Wordlu.
+function hangmanSyncTypeInput() {
+  const input = document.getElementById("hangmanTypeInput");
+  if (!input) return;
+  input.value = "";
+  input.disabled = hangmanDone;
+}
+
+function hangmanHandleTypedInput(input) {
+  const ch = input.value.trim().toLowerCase();
+  input.value = "";
+  if (!ch) return;
   const alphabet = hangmanDifficulty === "easy" ? HANGMAN_ALPHABET_EASY : HANGMAN_ALPHABET;
-  document.getElementById("hangmanKeyboard").innerHTML = alphabet.map(
-    (ch) => "<button class='hm-key' id='hmKey-" + ch + "' onclick=\"guessHangmanLetter('" + ch + "')\">" + ch + "</button>"
-  ).join("");
+  if (!alphabet.includes(ch)) return;
+  guessHangmanLetter(ch);
 }
 
 function guessHangmanLetter(ch) {
   if (hangmanDone || hangmanGuessed.has(ch)) return;
   hangmanGuessed.add(ch);
 
-  const btn = document.getElementById("hmKey-" + ch);
   const isHit = hangmanPuzzle.toLowerCase().includes(ch);
-  if (btn) {
-    btn.disabled = true;
-    btn.classList.add(isHit ? "hm-key-correct" : "hm-key-wrong");
-  }
 
   if (!isHit) {
     hangmanWrong++;
@@ -7776,7 +7768,7 @@ async function finishHangmanRound(won) {
   hangmanDone = true;
   clearHangmanProgress();
   renderHangmanWord();
-  document.querySelectorAll("#hangmanKeyboard .hm-key").forEach((b) => (b.disabled = true));
+  hangmanSyncTypeInput();
 
   document.getElementById("hangmanBoard").classList.add("hidden");
   document.getElementById("hangmanDoneState").classList.remove("hidden");
@@ -7828,7 +7820,6 @@ let wordleGuesses = [];        // pole odeslaných pokusů (malými písmeny)
 let wordleCurrentGuess = "";
 let wordleDone = false;
 let wordleWon = false;
-let wordleKeyStatus = {};      // písmeno -> "correct" | "present" | "absent" (nejlepší dosavadní stav)
 let wordleValidWords = new Set(); // slova, co appka uzná jako platný pokus - viz WORDLE_DICT_RAW níže
 
 // Slovník platných pokusů pro Wordle - studenti nevědí (a nemají vědět), co přesně
@@ -7890,7 +7881,6 @@ async function startWordleRound() {
   document.getElementById("wordleBonusMsg").textContent = "";
   document.getElementById("wordleMsg").textContent = "";
   document.getElementById("wordleGrid").innerHTML = "<div class='empty-note'>Načítám...</div>";
-  document.getElementById("wordleKeyboard").innerHTML = "";
 
   wordleWordRow = null;
   wordleTarget = "";
@@ -7898,7 +7888,6 @@ async function startWordleRound() {
   wordleCurrentGuess = "";
   wordleDone = false;
   wordleWon = false;
-  wordleKeyStatus = {};
 
   const [{ data, error }] = await Promise.all([sb.rpc("get_wordle_word"), loadWordleValidWords()]);
   const row = data && data[0] ? data[0] : null;
@@ -7926,7 +7915,6 @@ async function startWordleRound() {
   }
 
   renderWordleGrid();
-  renderWordleKeyboard();
 }
 
 function computeWordleColors(guess, target) {
@@ -8009,55 +7997,6 @@ function wordleHandleTypedKeydown(event) {
   }
 }
 
-// Rozložení připomínající fyzickou (českou QWERTZ) klávesnici počítače -
-// hlavní tři řady jako na klávesnici, znaky s diakritikou navíc v samostatné
-// řadě pod nimi (na fyzické klávesnici by byly přes AltGr).
-const WORDLE_KEYBOARD_ROWS = [
-  ["q", "w", "e", "r", "t", "z", "u", "i", "o", "p"],
-  ["a", "s", "d", "f", "g", "h", "j", "k", "l"],
-  ["y", "x", "c", "v", "b", "n", "m"],
-];
-const WORDLE_KEYBOARD_DIACRITICS = HANGMAN_ALPHABET.filter(
-  (ch) => hangmanStripDiacritics(ch) !== ch
-);
-
-function wordleKeyButtonHtml(ch) {
-  const status = wordleKeyStatus[ch];
-  return (
-    "<button class='wordle-key" + (status ? " wordle-key-" + status : "") +
-    "' id='wdKey-" + ch + "' onclick=\"wordleTypeLetter('" + ch + "')\">" + ch + "</button>"
-  );
-}
-
-function renderWordleKeyboard() {
-  const kb = document.getElementById("wordleKeyboard");
-  const rowsHtml = WORDLE_KEYBOARD_ROWS.map((row, i) => {
-    let html = "<div class='wordle-keyboard-row'>";
-    if (i === 2) html += "<button class='wordle-key wordle-key-wide' onclick=\"wordleBackspace()\">&#9003;</button>";
-    html += row.map(wordleKeyButtonHtml).join("");
-    if (i === 2) html += "<button class='wordle-key wordle-key-wide' onclick=\"wordleSubmitGuess()\">Hotovo</button>";
-    html += "</div>";
-    return html;
-  }).join("");
-  const diacriticsHtml =
-    "<div class='wordle-keyboard-row wordle-keyboard-row-diacritics'>" +
-    WORDLE_KEYBOARD_DIACRITICS.map(wordleKeyButtonHtml).join("") +
-    "</div>";
-  kb.innerHTML = rowsHtml + diacriticsHtml;
-}
-
-function wordleTypeLetter(ch) {
-  if (wordleDone || wordleCurrentGuess.length >= wordleTarget.length) return;
-  wordleCurrentGuess += ch;
-  renderWordleGrid();
-}
-
-function wordleBackspace() {
-  if (wordleDone) return;
-  wordleCurrentGuess = wordleCurrentGuess.slice(0, -1);
-  renderWordleGrid();
-}
-
 function wordleShakeCurrentRow() {
   const rows = document.querySelectorAll("#wordleGrid .wordle-row");
   const row = rows[wordleGuesses.length];
@@ -8087,21 +8026,11 @@ function wordleSubmitGuess() {
   wordleGuesses.push(guess);
   wordleCurrentGuess = "";
 
-  const colors = computeWordleColors(guess, wordleTarget);
-  const rank = { absent: 0, present: 1, correct: 2 };
-  for (let i = 0; i < guess.length; i++) {
-    const ch = guess[i];
-    if (!wordleKeyStatus[ch] || rank[colors[i]] > rank[wordleKeyStatus[ch]]) {
-      wordleKeyStatus[ch] = colors[i];
-    }
-  }
-
   const won = guess === wordleTarget;
   if (won || wordleGuesses.length >= wordleMaxAttempts) {
     finishWordleRound(won, false);
   } else {
     renderWordleGrid();
-    renderWordleKeyboard();
     saveWordleStateInProgress();
   }
 }
