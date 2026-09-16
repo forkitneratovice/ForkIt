@@ -509,6 +509,29 @@
   .hm-key-correct { background: #e3efe5; border-color: #7fbf8c; color: #2f7a3d; }
   .hm-key-wrong { background: #f8dcdc; border-color: var(--red); color: var(--red); }
 
+  /* Wordle dne (procvičování - jedno společné slovo pro všechny na daný den) */
+  .wordle-grid { display: flex; flex-direction: column; align-items: center; gap: 5px; margin: 6px 0 16px; }
+  .wordle-row { display: flex; gap: 5px; }
+  .wordle-tile {
+    width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+    border: 2px solid #e2ded8; border-radius: 6px; font-size: 18px; font-weight: 800;
+    color: var(--dark); font-family: 'Poppins', sans-serif; text-transform: uppercase;
+  }
+  .wordle-tile-filled { border-color: #b9b2a7; }
+  .wordle-tile-correct { background: #7fbf8c; border-color: #7fbf8c; color: white; }
+  .wordle-tile-present { background: #e8c547; border-color: #e8c547; color: white; }
+  .wordle-tile-absent { background: #9b9591; border-color: #9b9591; color: white; }
+  .wordle-keyboard { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .wordle-key {
+    padding: 9px 0; border-radius: 8px; border: 1px solid #e2ded8; background: white;
+    font-size: 14px; font-weight: 700; color: var(--dark); cursor: pointer;
+  }
+  .wordle-key:disabled { cursor: default; opacity: 0.5; }
+  .wordle-key-correct { background: #7fbf8c; border-color: #7fbf8c; color: white; }
+  .wordle-key-present { background: #e8c547; border-color: #e8c547; color: white; }
+  .wordle-key-absent { background: #9b9591; border-color: #9b9591; color: white; opacity: 0.6; }
+  .wordle-key-wide { grid-column: span 2; }
+
   /* Quiz */
   .quiz-question { background: var(--card); border-radius: 14px; padding: 15px; margin-bottom: 12px; }
   .quiz-question p.q { font-weight: 700; font-size: 14px; margin: 0 0 10px; color: var(--dark); }
@@ -1009,6 +1032,13 @@
           <div id="homeLatestWord"></div>
           <button class="btn-secondary" onclick="showScreen('slovnik')">Zobrazit slovník</button>
 
+          <h2 class="section-title">Wordle dne</h2>
+          <button class="practice-hub-btn" onclick="showScreen('wordle')">
+            <span class="icon">&#129001;</span>
+            <span class="title">Wordle dne</span>
+            <span class="desc">Jedno slovo pro všechny na celý den. Klepni a luštit můžeš rovnou.</span>
+          </button>
+
           <h2 class="section-title">Nejnovější kvíz</h2>
           <div id="homeLatestQuiz"></div>
 
@@ -1043,6 +1073,9 @@
           <h2 class="section-title" style="margin-top:20px;">Slovo dne</h2>
           <div id="teacherHomeLatestWord"></div>
           <button class="btn-secondary" onclick="showScreen('slovnik')">Zobrazit slovník</button>
+
+          <h2 class="section-title" style="margin-top:20px;">Wordle dne</h2>
+          <div id="teacherHomeWordleStats" style="font-size:13.5px;color:var(--text-muted);">Načítám...</div>
 
           <h2 class="section-title" style="margin-top:20px;">Rychlé akce</h2>
           <button class="btn-primary" onclick="openQuizCreate()">+ Vytvořit kvíz</button>
@@ -1322,10 +1355,15 @@
           <span class="title">Pexeso</span>
           <span class="desc">Najdi dvojice název + obrázek. Pokaždé jiná sada pojmů.</span>
         </button>
-        <button class="practice-hub-btn" onclick="showScreen('hangman')">
+        <button class="practice-hub-btn" onclick="showScreen('hangman-difficulty')">
           <span class="icon">&#128289;</span>
           <span class="title">Šibenice</span>
           <span class="desc">Hádej gastro pojem písmeno po písmenu, než se panáček pověsí.</span>
+        </button>
+        <button class="practice-hub-btn" onclick="showScreen('wordle')">
+          <span class="icon">&#129001;</span>
+          <span class="title">Wordle dne</span>
+          <span class="desc">Jedno slovo pro všechny na celý den. Uhodni ho na pokusy podle jeho délky.</span>
         </button>
         <button class="practice-hub-btn" onclick="showScreen('practice-materials')">
           <span class="icon">&#128196;</span>
@@ -1465,6 +1503,18 @@
       </div>
       <div class="pexeso-zoom-backdrop hidden" id="pexesoZoomBackdrop" onclick="pexesoUnzoom()"></div>
 
+      <!-- ŠIBENICE - výběr obtížnosti (těžší = s diakritikou, lehčí = bez háčků a čárek) -->
+      <div class="screen hidden" id="screen-hangman-difficulty">
+        <span class="back-link" onclick="showScreen('practice-hub')">&larr; Zpět na procvičování</span>
+        <div class="result-box" style="text-align:center;">
+          <div style="font-size:38px;margin-bottom:6px;">&#128289;</div>
+          <div class="msg">Vyber si obtížnost</div>
+          <p class="help-text" style="margin-top:4px;margin-bottom:14px;">Můžeš kdykoliv příště zvolit jinou.</p>
+          <button class="btn-primary" style="margin-bottom:10px;" onclick="chooseHangmanDifficulty('hard')">Těžší &ndash; s háčky a čárkami</button>
+          <button class="btn-secondary" onclick="chooseHangmanDifficulty('easy')">Lehčí &ndash; bez diakritiky</button>
+        </div>
+      </div>
+
       <!-- ŠIBENICE (procvičování - hádání gastro pojmu z fronty na zveřejnění, písmeno po písmenu) -->
       <div class="screen hidden" id="screen-hangman">
         <span class="back-link" onclick="showScreen('practice-hub')">&larr; Zpět na procvičování</span>
@@ -1498,6 +1548,28 @@
             <p class="help-text" id="hangmanRevealDef" style="margin-top:4px;"></p>
             <div class="msg" id="hangmanBonusMsg"></div>
             <button class="btn-primary" onclick="startHangmanRound()">Další slovo</button>
+            <button class="btn-secondary" onclick="showScreen('practice-hub')">Zpět na procvičování</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- WORDLE DNE (procvičování - jedno společné slovo pro všechny na daný den, o půlnoci se vystřídá) -->
+      <div class="screen hidden" id="screen-wordle">
+        <span class="back-link" onclick="showScreen('practice-hub')">&larr; Zpět na procvičování</span>
+        <p class="lb-note" style="text-align:center;">Dnešní slovo je pro všechny stejné a o půlnoci se vystřídá za další. Máš jen jeden pokus denně, ale v něm víc hádání.</p>
+        <div id="wordleStats" style="text-align:center;font-size:12.5px;color:var(--primary);margin-bottom:6px;"></div>
+        <div id="wordleBoard">
+          <div id="wordleGrid" class="wordle-grid"></div>
+          <div id="wordleKeyboard" class="wordle-keyboard"></div>
+          <div id="wordleMsg" style="text-align:center;font-size:12.5px;color:var(--red);min-height:16px;margin-top:6px;"></div>
+        </div>
+        <div id="wordleDoneState" class="hidden">
+          <div class="result-box">
+            <div id="wordleResultIcon" style="font-size:38px;margin-bottom:6px;"></div>
+            <div class="msg" id="wordleResultMsg"></div>
+            <div style="font-weight:800;font-size:17px;color:var(--dark);margin-top:8px;font-family:'Poppins',sans-serif;" id="wordleRevealWord"></div>
+            <p class="help-text" id="wordleRevealDef" style="margin-top:4px;"></p>
+            <div class="msg" id="wordleBonusMsg"></div>
             <button class="btn-secondary" onclick="showScreen('practice-hub')">Zpět na procvičování</button>
           </div>
         </div>
@@ -2043,13 +2115,14 @@
 
         <div class="help-section">
           <h2 class="section-title">&#128260; Procvičování</h2>
-          <p class="help-text">V sekci Procvičování si můžete trénovat bez tlaku – kvízy nanečisto (bez omezení pokusů), kartičky se slovíčky na opakování, pexeso a šibenici.</p>
+          <p class="help-text">V sekci Procvičování si můžete trénovat bez tlaku – kvízy nanečisto (bez omezení pokusů), kartičky se slovíčky na opakování, pexeso, šibenici a Wordle dne.</p>
           <p class="help-text">Ideální na rozehřátí před ostrým pokusem u kvízu.</p>
           <p class="help-text"><strong>Kvízy nanečisto:</strong> stejné otázky jako ostré kvízy, ale bez omezení počtu pokusů ani čekací doby mezi nimi – klidně si kvíz zkuste vícekrát za sebou, dokud si nebudete jistí, a teprve pak ho zkuste nanečisto.</p>
           <p class="help-text"><strong>Slovíčka:</strong> kartičky ze slovníku se skutečným rozloženým opakováním (jako Anki). Klepnutím na kartičku uvidíte pojem, zkuste si v hlavě říct definici a dalším klepnutím kartičku otočíte a definici zkontrolujete. Pak se sami ohodnotíte – Neumím / Chci si to ještě procvičit vrátí slovíčko brzy zpátky, Umím ho na pár dní schová a samo se vrátí k ověření později (čím déle ho umíte, tím delší přestávku dostane). Když nemáte zrovna nic na opakování, appka vám to napíše.</p>
           <p class="help-text"><strong>Pexeso:</strong> hledáte dvojice název pojmu + odpovídající obrázek, pokaždé z náhodně vylosovaných 10 dvojic z celého balíku. Appka počítá tahy (kolikrát jste porovnávali dvojici kartiček) – čím míň, tím lepší skóre. Nad kartičkami se vám pořád zobrazuje váš dosavadní rekord (nejméně tahů v dohraném kole), takže rovnou vidíte, na co hrajete a jak se zlepšujete, a po dohrání appka ukáže, jestli jste ho zrovna překonali. Klepnutím kartičku otočíte, dalším klepnutím na tu samou (i tu druhou, právě odkrytou, nebo i libovolnou už spárovanou) ji zvětšíte, ať obrázek pořádně poznáte – zůstane zvětšená, dokud na ni znovu neklepnete. U špatné dvojice se pak obě hned otočí zpátky; u poslední spárované dvojice kola se hned potom appka přepne na obrazovku Hotovo. Nikam ale spěchat nemusíte, ale ani čekat – kdo nepotřebuje tolik času, může rovnou klepnout na další kartičku a špatná dvojice se sama hned otočí zpátky.</p>
-          <p class="help-text"><strong>Šibenice:</strong> hádáte gastro pojem písmeno po písmenu – na 8 špatných pokusů, pak je konec (panáček se dokreslí i s botami). Appka losuje ze všech slovíček ve Slovníku a hlídá, ať vám hned zase nevrátí to samé, co jste právě dostali. Ať kolo dopadne jakkoliv, na konci se vždycky ukáže celé slovo (i s výslovností v závorce, pokud nějakou má) a jeho definice – nejde o to vyhrát, ale procvičit si pravopis a slovní zásobu. Nad panáčkem vidíte i vlastní statistiku – kolik kol ze všech dosavadních se vám povedlo uhodnout.</p>
-          <p class="help-text"><strong>Body za procvičování:</strong> za první dokončený kvíz nanečisto, první splněné opakování slovíček, první dohrané kolo pexesa a první dohrané kolo šibenice v daný den dostanete +1 bod – nejvýš 3 body denně dohromady, ať procvičujete v jedné sekci nebo ve všech čtyřech. Je to jen malá odměna navíc, hlavní body pořád nesou ostré kvízy a výzvy.</p>
+          <p class="help-text"><strong>Šibenice:</strong> hádáte gastro pojem písmeno po písmenu – na 8 špatných pokusů, pak je konec (panáček se dokreslí i s botami). Na začátku si vyberete obtížnost: Těžší hádá slovo přesně tak, jak se píše (s háčky a čárkami), Lehčí ho hádá bez diakritiky – obtížnost si můžete pokaždé zvolit znovu. Appka losuje ze všech slovíček ve Slovníku a hlídá, ať vám hned zase nevrátí to samé, co jste právě dostali. Ať kolo dopadne jakkoliv, na konci se vždycky ukáže celé slovo v originální podobě (i s výslovností v závorce, pokud nějakou má) a jeho definice – nejde o to vyhrát, ale procvičit si pravopis a slovní zásobu. Nad panáčkem vidíte i vlastní statistiku – kolik kol ze všech dosavadních se vám povedlo uhodnout.</p>
+          <p class="help-text"><strong>Wordle dne:</strong> najdete ho i rovnou na Domů, hned pod slovem dne. Jedno slovo je pro všechny stejné a platí celý den – o půlnoci se vystřídá za jiné. Hádáte celé slovo najednou (ne písmeno po písmenu jako u šibenice): po každém pokusu se písmenka obarví – zeleně je písmeno na správném místě, žlutě je ve slově, ale jinde, šedě ve slově není vůbec. Počet pokusů se řídí délkou slova (nejméně 6, u delších pojmů o něco víc), takže na to máte reálnou šanci i u dlouhých gastro termínů. Na den máte jen jeden pokus – ať dopadne jakkoliv, appka vám vždycky ukáže celé slovo i jeho definici.</p>
+          <p class="help-text"><strong>Body za procvičování:</strong> za první dokončený kvíz nanečisto, první splněné opakování slovíček, první dohrané kolo pexesa, první dohrané kolo šibenice a dnešní Wordle v daný den dostanete +1 bod – nejvýš 3 body denně dohromady, ať procvičujete jen v jedné sekci nebo ve víc najednou. Je to jen malá odměna navíc, hlavní body pořád nesou ostré kvízy a výzvy.</p>
           <p class="help-text">Za pravidelné procvičování jsou i odznáčky v sekci Úspěchy: Pilná píle (procvičuj 5 různých dnů), Procvičovací týden (denní bonus 7 dní v řadě), Trenér/ka (10 kvízů nanečisto), Slovní expert (50 slovíček poprvé jako Umím) a Pexeso mistr/mistryně (20 kol pexesa).</p>
         </div>
 
@@ -2827,7 +2900,7 @@ function hasPersistedSupabaseSession() {
 // o pár řádků níž – kdyby byl RESUMABLE_SCREENS deklarovaný až za tím
 // (přes const), skončilo by to chybou "Cannot access before initialization"
 // a celá appka by se nenačetla.)
-const RESUMABLE_SCREENS = ["home", "quizzes", "quiz-take", "personality-take", "challenges", "practice-hub", "practice-quizzes", "flashcards", "pexeso", "hangman", "practice-materials", "slovnik", "leaderboard", "competitors", "achievements", "messages", "profile"];
+const RESUMABLE_SCREENS = ["home", "quizzes", "quiz-take", "personality-take", "challenges", "practice-hub", "practice-quizzes", "flashcards", "pexeso", "hangman", "wordle", "practice-materials", "slovnik", "leaderboard", "competitors", "achievements", "messages", "profile"];
 
 if (!hasPersistedSupabaseSession()) {
   showScreen("login");
@@ -3423,7 +3496,9 @@ function showScreen(name) {
     "practice-quizzes": ["Kvízy nanečisto", "Tréninkový režim"],
     flashcards: ["Slovíčka", "Procvičuj jako kartičky"],
     pexeso: ["Pexeso", "Najdi dvojice název + obrázek"],
+    "hangman-difficulty": ["Šibenice", "Vyber si obtížnost"],
     hangman: ["Šibenice", "Hádej gastro pojem"],
+    wordle: ["Wordle dne", "Jedno slovo pro všechny"],
     "practice-materials": ["Materiály", "Studijní materiály ke stažení"],
     "material-upload": ["Nový materiál", "Nahrát studijní materiál"],
     leaderboard: ["Žebříček", "Jak si vedeš"],
@@ -3465,7 +3540,8 @@ function showScreen(name) {
   if (name === "practice-quizzes") renderPracticeQuizzes();
   if (name === "flashcards") openFlashcards();
   if (name === "pexeso") { if (!tryResumePexeso()) startPexesoRound(); refreshPexesoBest(); }
-  if (name === "hangman") { startHangmanRound(); refreshHangmanStats(); }
+  if (name === "hangman") { if (!tryResumeHangman()) startHangmanRound(); refreshHangmanStats(); }
+  if (name === "wordle") { startWordleRound(); refreshWordleStats(); }
   if (name === "practice-materials") renderPracticeMaterials();
   if (name === "faq") renderFaqFeedback();
   if (name === "help") resetAppSearch();
@@ -3525,6 +3601,7 @@ function renderHome() {
       renderHomeNewsAdmin();
       renderHomePendingWidget();
       renderTeacherHomeLatestWord();
+      renderTeacherHomeWordleStats();
     } else {
       renderViewerHomeNews();
       renderViewerHomeLatestWord();
@@ -3643,8 +3720,8 @@ async function openPointsBreakdown(returnTo) {
 // Popisky a pořadí tří druhů dobrovolného Procvičování (viz record_practice_activity) -
 // sdílené mezi studentovou vlastní obrazovkou Body a učitelčiným pohledem na
 // studenta, ať se to nerozjede na dvou místech jinak.
-const PRACTICE_KIND_ORDER = ["flashcards", "pexeso", "hangman", "quiz"];
-const PRACTICE_KIND_LABELS = { flashcards: "Slovíčka", pexeso: "Pexeso", hangman: "Šibenice", quiz: "Kvízy" };
+const PRACTICE_KIND_ORDER = ["flashcards", "pexeso", "hangman", "wordle", "quiz"];
+const PRACTICE_KIND_LABELS = { flashcards: "Slovíčka", pexeso: "Pexeso", hangman: "Šibenice", wordle: "Wordle dne", quiz: "Kvízy" };
 
 // Sdílené vykreslení rozpadu bodů (souhrn + jednotlivé položky) - stejná
 // šablona pro studentovu vlastní obrazovku "Body" i pro učitelčin detail
@@ -3919,6 +3996,22 @@ async function renderTeacherHomeLatestWord() {
   div.onclick = () => openWordDetail(w.id, w.word, w.definition);
   el.innerHTML = "";
   el.appendChild(div);
+}
+
+// Mistrové na Domů: kolik studentů z těch, co dnešní Wordle dnes zkoušeli,
+// ho i uhodlo - vidí bez nutnosti chodit dovnitř hry (tu stejně nehraje).
+async function renderTeacherHomeWordleStats() {
+  const el = document.getElementById("teacherHomeWordleStats");
+  el.textContent = "Načítám...";
+  const { data, error } = await sb.rpc("get_wordle_stats_today");
+  const row = data && data[0] ? data[0] : null;
+  if (error || !row) {
+    el.textContent = "Nepodařilo se načíst statistiku.";
+    return;
+  }
+  el.textContent = row.attempted_count > 0
+    ? "Dnes zkoušelo " + row.attempted_count + " studentů, uhodlo " + row.solved_count + " z nich."
+    : "Dnes zatím Wordle nikdo nehrál.";
 }
 
 async function renderViewerHomeLatestWord() {
@@ -7441,13 +7534,17 @@ const HANGMAN_ALPHABET = [
   "j", "k", "l", "m", "n", "ň", "o", "ó", "p", "q", "r", "ř", "s", "š", "t",
   "ť", "u", "ú", "ů", "v", "w", "x", "y", "ý", "z", "ž", "à", "ô",
 ];
+// Lehčí obtížnost používá stejnou klávesnici, jen bez písmen s diakritikou -
+// student pak hádá "diakritiku-prosté" znění slova (viz hangmanStripDiacritics).
+const HANGMAN_ALPHABET_EASY = HANGMAN_ALPHABET.filter((ch) => hangmanStripDiacritics(ch) === ch);
 
 let hangmanWordRow = null;   // { id, word, definition } z get_hangman_word()
-let hangmanPuzzle = "";      // hangmanWordRow.word bez výslovnosti v závorce - to se hádá
+let hangmanPuzzle = "";      // hangmanWordRow.word bez výslovnosti v závorce (a případně bez diakritiky) - to se hádá
 let hangmanGuessed = new Set(); // malými písmeny, co všechno už student zkusil
 let hangmanWrong = 0;
 let hangmanDone = false;
 let hangmanPlayedIds = [];   // id slovíček, co student v týhle session už dostal - viz startHangmanRound
+let hangmanDifficulty = "hard"; // "hard" (s diakritikou, jak je slovo doopravdy) | "easy" (bez háčků a čárek)
 
 // Fronta má i výslovnost v závorce (např. "tabasco (tabasko)") - ta by hru
 // jen prozrazovala/mátla, takže se na hádání nepoužívá. Po dohrání kola se
@@ -7456,7 +7553,28 @@ function hangmanStripPronunciation(raw) {
   return (raw || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
 }
 
+// Lehčí obtížnost: rozloží písmena s diakritikou na základní písmeno +
+// kombinující znaménko (NFD normalizace) a znaménka zahodí - "č" -> "c",
+// "ř" -> "r" atd. Velikost písmen (a nediakritická písmena) zůstává beze změny.
+function hangmanStripDiacritics(str) {
+  return (str || "").normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+function hangmanBuildPuzzle(rawWord) {
+  const stripped = hangmanStripPronunciation(rawWord);
+  return hangmanDifficulty === "easy" ? hangmanStripDiacritics(stripped) : stripped;
+}
+
+// Zobrazí obrazovku s výběrem obtížnosti - vede sem tlačítko Šibenice
+// v Procvičování. Volba se nikam neukládá napevno (student si ji může
+// pokaždé zvolit jinak), jen se rovnou spustí nové kolo v dané obtížnosti.
+function chooseHangmanDifficulty(level) {
+  hangmanDifficulty = level === "easy" ? "easy" : "hard";
+  showScreen("hangman");
+}
+
 async function startHangmanRound() {
+  clearHangmanProgress();
   document.getElementById("hangmanBoard").classList.remove("hidden");
   document.getElementById("hangmanDoneState").classList.add("hidden");
   document.getElementById("hangmanBonusMsg").textContent = "";
@@ -7490,10 +7608,69 @@ async function startHangmanRound() {
   }
 
   hangmanWordRow = row;
-  hangmanPuzzle = hangmanStripPronunciation(row.word);
+  hangmanPuzzle = hangmanBuildPuzzle(row.word);
   renderHangmanWord();
   renderHangmanKeyboard();
   updateHangmanWrongCounter();
+  saveHangmanProgress();
+}
+
+// Uloží rozehrané (ale ještě nedohrané) kolo do localStorage, ať appka
+// kolo neztratí, když systém appku na pozadí (po přepnutí okna/aplikace)
+// "vyhodí z paměti" a při návratu ji znovu nahraje od začátku - stejný
+// princip jako u pexesa (viz savePexesoProgress).
+function saveHangmanProgress() {
+  if (!hangmanWordRow) return;
+  try {
+    localStorage.setItem("forkit_hangman_progress", JSON.stringify({
+      wordRow: hangmanWordRow,
+      guessed: Array.from(hangmanGuessed),
+      wrong: hangmanWrong,
+      difficulty: hangmanDifficulty,
+    }));
+  } catch (e) {}
+}
+
+function clearHangmanProgress() {
+  try { localStorage.removeItem("forkit_hangman_progress"); } catch (e) {}
+}
+
+// Zkusí obnovit rozehrané kolo uložené v localStorage - vrací true, pokud se
+// povedlo (appka pak nežádá server o nové slovo, jen pokračuje ve starém).
+function tryResumeHangman() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem("forkit_hangman_progress") || "null"); } catch (e) {}
+  if (!saved || !saved.wordRow || !saved.wordRow.word) return false;
+
+  document.getElementById("hangmanBoard").classList.remove("hidden");
+  document.getElementById("hangmanDoneState").classList.add("hidden");
+  document.getElementById("hangmanBonusMsg").textContent = "";
+  HANGMAN_FIGURE_STAGES.forEach((id) => document.getElementById(id).classList.add("hidden"));
+
+  hangmanDifficulty = saved.difficulty === "easy" ? "easy" : "hard";
+  hangmanWordRow = saved.wordRow;
+  hangmanPuzzle = hangmanBuildPuzzle(saved.wordRow.word);
+  hangmanGuessed = new Set(Array.isArray(saved.guessed) ? saved.guessed : []);
+  hangmanWrong = typeof saved.wrong === "number" ? saved.wrong : 0;
+  hangmanDone = false;
+
+  if (!hangmanPlayedIds.includes(hangmanWordRow.id)) hangmanPlayedIds.push(hangmanWordRow.id);
+
+  renderHangmanWord();
+  renderHangmanKeyboard();
+  // Obnoví vzhled klávesnice a panáčka podle už uhodnutých/špatných písmen.
+  hangmanGuessed.forEach((ch) => {
+    const btn = document.getElementById("hmKey-" + ch);
+    if (!btn) return;
+    btn.disabled = true;
+    btn.classList.add(hangmanPuzzle.toLowerCase().includes(ch) ? "hm-key-correct" : "hm-key-wrong");
+  });
+  for (let i = 0; i < hangmanWrong; i++) {
+    const stage = HANGMAN_FIGURE_STAGES[i];
+    if (stage) document.getElementById(stage).classList.remove("hidden");
+  }
+  updateHangmanWrongCounter();
+  return true;
 }
 
 function updateHangmanWrongCounter() {
@@ -7516,7 +7693,8 @@ function renderHangmanWord() {
 }
 
 function renderHangmanKeyboard() {
-  document.getElementById("hangmanKeyboard").innerHTML = HANGMAN_ALPHABET.map(
+  const alphabet = hangmanDifficulty === "easy" ? HANGMAN_ALPHABET_EASY : HANGMAN_ALPHABET;
+  document.getElementById("hangmanKeyboard").innerHTML = alphabet.map(
     (ch) => "<button class='hm-key' id='hmKey-" + ch + "' onclick=\"guessHangmanLetter('" + ch + "')\">" + ch + "</button>"
   ).join("");
 }
@@ -7549,11 +7727,14 @@ function guessHangmanLetter(ch) {
     finishHangmanRound(true);
   } else if (hangmanWrong >= HANGMAN_MAX_WRONG) {
     finishHangmanRound(false);
+  } else {
+    saveHangmanProgress();
   }
 }
 
 async function finishHangmanRound(won) {
   hangmanDone = true;
+  clearHangmanProgress();
   renderHangmanWord();
   document.querySelectorAll("#hangmanKeyboard .hm-key").forEach((b) => (b.disabled = true));
 
@@ -7588,6 +7769,246 @@ async function refreshHangmanStats() {
   el.textContent = attempts > 0
     ? "Uhodnuto: " + solved + " z " + attempts + " kol"
     : "Zatím jsi nehrál/a - tohle je tvé první kolo!";
+}
+
+// ---------- WORDLE DNE ----------
+// Jedno společné slovo pro všechny studenty na daný (pražský) den - viz
+// get_wordle_word() na serveru, které ho losuje deterministicky podle data,
+// takže se nemusí nikde plánovat/publikovat a o půlnoci se samo vystřídá.
+// Na rozdíl od šibenice se hádá celé slovo najednou (ne písmeno), a počet
+// pokusů roste s délkou slova (min. 6, jako klasický Wordle u pětipísmenných
+// slov) - delší gastro pojmy by na pevných 6 pokusů nebyly reálně uhodnutelné.
+// Průběh dne se pamatuje v localStorage (per den), ať student po refreshi
+// nepřijde o rozehraný pokus a hlavně aby appka nezkusila znovu připsat body
+// za den, který má už dohraný.
+let wordleWordRow = null;      // { word_id, word, definition, prague_date } z get_wordle_word()
+let wordleTarget = "";         // wordleWordRow.word bez výslovnosti v závorce, malými písmeny - to se hádá
+let wordleMaxAttempts = 6;
+let wordleGuesses = [];        // pole odeslaných pokusů (malými písmeny)
+let wordleCurrentGuess = "";
+let wordleDone = false;
+let wordleWon = false;
+let wordleKeyStatus = {};      // písmeno -> "correct" | "present" | "absent" (nejlepší dosavadní stav)
+
+function wordleStorageKey(pragueDate) {
+  return "forkit_wordle_" + pragueDate;
+}
+
+function loadWordleState(pragueDate) {
+  try {
+    const raw = localStorage.getItem(wordleStorageKey(pragueDate));
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveWordleState(pragueDate) {
+  try {
+    localStorage.setItem(
+      wordleStorageKey(pragueDate),
+      JSON.stringify({ guesses: wordleGuesses, done: wordleDone, won: wordleWon, recorded: true })
+    );
+  } catch (e) {}
+}
+
+async function startWordleRound() {
+  document.getElementById("wordleBoard").classList.remove("hidden");
+  document.getElementById("wordleDoneState").classList.add("hidden");
+  document.getElementById("wordleBonusMsg").textContent = "";
+  document.getElementById("wordleMsg").textContent = "";
+  document.getElementById("wordleGrid").innerHTML = "<div class='empty-note'>Načítám...</div>";
+  document.getElementById("wordleKeyboard").innerHTML = "";
+
+  wordleWordRow = null;
+  wordleTarget = "";
+  wordleGuesses = [];
+  wordleCurrentGuess = "";
+  wordleDone = false;
+  wordleWon = false;
+  wordleKeyStatus = {};
+
+  const { data, error } = await sb.rpc("get_wordle_word");
+  const row = data && data[0] ? data[0] : null;
+  if (error || !row || !row.word_id) {
+    document.getElementById("wordleGrid").innerHTML =
+      "<div class='empty-note'>Momentálně není k dispozici žádné slovo k procvičení.</div>";
+    return;
+  }
+
+  wordleWordRow = row;
+  wordleTarget = hangmanStripPronunciation(row.word).toLowerCase();
+  wordleMaxAttempts = Math.max(6, wordleTarget.length + 1);
+
+  const saved = loadWordleState(row.prague_date);
+  if (saved) {
+    wordleGuesses = saved.guesses || [];
+    if (saved.done) {
+      finishWordleRound(saved.won, true);
+      return;
+    }
+  }
+
+  renderWordleGrid();
+  renderWordleKeyboard();
+}
+
+function computeWordleColors(guess, target) {
+  const result = new Array(target.length).fill("absent");
+  const remaining = {};
+  for (let i = 0; i < target.length; i++) {
+    if (guess[i] === target[i]) {
+      result[i] = "correct";
+    } else {
+      remaining[target[i]] = (remaining[target[i]] || 0) + 1;
+    }
+  }
+  for (let i = 0; i < target.length; i++) {
+    if (result[i] === "correct") continue;
+    if (remaining[guess[i]] > 0) {
+      result[i] = "present";
+      remaining[guess[i]]--;
+    }
+  }
+  return result;
+}
+
+function renderWordleGrid() {
+  const grid = document.getElementById("wordleGrid");
+  grid.innerHTML = "";
+  for (let r = 0; r < wordleMaxAttempts; r++) {
+    const row = document.createElement("div");
+    row.className = "wordle-row";
+    const submitted = wordleGuesses[r];
+    const isCurrentRow = !wordleDone && r === wordleGuesses.length;
+    const colors = submitted ? computeWordleColors(submitted, wordleTarget) : null;
+    for (let c = 0; c < wordleTarget.length; c++) {
+      const tile = document.createElement("div");
+      let cls = "wordle-tile";
+      let ch = "";
+      if (submitted) {
+        ch = submitted[c];
+        cls += " wordle-tile-" + colors[c];
+      } else if (isCurrentRow && wordleCurrentGuess[c]) {
+        ch = wordleCurrentGuess[c];
+        cls += " wordle-tile-filled";
+      }
+      tile.className = cls;
+      tile.textContent = ch;
+      row.appendChild(tile);
+    }
+    grid.appendChild(row);
+  }
+}
+
+function renderWordleKeyboard() {
+  const kb = document.getElementById("wordleKeyboard");
+  kb.innerHTML =
+    HANGMAN_ALPHABET.map((ch) => {
+      const status = wordleKeyStatus[ch];
+      return (
+        "<button class='wordle-key" + (status ? " wordle-key-" + status : "") +
+        "' id='wdKey-" + ch + "' onclick=\"wordleTypeLetter('" + ch + "')\">" + ch + "</button>"
+      );
+    }).join("") +
+    "<button class='wordle-key wordle-key-wide' onclick=\"wordleBackspace()\">&#9003;</button>" +
+    "<button class='wordle-key wordle-key-wide' onclick=\"wordleSubmitGuess()\">Hotovo</button>";
+}
+
+function wordleTypeLetter(ch) {
+  if (wordleDone || wordleCurrentGuess.length >= wordleTarget.length) return;
+  wordleCurrentGuess += ch;
+  renderWordleGrid();
+}
+
+function wordleBackspace() {
+  if (wordleDone) return;
+  wordleCurrentGuess = wordleCurrentGuess.slice(0, -1);
+  renderWordleGrid();
+}
+
+function wordleSubmitGuess() {
+  if (wordleDone) return;
+  if (wordleCurrentGuess.length !== wordleTarget.length) {
+    document.getElementById("wordleMsg").textContent =
+      "Slovo musí mít " + wordleTarget.length + " písmen.";
+    return;
+  }
+  document.getElementById("wordleMsg").textContent = "";
+
+  const guess = wordleCurrentGuess;
+  wordleGuesses.push(guess);
+  wordleCurrentGuess = "";
+
+  const colors = computeWordleColors(guess, wordleTarget);
+  const rank = { absent: 0, present: 1, correct: 2 };
+  for (let i = 0; i < guess.length; i++) {
+    const ch = guess[i];
+    if (!wordleKeyStatus[ch] || rank[colors[i]] > rank[wordleKeyStatus[ch]]) {
+      wordleKeyStatus[ch] = colors[i];
+    }
+  }
+
+  const won = guess === wordleTarget;
+  if (won || wordleGuesses.length >= wordleMaxAttempts) {
+    finishWordleRound(won, false);
+  } else {
+    renderWordleGrid();
+    renderWordleKeyboard();
+    saveWordleStateInProgress();
+  }
+}
+
+function saveWordleStateInProgress() {
+  if (!wordleWordRow) return;
+  try {
+    localStorage.setItem(
+      wordleStorageKey(wordleWordRow.prague_date),
+      JSON.stringify({ guesses: wordleGuesses, done: false, won: false, recorded: false })
+    );
+  } catch (e) {}
+}
+
+async function finishWordleRound(won, alreadyRecorded) {
+  wordleDone = true;
+  wordleWon = won;
+  renderWordleGrid();
+
+  document.getElementById("wordleBoard").classList.add("hidden");
+  document.getElementById("wordleDoneState").classList.remove("hidden");
+  document.getElementById("wordleResultIcon").textContent = won ? "\u{1F389}" : "\u{1F480}";
+  document.getElementById("wordleResultMsg").textContent = won ? "Uhodl/a jsi to!" : "Tentokrát to nevyšlo.";
+  document.getElementById("wordleRevealWord").textContent = wordleWordRow.word;
+  document.getElementById("wordleRevealDef").textContent = wordleWordRow.definition || "";
+
+  if (!alreadyRecorded) {
+    // metric_value: počet použitých pokusů při výhře (vždy > 0), nebo -1 při
+    // prohře - jednoznačný příznak "uhodnuto/neuhodnuto" nezávislý na tom,
+    // kolik pokusů ten který den vlastně bylo (to se liší podle délky slova).
+    const metric = won ? wordleGuesses.length : -1;
+    await awardPracticeBonus("wordle", wordleWordRow.word_id, "wordleBonusMsg", metric);
+  }
+  saveWordleState(wordleWordRow.prague_date);
+  refreshWordleStats();
+}
+
+// Ukáže studentovi nad mřížkou, kolik dosavadních Wordlů uhodl ze všech, co
+// hrál - stejná myšlenka jako u šibenice, jen "kolo" tady znamená "den".
+async function refreshWordleStats() {
+  const el = document.getElementById("wordleStats");
+  if (!el) return;
+  if (!user || user.role !== "student") { el.textContent = ""; return; }
+  const { data, error } = await sb
+    .from("practice_activity_log")
+    .select("metric_value")
+    .eq("kind", "wordle")
+    .not("metric_value", "is", null);
+  if (error) return;
+  const attempts = data ? data.length : 0;
+  const solved = data ? data.filter((r) => r.metric_value > 0).length : 0;
+  el.textContent = attempts > 0
+    ? "Uhodnuto: " + solved + " z " + attempts + " dní"
+    : "Zatím jsi nehrál/a - tohle je tvůj první Wordle!";
 }
 
 // ---------- MATERIÁLY (studijní materiály ke zobrazení/stažení, jen mistrová je nahrává) ----------
