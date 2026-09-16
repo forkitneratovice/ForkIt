@@ -500,13 +500,17 @@
   .hm-letter.hm-blank { border-bottom: 3px solid var(--dark); }
   .hm-letter:not(.hm-blank) { border-bottom: 3px solid var(--primary); }
   .hm-gap { border: none; min-width: 10px; }
-  .hm-type-input {
-    display: block; width: 100%; box-sizing: border-box; margin: 0; padding: 10px 12px;
-    border-radius: 8px; border: 1px solid #e2ded8; background: white; font-size: 15px;
-    text-align: center; letter-spacing: 2px; text-transform: uppercase; color: var(--dark);
-    font-family: 'Poppins', sans-serif;
+  /* Klikací klávesnice u šibenice - uspořádaná jako počítačová (QWERTZ),
+     písmena s diakritikou navíc pod ní ve vlastních řadách. */
+  .hm-keyboard { display: flex; flex-direction: column; gap: 6px; }
+  .hm-keyboard-row { display: flex; gap: 5px; justify-content: center; }
+  .hm-key {
+    flex: 1; min-width: 0; padding: 9px 0; border-radius: 8px; border: 1px solid #e2ded8;
+    background: white; font-size: 14px; font-weight: 700; color: var(--dark); cursor: pointer;
   }
-  .hm-type-input:disabled { opacity: 0.5; }
+  .hm-key:disabled { cursor: default; opacity: 0.5; }
+  .hm-key-correct { background: #e3efe5; border-color: #7fbf8c; color: #2f7a3d; }
+  .hm-key-wrong { background: #f8dcdc; border-color: var(--red); color: var(--red); }
 
   /* Wordle dne (procvičování - jedno společné slovo pro všechny na daný den) */
   .wordle-grid { display: flex; flex-direction: column; align-items: center; gap: 5px; margin: 6px 0 16px; }
@@ -520,15 +524,20 @@
   .wordle-tile-correct { background: #7fbf8c; border-color: #7fbf8c; color: white; }
   .wordle-tile-present { background: #e8c547; border-color: #e8c547; color: white; }
   .wordle-tile-absent { background: #9b9591; border-color: #9b9591; color: white; }
-  .wordle-type-row { display: flex; gap: 8px; align-items: stretch; }
-  .wordle-type-input {
-    flex: 1; min-width: 0; box-sizing: border-box; padding: 10px 12px;
-    border-radius: 8px; border: 1px solid #e2ded8; background: white; font-size: 15px;
-    text-align: center; letter-spacing: 2px; text-transform: uppercase; color: var(--dark);
-    font-family: 'Poppins', sans-serif;
+  /* Klikací klávesnice u Wordlu - uspořádaná jako počítačová (QWERTZ),
+     písmena s diakritikou navíc pod ní ve vlastních řadách (stejná velikost
+     kláves jako zbytek klávesnice). */
+  .wordle-keyboard { display: flex; flex-direction: column; gap: 6px; }
+  .wordle-keyboard-row { display: flex; gap: 5px; justify-content: center; }
+  .wordle-key {
+    flex: 1; min-width: 0; padding: 9px 0; border-radius: 8px; border: 1px solid #e2ded8;
+    background: white; font-size: 14px; font-weight: 700; color: var(--dark); cursor: pointer;
   }
-  .wordle-type-input:disabled { opacity: 0.5; }
-  .wordle-type-submit { padding: 10px 16px; font-size: 14px; white-space: nowrap; }
+  .wordle-key:disabled { cursor: default; opacity: 0.5; }
+  .wordle-key-correct { background: #7fbf8c; border-color: #7fbf8c; color: white; }
+  .wordle-key-present { background: #e8c547; border-color: #e8c547; color: white; }
+  .wordle-key-absent { background: #9b9591; border-color: #9b9591; color: white; opacity: 0.6; }
+  .wordle-key-wide { flex: 1.6; }
   /* Zatřesení řádku, když se student pokusí odeslat neexistující slovo -
      stejný princip, jako když se v opravdovém Wordlu pokusíte odeslat
      nesmyslný pokus. */
@@ -1546,10 +1555,7 @@
           </div>
           <div id="hangmanWrongCounter" style="text-align:center;font-size:12.5px;color:var(--text-muted);margin-bottom:2px;"></div>
           <div id="hangmanWord" class="hm-word"></div>
-          <input id="hangmanTypeInput" class="hm-type-input" type="text" maxlength="1"
-                 autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
-                 placeholder="Napiš písmeno pomocí klávesnice telefonu/počítače..."
-                 oninput="hangmanHandleTypedInput(this)" />
+          <div id="hangmanKeyboard" class="hm-keyboard"></div>
         </div>
         <div id="hangmanDoneState" class="hidden">
           <div class="result-box">
@@ -1572,13 +1578,7 @@
         <div id="wordleStats" style="text-align:center;font-size:12.5px;color:var(--primary);margin-bottom:6px;"></div>
         <div id="wordleBoard">
           <div id="wordleGrid" class="wordle-grid"></div>
-          <div class="wordle-type-row">
-            <input id="wordleTypeInput" class="wordle-type-input" type="text"
-                   autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
-                   placeholder="Napiš slovo pomocí klávesnice telefonu/počítače..."
-                   oninput="wordleHandleTypedInput(this)" onkeydown="wordleHandleTypedKeydown(event)" />
-            <button class="btn-primary wordle-type-submit" onclick="wordleSubmitGuess()">Odeslat</button>
-          </div>
+          <div id="wordleKeyboard" class="wordle-keyboard"></div>
           <div id="wordleMsg" style="text-align:center;font-size:12.5px;color:var(--red);min-height:16px;margin-top:6px;"></div>
           <div style="text-align:center;margin-top:10px;">
             <span id="wordleGiveUpLink" onclick="wordleGiveUp()" style="font-size:12.5px;color:var(--text-muted);text-decoration:underline;cursor:pointer;">Vzdávám to</span>
@@ -7636,7 +7636,7 @@ async function startHangmanRound() {
   hangmanWordRow = row;
   hangmanPuzzle = hangmanBuildPuzzle(row.word);
   renderHangmanWord();
-  hangmanSyncTypeInput();
+  renderHangmanKeyboard();
   updateHangmanWrongCounter();
   saveHangmanProgress();
 }
@@ -7690,7 +7690,14 @@ function tryResumeHangman() {
   if (!hangmanPlayedIds.includes(hangmanWordRow.id)) hangmanPlayedIds.push(hangmanWordRow.id);
 
   renderHangmanWord();
-  hangmanSyncTypeInput();
+  renderHangmanKeyboard();
+  // Obnoví vzhled klávesnice podle už uhodnutých/špatných písmen.
+  hangmanGuessed.forEach((ch) => {
+    const btn = document.getElementById("hmKey-" + ch);
+    if (!btn) return;
+    btn.disabled = true;
+    btn.classList.add(hangmanPuzzle.toLowerCase().includes(ch) ? "hm-key-correct" : "hm-key-wrong");
+  });
   for (let i = 0; i < hangmanWrong; i++) {
     const stage = HANGMAN_FIGURE_STAGES[i];
     if (stage) document.getElementById(stage).classList.remove("hidden");
@@ -7718,29 +7725,47 @@ function renderHangmanWord() {
   document.getElementById("hangmanWord").innerHTML = html;
 }
 
-// Místo klikací klávesnice na obrazovce se písmeno zadává rovnou vlastní
-// (fyzickou nebo mobilní) klávesnicí zařízení - stejný princip jako u Wordlu.
-function hangmanSyncTypeInput() {
-  const input = document.getElementById("hangmanTypeInput");
-  if (!input) return;
-  input.value = "";
-  input.disabled = hangmanDone;
+// Klikací klávesnice uspořádaná jako počítačová (QWERTZ) - písmena s
+// diakritikou jsou navíc pod ní ve vlastních řadách (stejná velikost kláves,
+// jen aby se vešly na šířku obrazovky).
+const HANGMAN_QWERTZ_ROWS = [
+  ["q", "w", "e", "r", "t", "z", "u", "i", "o", "p"],
+  ["a", "s", "d", "f", "g", "h", "j", "k", "l"],
+  ["y", "x", "c", "v", "b", "n", "m"],
+];
+
+function hangmanKeyButtonHtml(ch) {
+  return "<button class='hm-key' id='hmKey-" + ch + "' onclick=\"guessHangmanLetter('" + ch + "')\">" + ch + "</button>";
 }
 
-function hangmanHandleTypedInput(input) {
-  const ch = input.value.trim().toLowerCase();
-  input.value = "";
-  if (!ch) return;
+function renderHangmanKeyboard() {
   const alphabet = hangmanDifficulty === "easy" ? HANGMAN_ALPHABET_EASY : HANGMAN_ALPHABET;
-  if (!alphabet.includes(ch)) return;
-  guessHangmanLetter(ch);
+  const alphabetSet = new Set(alphabet);
+  const baseRowsHtml = HANGMAN_QWERTZ_ROWS.map(
+    (row) => "<div class='hm-keyboard-row'>" + row.filter((ch) => alphabetSet.has(ch)).map(hangmanKeyButtonHtml).join("") + "</div>"
+  ).join("");
+  const diacritics = alphabet.filter((ch) => hangmanStripDiacritics(ch) !== ch);
+  let diacriticsHtml = "";
+  if (diacritics.length) {
+    const rowSize = Math.ceil(diacritics.length / 2);
+    diacriticsHtml = [diacritics.slice(0, rowSize), diacritics.slice(rowSize)]
+      .filter((row) => row.length)
+      .map((row) => "<div class='hm-keyboard-row'>" + row.map(hangmanKeyButtonHtml).join("") + "</div>")
+      .join("");
+  }
+  document.getElementById("hangmanKeyboard").innerHTML = baseRowsHtml + diacriticsHtml;
 }
 
 function guessHangmanLetter(ch) {
   if (hangmanDone || hangmanGuessed.has(ch)) return;
   hangmanGuessed.add(ch);
 
+  const btn = document.getElementById("hmKey-" + ch);
   const isHit = hangmanPuzzle.toLowerCase().includes(ch);
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add(isHit ? "hm-key-correct" : "hm-key-wrong");
+  }
 
   if (!isHit) {
     hangmanWrong++;
@@ -7768,7 +7793,7 @@ async function finishHangmanRound(won) {
   hangmanDone = true;
   clearHangmanProgress();
   renderHangmanWord();
-  hangmanSyncTypeInput();
+  document.querySelectorAll("#hangmanKeyboard .hm-key").forEach((b) => (b.disabled = true));
 
   document.getElementById("hangmanBoard").classList.add("hidden");
   document.getElementById("hangmanDoneState").classList.remove("hidden");
@@ -7820,6 +7845,7 @@ let wordleGuesses = [];        // pole odeslaných pokusů (malými písmeny)
 let wordleCurrentGuess = "";
 let wordleDone = false;
 let wordleWon = false;
+let wordleKeyStatus = {};      // písmeno -> "correct" | "present" | "absent" (nejlepší dosavadní stav)
 let wordleValidWords = new Set(); // slova, co appka uzná jako platný pokus - viz WORDLE_DICT_RAW níže
 
 // Slovník platných pokusů pro Wordle - studenti nevědí (a nemají vědět), co přesně
@@ -7853,8 +7879,16 @@ async function loadWordleValidWords() {
 // jinak by si na jednom zařízení/prohlížeči (např. mistrová testující appku
 // a pak přepnutí na testovací účet Boba) různé účty navzájem "půjčovaly"
 // dohraný/rozehraný stav dnešního Wordlu.
+//
+// Prefix "v2_" jde bez ohledu na datum před uloženým stavem - zvýšením
+// téhle verze appka přestane číst všechny dřív uložené wordlové postupy
+// (rozehrané i dohrané), takže se všem studentům dnešní/aktuální Wordle
+// zobrazí jako nový, nerozehraný. Server-side dedup bodů (viz
+// record_practice_activity) na tomhle klíči vůbec nezávisí, takže
+// bezpečně zabrání dvojímu připsání bodů i po restartu.
+const WORDLE_STORAGE_VERSION = "v2";
 function wordleStorageKey(pragueDate) {
-  return "forkit_wordle_" + (user ? user.id : "anon") + "_" + pragueDate;
+  return "forkit_wordle_" + WORDLE_STORAGE_VERSION + "_" + (user ? user.id : "anon") + "_" + pragueDate;
 }
 
 function loadWordleState(pragueDate) {
@@ -7888,6 +7922,7 @@ async function startWordleRound() {
   wordleCurrentGuess = "";
   wordleDone = false;
   wordleWon = false;
+  wordleKeyStatus = {};
 
   const [{ data, error }] = await Promise.all([sb.rpc("get_wordle_word"), loadWordleValidWords()]);
   const row = data && data[0] ? data[0] : null;
@@ -7914,7 +7949,26 @@ async function startWordleRound() {
     }
   }
 
+  wordleRebuildKeyStatus();
   renderWordleGrid();
+  renderWordleKeyboard();
+}
+
+// Přepočítá barvy kláves na klávesnici ze všech dosud odeslaných pokusů -
+// volá se při startu kola i po obnovení rozehraného kola, ať klávesnice
+// ukazuje správný stav i po návratu na obrazovku.
+function wordleRebuildKeyStatus() {
+  wordleKeyStatus = {};
+  const rank = { absent: 0, present: 1, correct: 2 };
+  wordleGuesses.forEach((guess) => {
+    const colors = computeWordleColors(guess, wordleTarget);
+    for (let i = 0; i < guess.length; i++) {
+      const ch = guess[i];
+      if (!wordleKeyStatus[ch] || rank[colors[i]] > rank[wordleKeyStatus[ch]]) {
+        wordleKeyStatus[ch] = colors[i];
+      }
+    }
+  });
 }
 
 function computeWordleColors(guess, target) {
@@ -7963,38 +8017,53 @@ function renderWordleGrid() {
     }
     grid.appendChild(row);
   }
-  wordleSyncTypeInput();
 }
 
-// Kromě klikací klávesnice na obrazovce lze psát rovnou vlastní (fyzickou
-// nebo mobilní) klávesnicí do tohoto pole - vyvolá to klávesnici zařízení
-// se správným rozložením písmen, jaké student sám používá.
-function wordleSyncTypeInput() {
-  const input = document.getElementById("wordleTypeInput");
-  if (!input) return;
-  input.maxLength = wordleTarget.length || 20;
-  if (input.value.toLowerCase() !== wordleCurrentGuess) input.value = wordleCurrentGuess;
-  input.disabled = wordleDone;
+// Klikací klávesnice uspořádaná jako počítačová (QWERTZ) - písmena s
+// diakritikou jsou navíc pod ní ve vlastních řadách (stejná velikost kláves).
+const WORDLE_QWERTZ_ROWS = [
+  ["q", "w", "e", "r", "t", "z", "u", "i", "o", "p"],
+  ["a", "s", "d", "f", "g", "h", "j", "k", "l"],
+  ["y", "x", "c", "v", "b", "n", "m"],
+];
+const WORDLE_KEYBOARD_DIACRITICS = HANGMAN_ALPHABET.filter((ch) => hangmanStripDiacritics(ch) !== ch);
+
+function wordleKeyButtonHtml(ch) {
+  const status = wordleKeyStatus[ch];
+  return (
+    "<button class='wordle-key" + (status ? " wordle-key-" + status : "") +
+    "' id='wdKey-" + ch + "' onclick=\"wordleTypeLetter('" + ch + "')\">" + ch + "</button>"
+  );
 }
 
-function wordleHandleTypedInput(input) {
-  if (wordleDone) return;
-  const allowed = new Set(HANGMAN_ALPHABET);
-  const filtered = input.value
-    .toLowerCase()
-    .split("")
-    .filter((ch) => allowed.has(ch))
-    .slice(0, wordleTarget.length)
+function renderWordleKeyboard() {
+  const kb = document.getElementById("wordleKeyboard");
+  const rowsHtml = WORDLE_QWERTZ_ROWS.map((row, i) => {
+    let html = "<div class='wordle-keyboard-row'>";
+    if (i === 2) html += "<button class='wordle-key wordle-key-wide' onclick=\"wordleBackspace()\">&#9003;</button>";
+    html += row.map(wordleKeyButtonHtml).join("");
+    if (i === 2) html += "<button class='wordle-key wordle-key-wide' onclick=\"wordleSubmitGuess()\">Hotovo</button>";
+    html += "</div>";
+    return html;
+  }).join("");
+  const rowSize = Math.ceil(WORDLE_KEYBOARD_DIACRITICS.length / 2);
+  const diacriticsHtml = [WORDLE_KEYBOARD_DIACRITICS.slice(0, rowSize), WORDLE_KEYBOARD_DIACRITICS.slice(rowSize)]
+    .filter((row) => row.length)
+    .map((row) => "<div class='wordle-keyboard-row'>" + row.map(wordleKeyButtonHtml).join("") + "</div>")
     .join("");
-  wordleCurrentGuess = filtered;
+  kb.innerHTML = rowsHtml + diacriticsHtml;
+}
+
+function wordleTypeLetter(ch) {
+  if (wordleDone || wordleCurrentGuess.length >= wordleTarget.length) return;
+  wordleCurrentGuess += ch;
   renderWordleGrid();
 }
 
-function wordleHandleTypedKeydown(event) {
-  if (event.key === "Enter") {
-    event.preventDefault();
-    wordleSubmitGuess();
-  }
+function wordleBackspace() {
+  if (wordleDone) return;
+  wordleCurrentGuess = wordleCurrentGuess.slice(0, -1);
+  renderWordleGrid();
 }
 
 function wordleShakeCurrentRow() {
@@ -8026,11 +8095,21 @@ function wordleSubmitGuess() {
   wordleGuesses.push(guess);
   wordleCurrentGuess = "";
 
+  const colors = computeWordleColors(guess, wordleTarget);
+  const rank = { absent: 0, present: 1, correct: 2 };
+  for (let i = 0; i < guess.length; i++) {
+    const ch = guess[i];
+    if (!wordleKeyStatus[ch] || rank[colors[i]] > rank[wordleKeyStatus[ch]]) {
+      wordleKeyStatus[ch] = colors[i];
+    }
+  }
+
   const won = guess === wordleTarget;
   if (won || wordleGuesses.length >= wordleMaxAttempts) {
     finishWordleRound(won, false);
   } else {
     renderWordleGrid();
+    renderWordleKeyboard();
     saveWordleStateInProgress();
   }
 }
