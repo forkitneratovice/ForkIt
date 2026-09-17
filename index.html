@@ -7839,13 +7839,21 @@ async function refreshHangmanStats() {
 // Průběh dne se pamatuje v localStorage (per den), ať student po refreshi
 // nepřijde o rozehraný pokus a hlavně aby appka nezkusila znovu připsat body
 // za den, který má už dohraný.
-let wordleWordRow = null;      // { word_id, word, definition, prague_date } z get_wordle_word()
-let wordleTarget = "";         // wordleWordRow.word bez výslovnosti v závorce, malými písmeny - to se hádá
-let wordleMaxAttempts = 6;
+let wordleWordRow = null;      // { word_id, word_length, prague_date } z get_wordle_word() - appka se
+                                // tajné slovo nikdy nedozví předem, jen jeho id a délku (viz redesign níže)
+let wordleWordLength = 0;      // délka dnešního slova - jen pro velikost mřížky, ne k hádání
 let wordleGuesses = [];        // pole odeslaných pokusů (malými písmeny)
+let wordleGuessColors = [];    // pole polí barev pro každý odeslaný pokus - vrací je server (check_wordle_guess),
+                                // appka je sama nikdy nepočítá, protože by k tomu musela znát tajné slovo
 let wordleCurrentGuess = "";
+let wordleAttemptsUsed = 0;
+let wordleMaxAttempts = 6;
 let wordleDone = false;
 let wordleWon = false;
+let wordleGaveUp = false;
+let wordleRevealWord = "";     // tajné slovo - appka ho zná až od chvíle, kdy server ohlásí done:true
+let wordleRevealDef = "";
+let wordleSubmitting = false;  // brání dvojímu odeslání pokusu, dokud běží RPC na server
 let wordleKeyStatus = {};      // písmeno -> "correct" | "present" | "absent" (nejlepší dosavadní stav)
 let wordleValidWords = new Set(); // slova, co appka uzná jako platný pokus - viz WORDLE_DICT_RAW níže
 
@@ -7905,7 +7913,16 @@ function saveWordleState(pragueDate, gaveUp) {
   try {
     localStorage.setItem(
       wordleStorageKey(pragueDate),
-      JSON.stringify({ guesses: wordleGuesses, done: wordleDone, won: wordleWon, gaveUp: !!gaveUp, recorded: true })
+      JSON.stringify({
+        guesses: wordleGuesses,
+        colors: wordleGuessColors,
+        done: wordleDone,
+        won: wordleWon,
+        gaveUp: !!gaveUp,
+        recorded: true,
+        word: wordleRevealWord,
+        definition: wordleRevealDef,
+      })
     );
   } catch (e) {}
 }
@@ -7918,11 +7935,16 @@ async function startWordleRound() {
   document.getElementById("wordleGrid").innerHTML = "<div class='empty-note'>Načítám...</div>";
 
   wordleWordRow = null;
-  wordleTarget = "";
+  wordleWordLength = 0;
   wordleGuesses = [];
+  wordleGuessColors = [];
   wordleCurrentGuess = "";
+  wordleAttemptsUsed = 0;
   wordleDone = false;
   wordleWon = false;
+  wordleGaveUp = false;
+  wordleRevealWord = "";
+  wordleRevealDef = "";
   wordleKeyStatus = {};
 
   const [{ data, error }] = await Promise.all([sb.rpc("get_wordle_word"), loadWordleValidWords()]);
@@ -7934,17 +7956,18 @@ async function startWordleRound() {
   }
 
   wordleWordRow = row;
-  wordleTarget = hangmanStripPronunciation(row.word).toLowerCase();
-  wordleMaxAttempts = Math.max(6, wordleTarget.length + 1);
-  // Dnešní slovo je vždycky platný pokus, i kdyby náhodou nedorazilo v
-  // loadWordleValidWords() (např. ještě nebylo zveřejněné, jen appka ho
-  // právě dostala jako "slovo dne").
-  wordleValidWords.add(wordleTarget);
+  wordleWordLength = row.word_length;
+  wordleMaxAttempts = Math.max(6, wordleWordLength + 1);
 
   const saved = loadWordleState(row.prague_date);
   if (saved) {
     wordleGuesses = saved.guesses || [];
+    wordleGuessColors = saved.colors || [];
+    wordleAttemptsUsed = wordleGuesses.length;
     if (saved.done) {
+      wordleRevealWord = saved.word || "";
+      wordleRevealDef = saved.definition || "";
+      wordleRebuildKeyStatus();
       finishWordleRound(saved.won, true, saved.gaveUp);
       return;
     }
@@ -7956,13 +7979,13 @@ async function startWordleRound() {
 }
 
 // Přepočítá barvy kláves na klávesnici ze všech dosud odeslaných pokusů -
-// volá se při startu kola i po obnovení rozehraného kola, ať klávesnice
-// ukazuje správný stav i po návratu na obrazovku.
+// z barev, co appce poslal server (viz wordleGuessColors), ne přepočtem
+// proti tajnému slovu, který appka nezná, dokud kolo neskončí.
 function wordleRebuildKeyStatus() {
   wordleKeyStatus = {};
   const rank = { absent: 0, present: 1, correct: 2 };
-  wordleGuesses.forEach((guess) => {
-    const colors = computeWordleColors(guess, wordleTarget);
+  wordleGuesses.forEach((guess, idx) => {
+    const colors = wordleGuessColors[idx] || [];
     for (let i = 0; i < guess.length; i++) {
       const ch = guess[i];
       if (!wordleKeyStatus[ch] || rank[colors[i]] > rank[wordleKeyStatus[ch]]) {
@@ -7970,26 +7993,6 @@ function wordleRebuildKeyStatus() {
       }
     }
   });
-}
-
-function computeWordleColors(guess, target) {
-  const result = new Array(target.length).fill("absent");
-  const remaining = {};
-  for (let i = 0; i < target.length; i++) {
-    if (guess[i] === target[i]) {
-      result[i] = "correct";
-    } else {
-      remaining[target[i]] = (remaining[target[i]] || 0) + 1;
-    }
-  }
-  for (let i = 0; i < target.length; i++) {
-    if (result[i] === "correct") continue;
-    if (remaining[guess[i]] > 0) {
-      result[i] = "present";
-      remaining[guess[i]]--;
-    }
-  }
-  return result;
 }
 
 function renderWordleGrid() {
@@ -8000,14 +8003,14 @@ function renderWordleGrid() {
     row.className = "wordle-row";
     const submitted = wordleGuesses[r];
     const isCurrentRow = !wordleDone && r === wordleGuesses.length;
-    const colors = submitted ? computeWordleColors(submitted, wordleTarget) : null;
-    for (let c = 0; c < wordleTarget.length; c++) {
+    const colors = submitted ? wordleGuessColors[r] : null;
+    for (let c = 0; c < wordleWordLength; c++) {
       const tile = document.createElement("div");
       let cls = "wordle-tile";
       let ch = "";
       if (submitted) {
         ch = submitted[c];
-        cls += " wordle-tile-" + colors[c];
+        cls += " wordle-tile-" + (colors ? colors[c] : "absent");
       } else if (isCurrentRow && wordleCurrentGuess[c]) {
         ch = wordleCurrentGuess[c];
         cls += " wordle-tile-filled";
@@ -8056,7 +8059,7 @@ function renderWordleKeyboard() {
 }
 
 function wordleTypeLetter(ch) {
-  if (wordleDone || wordleCurrentGuess.length >= wordleTarget.length) return;
+  if (wordleDone || wordleCurrentGuess.length >= wordleWordLength) return;
   wordleCurrentGuess += ch;
   renderWordleGrid();
 }
@@ -8077,37 +8080,56 @@ function wordleShakeCurrentRow() {
   row.classList.add("wordle-row-shake");
 }
 
-function wordleSubmitGuess() {
-  if (wordleDone) return;
-  if (wordleCurrentGuess.length !== wordleTarget.length) {
+async function wordleSubmitGuess() {
+  if (wordleDone || wordleSubmitting) return;
+  if (wordleCurrentGuess.length !== wordleWordLength) {
     document.getElementById("wordleMsg").textContent =
-      "Slovo musí mít " + wordleTarget.length + " písmen.";
+      "Slovo musí mít " + wordleWordLength + " písmen.";
     wordleShakeCurrentRow();
     return;
   }
-  if (!wordleValidWords.has(wordleCurrentGuess)) {
-    document.getElementById("wordleMsg").textContent = "Neexistující slovo";
-    wordleShakeCurrentRow();
-    return;
+  const guess = wordleCurrentGuess;
+  if (!wordleValidWords.has(guess)) {
+    // Appčin lokální slovník ten pokus nezná - než ho rovnou odmítne, zeptá
+    // se serveru zdarma (bez spotřebování pokusu), jestli to náhodou není
+    // přesně dnešní tajné slovo (může být čerstvě přidané do Slovníku a ještě
+    // nezveřejněné). Tohle je jediné místo, kde appka o tajném slově cokoliv
+    // zjišťuje - a i tady dostane jen ano/ne, nikdy slovo samotné.
+    const { data: isTarget } = await sb.rpc("is_wordle_target", { p_guess: guess });
+    if (!isTarget) {
+      document.getElementById("wordleMsg").textContent = "Neexistující slovo";
+      wordleShakeCurrentRow();
+      return;
+    }
   }
   document.getElementById("wordleMsg").textContent = "";
 
-  const guess = wordleCurrentGuess;
-  wordleGuesses.push(guess);
-  wordleCurrentGuess = "";
+  wordleSubmitting = true;
+  const { data, error } = await sb.rpc("check_wordle_guess", { p_word_id: wordleWordRow.word_id, p_guess: guess });
+  wordleSubmitting = false;
+  const result = data && data[0] ? data[0] : null;
+  if (error || !result) {
+    document.getElementById("wordleMsg").textContent = "Něco se nepovedlo, zkus to znovu.";
+    return;
+  }
 
-  const colors = computeWordleColors(guess, wordleTarget);
+  wordleGuesses.push(guess);
+  wordleGuessColors.push(result.colors);
+  wordleCurrentGuess = "";
+  wordleAttemptsUsed = result.attempts_used;
+
   const rank = { absent: 0, present: 1, correct: 2 };
   for (let i = 0; i < guess.length; i++) {
     const ch = guess[i];
-    if (!wordleKeyStatus[ch] || rank[colors[i]] > rank[wordleKeyStatus[ch]]) {
-      wordleKeyStatus[ch] = colors[i];
+    if (!wordleKeyStatus[ch] || rank[result.colors[i]] > rank[wordleKeyStatus[ch]]) {
+      wordleKeyStatus[ch] = result.colors[i];
     }
   }
 
-  const won = guess === wordleTarget;
-  if (won || wordleGuesses.length >= wordleMaxAttempts) {
-    finishWordleRound(won, false);
+  if (result.done) {
+    wordleRevealWord = result.word || "";
+    wordleRevealDef = result.definition || "";
+    finishWordleRound(result.won, false, false);
   } else {
     renderWordleGrid();
     renderWordleKeyboard();
@@ -8120,7 +8142,7 @@ function saveWordleStateInProgress() {
   try {
     localStorage.setItem(
       wordleStorageKey(wordleWordRow.prague_date),
-      JSON.stringify({ guesses: wordleGuesses, done: false, won: false, recorded: false })
+      JSON.stringify({ guesses: wordleGuesses, colors: wordleGuessColors, done: false, won: false, recorded: false })
     );
   } catch (e) {}
 }
@@ -8128,6 +8150,7 @@ function saveWordleStateInProgress() {
 async function finishWordleRound(won, alreadyRecorded, gaveUp) {
   wordleDone = true;
   wordleWon = won;
+  wordleGaveUp = !!gaveUp;
   renderWordleGrid();
 
   document.getElementById("wordleBoard").classList.add("hidden");
@@ -8138,28 +8161,32 @@ async function finishWordleRound(won, alreadyRecorded, gaveUp) {
     : gaveUp
     ? "Vzdal/a jsi to - tady je řešení:"
     : "Tentokrát to nevyšlo.";
-  document.getElementById("wordleRevealWord").textContent = wordleWordRow.word;
-  document.getElementById("wordleRevealDef").textContent = wordleWordRow.definition || "";
+  document.getElementById("wordleRevealWord").textContent = wordleRevealWord;
+  document.getElementById("wordleRevealDef").textContent = wordleRevealDef || "";
 
   if (!alreadyRecorded) {
-    // metric_value: počet použitých pokusů při výhře (vždy > 0), nebo -1 při
-    // prohře/vzdání - jednoznačný příznak "uhodnuto/neuhodnuto" nezávislý na
-    // tom, kolik pokusů ten který den vlastně bylo (to se liší podle délky slova).
-    // Server (record_practice_activity) podle tohohle znaménka přizná 5 bodů
-    // za uhodnutí, nebo 1 bod za poctivý pokus (prohra i vzdání).
-    const metric = won ? wordleGuesses.length : -1;
-    await awardPracticeBonus("wordle", wordleWordRow.word_id, "wordleBonusMsg", metric);
+    // Kolik bodů appka dostane (5 za uhodnutí, 1 za poctivý pokus) si teď
+    // server zjistí sám z wordle_attempts (viz check_wordle_guess/wordle_give_up
+    // výše) - metric_value appka posílá jen jako null, record_practice_activity
+    // ho pro wordle stejně přepočítá ze serverového stavu, ne z toho, co řekne klient.
+    await awardPracticeBonus("wordle", wordleWordRow.word_id, "wordleBonusMsg", null);
   }
   saveWordleState(wordleWordRow.prague_date, gaveUp);
   refreshWordleStats();
 }
 
-// "Vzdávám to" - rovnou ukončí dnešní pokus a odhalí řešení, stejně jako
-// prohra (žádný trest navíc, jen se to jinak popíše, ať je jasné, že to
-// student vzdal sám, ne že mu došly pokusy).
-function wordleGiveUp() {
+// "Vzdávám to" - server označí dnešní kolo jako dokončené (prohra) a rovnou
+// odhalí řešení - appka do tý doby slovo neznala, takže musí počkat na
+// odpověď, než může zobrazit "Vzdal/a jsi to - tady je řešení".
+async function wordleGiveUp() {
   if (wordleDone) return;
-  finishWordleRound(false, false, true);
+  const { data, error } = await sb.rpc("wordle_give_up", { p_word_id: wordleWordRow.word_id });
+  const result = data && data[0] ? data[0] : null;
+  if (error || !result) return;
+  wordleAttemptsUsed = result.attempts_used;
+  wordleRevealWord = result.word || "";
+  wordleRevealDef = result.definition || "";
+  finishWordleRound(result.won, false, true);
 }
 
 // Ukáže studentovi nad mřížkou, kolik dosavadních Wordlů uhodl ze všech, co
