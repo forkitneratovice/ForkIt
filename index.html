@@ -7573,6 +7573,13 @@ let hangmanWrong = 0;
 let hangmanDone = false;
 let hangmanPlayedIds = [];   // id slovíček, co student v týhle session už dostal - viz startHangmanRound
 let hangmanDifficulty = "hard"; // "hard" (s diakritikou, jak je slovo doopravdy) | "easy" (bez háčků a čárek)
+// true jen bezprostředně po výběru obtížnosti z obrazovky "Vyber si obtížnost"
+// (viz chooseHangmanDifficulty) - odlišuje "student si právě zvolil obtížnost"
+// od "appka se jen obnovuje po reloadu/přepnutí okna" (viz tryResumeHangman),
+// aby druhý případ dál spolehlivě obnovoval rozehrané kolo v PŮVODNÍ obtížnosti,
+// zatímco první případ respektuje novou volbu, i když zbylo rozehrané kolo
+// v jiné obtížnosti.
+let hangmanDifficultyJustChosen = false;
 
 // Fronta má i výslovnost v závorce (např. "tabasco (tabasko)") - ta by hru
 // jen prozrazovala/mátla, takže se na hádání nepoužívá. Po dohrání kola se
@@ -7598,6 +7605,7 @@ function hangmanBuildPuzzle(rawWord) {
 // pokaždé zvolit jinak), jen se rovnou spustí nové kolo v dané obtížnosti.
 function chooseHangmanDifficulty(level) {
   hangmanDifficulty = level === "easy" ? "easy" : "hard";
+  hangmanDifficultyJustChosen = true;
   showScreen("hangman");
 }
 
@@ -7672,9 +7680,21 @@ function clearHangmanProgress() {
 // Zkusí obnovit rozehrané kolo uložené v localStorage - vrací true, pokud se
 // povedlo (appka pak nežádá server o nové slovo, jen pokračuje ve starém).
 function tryResumeHangman() {
+  const justChosen = hangmanDifficultyJustChosen;
+  hangmanDifficultyJustChosen = false;
+
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(hangmanProgressKey()) || "null"); } catch (e) {}
   if (!saved || !saved.wordRow || !saved.wordRow.word) return false;
+
+  // Student si právě na obrazovce výběru obtížnosti zvolil obtížnost, co
+  // nesedí s rozehraným kolem uloženým z dřívějška (typicky "Lehčí" po
+  // nedohraném "Těžší", nebo naopak) - tuhle explicitní volbu appka
+  // respektuje a rozehrané kolo v jiné obtížnosti nechá být (přepíše ho,
+  // jakmile níže poběží startHangmanRound()), místo aby ho potichu obnovila
+  // a volbu obtížnosti tím fakticky ignorovala.
+  const savedDifficulty = saved.difficulty === "easy" ? "easy" : "hard";
+  if (justChosen && savedDifficulty !== hangmanDifficulty) return false;
 
   document.getElementById("hangmanBoard").classList.remove("hidden");
   document.getElementById("hangmanDoneState").classList.add("hidden");
