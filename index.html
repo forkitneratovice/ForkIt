@@ -265,7 +265,8 @@
   .msg-reaction-picker.hidden { display: none; }
   .msg-reaction-picker-btn { background: none; border: none; font-size: 22px; line-height: 1; padding: 5px; cursor: pointer; border-radius: 50%; }
   .msg-reaction-picker-btn:active { background: #f0ede4; }
-  .chat-input-bar input { flex: 1; padding: 11px 12px; border-radius: 20px; border: 1px solid #E0DCD3; font-size: 14px; font-family: inherit; }
+  .chat-input-bar input { flex: 1; padding: 11px 12px; border-radius: 20px; border: 1px solid #E0DCD3; font-size: 14px; font-family: inherit; -webkit-appearance: none; appearance: none; }
+  .chat-input-bar input::-webkit-search-decoration, .chat-input-bar input::-webkit-search-cancel-button { display: none; }
 
   /* Úspěchy (odznáčky) */
   .badge-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 4px; }
@@ -2046,7 +2047,7 @@
           <div class="demo-note msg-note">Zasekli jste se u úkolu nebo v životě? Ozvěte se.<br>-Vaše mistrová Bára 🍸</div>
           <div class="chat-messages" id="chatMessagesList"></div>
           <div class="chat-input-bar">
-            <input type="text" id="chatInputText" placeholder="Napiš zprávu…" onkeydown="if(event.key==='Enter'){sendChatMessage();}">
+            <input type="search" id="chatInputText" autocomplete="off" autocorrect="on" autocapitalize="sentences" spellcheck="true" placeholder="Napiš zprávu…" onkeydown="if(event.key==='Enter'){sendChatMessage();}">
             <button class="btn-primary" style="width:auto;padding:11px 18px;" onclick="sendChatMessage()">Odeslat</button>
           </div>
         </div>
@@ -2064,7 +2065,7 @@
         <h2 class="section-title" id="chatThreadName">Student</h2>
         <div class="chat-messages" id="chatThreadMessagesList"></div>
         <div class="chat-input-bar">
-          <input type="text" id="chatThreadInputText" placeholder="Napiš zprávu…" onkeydown="if(event.key==='Enter'){sendChatThreadMessage();}">
+          <input type="search" id="chatThreadInputText" autocomplete="off" autocorrect="on" autocapitalize="sentences" spellcheck="true" placeholder="Napiš zprávu…" onkeydown="if(event.key==='Enter'){sendChatThreadMessage();}">
           <button class="btn-primary" style="width:auto;padding:11px 18px;" onclick="sendChatThreadMessage()">Odeslat</button>
         </div>
       </div>
