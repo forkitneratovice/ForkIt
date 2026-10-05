@@ -8044,7 +8044,14 @@ window.addEventListener("orientationchange", () => setTimeout(() => {
 
 function renderWordleGrid() {
   const grid = document.getElementById("wordleGrid");
-  grid.innerHTML = "";
+  // Mřížku stavíme mimo stránku a pak vyměníme najednou (a pamatujeme si scroll),
+  // aby se při psaní písmene stránka neposunula zpátky nahoru.
+  const frag = document.createDocumentFragment();
+  const scrollers = [];
+  for (let el = grid; el; el = el.parentElement) {
+    if (el.scrollTop > 0) scrollers.push([el, el.scrollTop]);
+  }
+  const winY = window.scrollY;
   const lenEl = document.getElementById("wordleLengthInfo");
   if (lenEl && wordleWordLength) {
     const n = wordleWordLength;
@@ -8072,8 +8079,11 @@ function renderWordleGrid() {
       tile.textContent = ch;
       row.appendChild(tile);
     }
-    grid.appendChild(row);
+    frag.appendChild(row);
   }
+  grid.replaceChildren(frag);
+  scrollers.forEach(([el, top]) => { el.scrollTop = top; });
+  if (window.scrollY !== winY) window.scrollTo(0, winY);
 }
 
 // Klikací klávesnice uspořádaná jako počítačová (QWERTZ) - písmena s
