@@ -517,8 +517,8 @@
   .wordle-grid { display: flex; flex-direction: column; align-items: center; gap: 5px; margin: 6px 0 16px; }
   .wordle-row { display: flex; gap: 5px; }
   .wordle-tile {
-    width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
-    border: 2px solid #e2ded8; border-radius: 6px; font-size: 18px; font-weight: 800;
+    width: var(--wt, 34px); height: var(--wt, 34px); display: flex; align-items: center; justify-content: center;
+    border: 2px solid #e2ded8; border-radius: 6px; font-size: var(--wf, 18px); font-weight: 800;
     color: var(--dark); font-family: 'Poppins', sans-serif; text-transform: uppercase;
   }
   .wordle-tile-filled { border-color: #b9b2a7; }
@@ -549,6 +549,7 @@
     40%, 60% { transform: translateX(4px); }
   }
   .wordle-row-shake { animation: wordle-shake 0.5s; }
+  @media (min-width: 900px) { .wordle-rotate-hint { display: none; } }
 
   /* Quiz */
   .quiz-question { background: var(--card); border-radius: 14px; padding: 15px; margin-bottom: 12px; }
@@ -1577,6 +1578,8 @@
         <p class="lb-note" style="text-align:center;">Dnešní slovo je pro všechny stejné a o půlnoci se vystřídá za další. Máš jen jeden pokus denně, ale v něm víc hádání.</p>
         <p class="lb-note" style="text-align:center;">Zadávat lze jen skutečně existující slova (česká, anglická i francouzská).</p>
         <div id="wordleStats" style="text-align:center;font-size:12.5px;color:var(--primary);margin-bottom:6px;"></div>
+        <div id="wordleLengthInfo" style="text-align:center;font-size:17px;font-weight:800;color:var(--dark);font-family:'Poppins',sans-serif;margin-bottom:4px;"></div>
+        <p class="lb-note wordle-rotate-hint" style="text-align:center;">Slovo se nevejde? Otoč telefon na šířku.</p>
         <div id="wordleBoard">
           <div id="wordleGrid" class="wordle-grid"></div>
           <div id="wordleKeyboard" class="wordle-keyboard"></div>
@@ -8016,9 +8019,34 @@ function wordleRebuildKeyStatus() {
   });
 }
 
+function wordleFitTiles() {
+  // Dlaždice se zmenší tak, aby se i dlouhé slovo vešlo na šířku obrazovky.
+  const grid = document.getElementById("wordleGrid");
+  if (!grid || !wordleWordLength) return;
+  const avail = (grid.parentElement ? grid.parentElement.clientWidth : 0) || window.innerWidth - 40;
+  const gap = 5;
+  const size = Math.max(14, Math.min(34, Math.floor((avail - gap * (wordleWordLength - 1)) / wordleWordLength)));
+  grid.style.setProperty("--wt", size + "px");
+  grid.style.setProperty("--wf", Math.max(9, Math.round(size * 0.53)) + "px");
+}
+window.addEventListener("resize", () => {
+  const sc = document.getElementById("screen-wordle");
+  if (sc && !sc.classList.contains("hidden") && wordleWordLength) wordleFitTiles();
+});
+window.addEventListener("orientationchange", () => setTimeout(() => {
+  const sc = document.getElementById("screen-wordle");
+  if (sc && !sc.classList.contains("hidden") && wordleWordLength) wordleFitTiles();
+}, 200));
+
 function renderWordleGrid() {
   const grid = document.getElementById("wordleGrid");
   grid.innerHTML = "";
+  const lenEl = document.getElementById("wordleLengthInfo");
+  if (lenEl && wordleWordLength) {
+    const n = wordleWordLength;
+    lenEl.textContent = "Slovo má " + n + " " + (n >= 5 ? "písmen" : n > 1 ? "písmena" : "písmeno");
+  }
+  wordleFitTiles();
   for (let r = 0; r < wordleMaxAttempts; r++) {
     const row = document.createElement("div");
     row.className = "wordle-row";
