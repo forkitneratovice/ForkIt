@@ -68,6 +68,10 @@
     box-shadow: 0 0 50px rgba(0,0,0,0.25);
   }
   .sidebar { display: none; }
+  /* Telefon otočený na šířku: appka využije celou šířku displeje místo úzkého sloupce. */
+  @media (orientation: landscape) and (max-height: 600px) and (max-width: 899px) {
+    .app-shell { max-width: none; box-shadow: none; }
+  }
   /* Topbar/drawer musí zůstat pořád vidět, i na dlouhých obrazovkách (např. Slovník se
      spoustou slov) - stejné řešení jako na desktopu (viz níže): .app-shell/.main jsou
      napevno omezené na výšku okna a overflow:hidden, takže se nemůžou "roztáhnout" podle
