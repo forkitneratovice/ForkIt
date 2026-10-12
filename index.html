@@ -7987,6 +7987,14 @@ async function startWordleRound() {
   wordleWordLength = row.word_length;
   wordleMaxAttempts = Math.max(6, wordleWordLength + 1);
 
+  // Stav dnešního kola se bere i ze serveru, takže když student hrál na jiném
+  // zařízení (třeba na počítači), na telefonu uvidí totéž.
+  let serverState = null;
+  try {
+    const { data: ssData } = await sb.rpc("get_my_wordle_state");
+    serverState = ssData && ssData[0] ? ssData[0] : null;
+  } catch (e) { serverState = null; }
+
   const saved = loadWordleState(row.prague_date);
   if (saved) {
     wordleGuesses = saved.guesses || [];
@@ -7998,6 +8006,24 @@ async function startWordleRound() {
       wordleRebuildKeyStatus();
       finishWordleRound(saved.won, true, saved.gaveUp);
       return;
+    }
+  }
+
+  if (serverState) {
+    if (serverState.done) {
+      wordleGuesses = serverState.guesses || [];
+      wordleGuessColors = serverState.guess_colors || [];
+      wordleAttemptsUsed = serverState.attempts_used;
+      wordleRevealWord = serverState.word || "";
+      wordleRevealDef = serverState.definition || "";
+      wordleRebuildKeyStatus();
+      finishWordleRound(serverState.won, true, serverState.gave_up);
+      return;
+    }
+    if ((serverState.guesses || []).length > wordleGuesses.length) {
+      wordleGuesses = serverState.guesses;
+      wordleGuessColors = serverState.guess_colors || [];
+      wordleAttemptsUsed = serverState.attempts_used;
     }
   }
 
