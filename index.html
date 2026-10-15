@@ -517,6 +517,12 @@
   .hm-key-correct { background: #e3efe5; border-color: #7fbf8c; color: #2f7a3d; }
   .hm-key-wrong { background: #f8dcdc; border-color: var(--red); color: var(--red); }
 
+  /* Duel */
+  .duel-timer { height: 8px; border-radius: 6px; background: #e8e8ee; overflow: hidden; margin: 8px 0 12px; }
+  .duel-timer-bar { height: 100%; width: 100%; background: var(--green, #2ecc71); transition: width .2s linear; }
+  .duel-timer-bar.low { background: var(--red, #e74c3c); }
+  .duel-opt-chosen { border-color: var(--accent, #6c5ce7) !important; background: #efedff !important; }
+  .duel-badge { display:inline-block; min-width:20px; padding:0 6px; border-radius:10px; background:var(--red,#e74c3c); color:#fff; font-size:12px; line-height:20px; text-align:center; margin-left:6px; }
   /* Opakování chyb (Procvičování → Moje slabá místa) */
   .review-opt { display: block; width: 100%; text-align: left; padding: 12px 14px; margin-bottom: 8px; border-radius: 12px; border: 1px solid #e2ded8; background: white; font-size: 14px; font-family: inherit; color: var(--dark); cursor: pointer; }
   .review-opt:disabled { cursor: default; }
@@ -1379,6 +1385,11 @@
           <span class="title">Kvízy</span>
           <span class="desc">Natrénuj si kvízy nanečisto, kolikrát chceš. Neomezeně, bez bodů a bez čekání.</span>
         </button>
+        <button class="practice-hub-btn hidden" id="duelHubBtn" onclick="showScreen('duel')">
+          <span class="icon">&#9876;&#65039;</span>
+          <span class="title">Duel</span>
+          <span class="desc" id="duelHubDesc">Vyzvi kamaráda na 10 náhodných otázek. Vítěz +5 b, poražený +1 b.</span>
+        </button>
         <button class="practice-hub-btn" id="reviewHubBtn" onclick="showScreen('review')">
           <span class="icon">&#127919;</span>
           <span class="title">Moje slabá místa</span>
@@ -1411,6 +1422,40 @@
         <span class="back-link" onclick="showScreen('practice-hub')">&larr; Zpět na procvičování</span>
         <p class="lb-note" style="text-align:center;">Otázky z kvízů, na které jsi odpověděl/a špatně. Otázka zmizí ze seznamu, až ji zvládneš správně dvakrát, ve dvou různých dnech.</p>
         <div id="reviewBody"><div class="empty-note">Načítám...</div></div>
+      </div>
+
+      <!-- PROCVIČOVÁNÍ: DUEL -->
+      <div class="screen hidden" id="screen-duel">
+        <span class="back-link" onclick="showScreen('practice-hub')">&larr; Zpět na procvičování</span>
+        <button class="practice-hub-btn" onclick="openDuelPick()">
+          <span class="icon">&#9876;&#65039;</span>
+          <span class="title">Vyzvat</span>
+          <span class="desc">Vyber hráče a hned odehraj své kolo. Soupeř ho pak dohraje, kdy se mu to hodí.</span>
+        </button>
+        <button class="practice-hub-btn" onclick="showScreen('duel-incoming')">
+          <span class="icon">&#128229;</span>
+          <span class="title">Výzvy pro mě <span id="duelIncomingCount"></span></span>
+          <span class="desc">Kdo tě vyzval. Po kliknutí na Přijmout se zobrazí úvod a čas poběží až po Spustit.</span>
+        </button>
+        <div id="duelHomeBody"><div class="empty-note">Načítám...</div></div>
+      </div>
+
+      <div class="screen hidden" id="screen-duel-pick">
+        <span class="back-link" onclick="showScreen('duel')">&larr; Zpět na duel</span>
+        <div class="field" style="margin-top:6px;">
+          <input type="text" id="duelPickSearch" placeholder="Hledat hráče…" oninput="renderDuelPickList()">
+        </div>
+        <div id="duelPickConfirm"></div>
+        <div id="duelPickList"><div class="empty-note">Načítám...</div></div>
+      </div>
+
+      <div class="screen hidden" id="screen-duel-incoming">
+        <span class="back-link" onclick="showScreen('duel')">&larr; Zpět na duel</span>
+        <div id="duelIncomingBody"><div class="empty-note">Načítám...</div></div>
+      </div>
+
+      <div class="screen hidden" id="screen-duel-play">
+        <div id="duelPlayBody"><div class="empty-note">Načítám...</div></div>
       </div>
 
       <!-- PROCVIČOVÁNÍ: MATERIÁLY -->
@@ -2173,10 +2218,11 @@
           <p class="help-text"><strong>Pexeso:</strong> hledáte dvojice název pojmu + odpovídající obrázek, pokaždé z náhodně vylosovaných 10 dvojic z celého balíku. Appka počítá tahy (kolikrát jste porovnávali dvojici kartiček) – čím míň, tím lepší skóre. Nad kartičkami se vám pořád zobrazuje váš dosavadní rekord (nejméně tahů v dohraném kole), takže rovnou vidíte, na co hrajete a jak se zlepšujete, a po dohrání appka ukáže, jestli jste ho zrovna překonali. Klepnutím kartičku otočíte, dalším klepnutím na tu samou (i tu druhou, právě odkrytou, nebo i libovolnou už spárovanou) ji zvětšíte, ať obrázek pořádně poznáte – zůstane zvětšená, dokud na ni znovu neklepnete. U špatné dvojice se pak obě hned otočí zpátky; u poslední spárované dvojice kola se hned potom appka přepne na obrazovku Hotovo. Nikam ale spěchat nemusíte, ale ani čekat – kdo nepotřebuje tolik času, může rovnou klepnout na další kartičku a špatná dvojice se sama hned otočí zpátky.</p>
           <p class="help-text"><strong>Šibenice:</strong> hádáte gastro pojem písmeno po písmenu – na 8 špatných pokusů, pak je konec (panáček se dokreslí i s botami). Na začátku si vyberete obtížnost: Těžší hádá slovo přesně tak, jak se píše (s háčky a čárkami), Lehčí ho hádá bez diakritiky – obtížnost si můžete pokaždé zvolit znovu. Appka losuje ze všech slovíček ve Slovníku a hlídá, ať vám hned zase nevrátí to samé, co jste právě dostali. Ať kolo dopadne jakkoliv, na konci se vždycky ukáže celé slovo v originální podobě (i s výslovností v závorce, pokud nějakou má) a jeho definice – nejde o to vyhrát, ale procvičit si pravopis a slovní zásobu. Nad panáčkem vidíte i vlastní statistiku – kolik kol ze všech dosavadních se vám povedlo uhodnout.</p>
           <p class="help-text"><strong>Wordle dne:</strong> najdete ho i rovnou na Domů, hned pod slovem dne. Jedno slovo je pro všechny stejné a platí celý den – o půlnoci se vystřídá za jiné. Hádáte celé slovo najednou (ne písmeno po písmenu jako u šibenice): po každém pokusu se písmenka obarví – zeleně je písmeno na správném místě, žlutě je ve slově, ale jinde, šedě ve slově není vůbec. Uznává se jen skutečně existující slovo (české, anglické i francouzské) – gastro pojmy bývají cizí, takže appka slovo neomezuje jen na Slovník. Počet pokusů se řídí délkou slova (nejméně 6, u delších pojmů o něco víc), takže na to máte reálnou šanci i u dlouhých gastro termínů. Když nevíte, jde to i vzdát – tlačítko Vzdávám to rovnou odhalí řešení. Na den máte jen jeden pokus – ať dopadne jakkoliv, appka vám vždycky ukáže celé slovo i jeho definici.</p>
-          <p class="help-text"><strong>Moje slabá místa:</strong> appka si pamatuje otázky, na které jste v ostrých kvízech odpověděli špatně, a nabídne vám je k opakování (série až 10 otázek, pokaždé jinak zamíchané). Otázka zmizí ze seznamu, až ji zvládnete správně dvakrát, ve dvou různých dnech – správná odpověď ještě tentýž den se do toho počítá jen jednou. Špatná odpověď počítadlo vrátí na začátek. Za sérii, ve které odpovíte aspoň na 3 otázky, dostanete jednou denně +1 bod (společně s ostatním procvičováním, do denního stropu 3 bodů).</p>
-          <p class="help-text"><strong>Body za procvičování:</strong> za první dokončený kvíz nanečisto, první splněné opakování slovíček, první dohrané kolo pexesa a první dohrané kolo šibenice v daný den dostanete +1 bod – nejvýš 3 body denně dohromady, ať procvičujete jen v jedné sekci nebo ve víc najednou. Je to jen malá odměna navíc, hlavní body pořád nesou ostré kvízy a výzvy.</p>
-          <p class="help-text"><strong>Body za Wordle dne:</strong> za dnešní Wordle dostanete +1 bod, i když to nevyjde nebo to vzdáte, a +5 bodů, když slovo uhodnete – tenhle bod navíc se počítá zvlášť, mimo denní strop 3 bodů z ostatního procvičování.</p>
-          <p class="help-text">Za pravidelné procvičování jsou i odznáčky v sekci Úspěchy: Pilná píle (procvičuj 5 různých dnů), Procvičovací týden (denní bonus 7 dní v řadě), Trenér/ka (10 kvízů nanečisto), Slovní expert (50 slovíček poprvé jako Umím) a Pexeso mistr/mistryně (20 kol pexesa) a Opravář/ka (20 zvládnutých otázek z Mých slabých míst).</p>
+          <p class="help-text"><strong>Moje slabá místa:</strong> appka si pamatuje otázky, na které jste v ostrých kvízech odpověděli špatně, a nabídne vám je k opakování (série až 10 otázek, pokaždé jinak zamíchané). Otázka zmizí ze seznamu, až ji zvládnete správně dvakrát, ve dvou různých dnech – správná odpověď ještě tentýž den se do toho počítá jen jednou. Špatná odpověď počítadlo vrátí na začátek. Za sérii, ve které odpovíte aspoň na 3 otázky, dostanete jednou denně +1 bod (navíc k bodům z ostatního procvičování).</p>
+          <p class="help-text"><strong>Duel:</strong> vyzvete kamaráda (kohokoli) na 10 náhodných otázek ze všech zveřejněných kvízů. Svoje kolo odehrajete hned při vyzvání, soupeř ho dohraje, kdy se mu to hodí (má na to 48 hodin, jinak výzva propadne). Oba dostanete stejné otázky a na každou je 30 sekund; čas měří server a neodpovězená otázka je špatně. Vyhrává víc správných odpovědí, při shodě rychlejší (rozdíl do 1 s je remíza). Výhra +5 bodů, prohra +1 bod, remíza 3 body oběma. Denně můžete poslat 2 výzvy a přijmout 2 výzvy; stejného hráče můžete vyzvat opakovaně, ale body za duel s týmž soupeřem se dávají jen jednou denně. Duelové body se počítají zvlášť, navíc k bodům za ostatní procvičování. Správné odpovědi uvidíte, až když dohrají oba. Vyzyvatel dostane notifikaci s výsledkem v okamžiku, kdy soupeř dohraje. Testovací účty se vyzývají jen mezi sebou.</p>
+          <p class="help-text"><strong>Body za procvičování:</strong> za první dokončený kvíz nanečisto, první splněné opakování slovíček, první dohrané kolo pexesa a první dohrané kolo šibenice v daný den dostanete +1 bod. Každá sekce dává bod jednou denně a body se sčítají – bez společného denního stropu. Je to jen malá odměna navíc, hlavní body pořád nesou ostré kvízy a výzvy.</p>
+          <p class="help-text"><strong>Body za Wordle dne:</strong> za dnešní Wordle dostanete +1 bod, i když to nevyjde nebo to vzdáte, a +5 bodů, když slovo uhodnete – tyhle body se přičtou k ostatnímu procvičování.</p>
+          <p class="help-text">Za pravidelné procvičování jsou i odznáčky v sekci Úspěchy: Pilná píle (procvičuj 5 různých dnů), Procvičovací týden (denní bonus 7 dní v řadě), Trenér/ka (10 kvízů nanečisto), Slovní expert (50 slovíček poprvé jako Umím) a Pexeso mistr/mistryně (20 kol pexesa) a Opravář/ka (20 zvládnutých otázek z Mých slabých míst) a Duelista (5 vyhraných duelů).</p>
         </div>
 
         <div class="help-section">
@@ -3553,6 +3599,10 @@ function showScreen(name) {
     hangman: ["Šibenice", "Hádej gastro pojem"],
     wordle: ["Wordle dne", "Jedno slovo pro všechny"],
     review: ["Moje slabá místa", "Opakování chyb z kvízů"],
+    duel: ["Duel", "Vyzvi kamaráda"],
+    "duel-pick": ["Duel", "Koho vyzveš?"],
+    "duel-incoming": ["Výzvy pro mě", "Kdo tě vyzval"],
+    "duel-play": ["Duel", "Kdo bude rychlejší a přesnější"],
     "practice-materials": ["Materiály", "Studijní materiály ke stažení"],
     "material-upload": ["Nový materiál", "Nahrát studijní materiál"],
     leaderboard: ["Žebříček", "Jak si vedeš"],
@@ -3597,7 +3647,9 @@ function showScreen(name) {
   if (name === "hangman") { if (!tryResumeHangman()) startHangmanRound(); refreshHangmanStats(); }
   if (name === "wordle") { startWordleRound(); refreshWordleStats(); }
   if (name === "review") startReviewSession();
-  if (name === "practice-hub") refreshReviewHub();
+  if (name === "duel") renderDuelHome();
+  if (name === "duel-incoming") renderDuelIncoming();
+  if (name === "practice-hub") { refreshReviewHub(); refreshDuelHub(); }
   if (name === "practice-materials") renderPracticeMaterials();
   if (name === "faq") renderFaqFeedback();
   if (name === "help") resetAppSearch();
@@ -3776,8 +3828,8 @@ async function openPointsBreakdown(returnTo) {
 // Popisky a pořadí tří druhů dobrovolného Procvičování (viz record_practice_activity) -
 // sdílené mezi studentovou vlastní obrazovkou Body a učitelčiným pohledem na
 // studenta, ať se to nerozjede na dvou místech jinak.
-const PRACTICE_KIND_ORDER = ["flashcards", "pexeso", "hangman", "wordle", "quiz", "review"];
-const PRACTICE_KIND_LABELS = { flashcards: "Slovíčka", pexeso: "Pexeso", hangman: "Šibenice", wordle: "Wordle dne", quiz: "Kvízy", review: "Opakování chyb" };
+const PRACTICE_KIND_ORDER = ["flashcards", "pexeso", "hangman", "wordle", "quiz", "review", "duel"];
+const PRACTICE_KIND_LABELS = { flashcards: "Slovíčka", pexeso: "Pexeso", hangman: "Šibenice", wordle: "Wordle dne", quiz: "Kvízy", review: "Opakování chyb", duel: "Duel" };
 
 // Sdílené vykreslení rozpadu bodů (souhrn + jednotlivé položky) - stejná
 // šablona pro studentovu vlastní obrazovku "Body" i pro učitelčin detail
@@ -7562,6 +7614,272 @@ async function finishReview() {
   await awardPracticeBonus("review", null, "reviewBonusMsg", null);
 }
 
+// ---------- Duel (Procvičování) ----------
+let duelOpponents = [];
+let duelPlay = { id: null, q: null, endsAt: 0, timer: null, locked: false };
+
+function duelStopTimer() {
+  if (duelPlay.timer) { clearInterval(duelPlay.timer); duelPlay.timer = null; }
+}
+
+function duelErrorText(err) {
+  const m = (err && err.message) || "";
+  if (m.indexOf("limit_sent") >= 0) return "Dnes už jsi poslal/a 2 výzvy. Zkus to zítra (odmítnuté a propadlé se nepočítají).";
+  if (m.indexOf("limit_accept") >= 0) return "Dnes už jsi přijal/a 2 výzvy. Další můžeš přijmout zítra.";
+  if (m.indexOf("opponent_busy") >= 0) return "Tenhle hráč má teď moc nevyřízených výzev. Zkus to později.";
+  return m || "Něco se nepovedlo, zkus to znovu.";
+}
+
+async function refreshDuelHub() {
+  const btn = document.getElementById("duelHubBtn");
+  if (!btn || !user) return;
+  if (user.role !== "student") { btn.classList.add("hidden"); return; }
+  btn.classList.remove("hidden");
+  const el = document.getElementById("duelHubDesc");
+  try {
+    const { data, error } = await sb.rpc("get_my_duels");
+    if (error || !data || !el) return;
+    const n = (data.incoming || []).length;
+    el.textContent = n > 0
+      ? "Čeká na tebe " + n + (n === 1 ? " výzva" : n < 5 ? " výzvy" : " výzev") + "!"
+      : "Vyzvi kamaráda na 10 náhodných otázek. Vítěz +5 b, poražený +1 b.";
+  } catch (e) {}
+}
+
+async function renderDuelHome() {
+  const body = document.getElementById("duelHomeBody");
+  const cnt = document.getElementById("duelIncomingCount");
+  body.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const { data, error } = await sb.rpc("get_my_duels");
+  if (error || !data) {
+    body.innerHTML = "<div class='error-note'>Nepodařilo se načíst duely.</div>";
+    return;
+  }
+  const inc = data.incoming || [];
+  if (cnt) cnt.innerHTML = inc.length ? "<span class='duel-badge'>" + inc.length + "</span>" : "";
+  let html = "";
+  if (data.active_duel_id) {
+    html += "<div class='result-box' style='margin-bottom:10px;'><div class='msg'>Máš rozehraný duel.</div>" +
+      "<button class='btn-primary' onclick='duelBegin(" + data.active_duel_id + ")'>Pokračovat</button></div>";
+  }
+  html += "<p class='lb-note' style='text-align:center;'>Dnes: odeslané výzvy " + data.sent_today + " / 2 · přijaté " + data.accepted_today + " / 2</p>";
+  const out = data.outgoing || [];
+  if (out.length) {
+    html += "<h2 class='section-title'>Čeká se na soupeře</h2>";
+    out.forEach((o) => {
+      html += "<div class='comp-quiz-row'><div><div class='name'>" + esc(o.opponent_name) + "</div>" +
+        "<div class='meta'>Tvoje kolo je hotové, výzva platí do " + duelFmtDate(o.expires_at) + "</div></div></div>";
+    });
+  }
+  const hist = data.history || [];
+  html += "<h2 class='section-title'>Poslední duely</h2>";
+  if (!hist.length) html += "<div class='empty-note'>Zatím žádný duel. Vyzvi někoho! &#9876;&#65039;</div>";
+  hist.forEach((h) => {
+    const label = { win: "Výhra", loss: "Prohra", draw: "Remíza", declined: "Odmítnuto", expired: "Propadlo" }[h.outcome] || h.outcome;
+    const icon = { win: "&#127942;", loss: "&#128546;", draw: "&#129309;", declined: "&#128683;", expired: "&#8987;" }[h.outcome] || "";
+    const done = h.status === "done";
+    html += "<div class='comp-quiz-row'" + (done ? " style='cursor:pointer;' onclick='duelShowResult(" + h.id + ")'" : "") + "><div>" +
+      "<div class='name'>" + icon + " " + label + " · " + esc(h.other_name) + "</div>" +
+      "<div class='meta'>" + (done ? h.my_correct + " : " + h.other_correct + " z " + h.total + (h.my_points != null ? " · +" + h.my_points + " b" : "") : (h.i_challenged ? "Tvoje výzva" : "")) + "</div></div></div>";
+  });
+  body.innerHTML = html;
+}
+
+function duelFmtDate(iso) {
+  try {
+    return new Date(iso).toLocaleString("cs-CZ", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
+  } catch (e) { return ""; }
+}
+
+async function openDuelPick() {
+  showScreen("duel-pick");
+  document.getElementById("duelPickConfirm").innerHTML = "";
+  document.getElementById("duelPickSearch").value = "";
+  document.getElementById("duelPickList").innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const { data, error } = await sb.rpc("duel_opponents");
+  if (error) {
+    document.getElementById("duelPickList").innerHTML = "<div class='error-note'>" + esc(error.message) + "</div>";
+    return;
+  }
+  duelOpponents = data || [];
+  renderDuelPickList();
+}
+
+function renderDuelPickList() {
+  const el = document.getElementById("duelPickList");
+  const q = (document.getElementById("duelPickSearch").value || "").trim().toLowerCase();
+  const rows = duelOpponents.filter((o) => !q || (o.name || "").toLowerCase().indexOf(q) >= 0);
+  if (!rows.length) { el.innerHTML = "<div class='empty-note'>Nikdo nenalezen.</div>"; return; }
+  el.innerHTML = rows.map((o) =>
+    "<div class='comp-quiz-row' style='cursor:pointer;' onclick='duelPickSelect(\"" + o.id + "\")'>" +
+    "<div style='display:flex;align-items:center;gap:10px;'>" + miniAvatarHtml(o.avatar_url, o.name) +
+    "<div><div class='name'>" + esc(o.name) + "</div>" + (o.rocnik ? "<div class='meta'>" + esc(o.rocnik) + "</div>" : "") + "</div></div></div>"
+  ).join("");
+}
+
+function duelPickSelect(id) {
+  const o = duelOpponents.find((x) => x.id === id);
+  if (!o) return;
+  document.getElementById("duelPickConfirm").innerHTML =
+    "<div class='result-box' style='margin:10px 0;'>" +
+    "<div class='msg'>Vyzvat hráče " + esc(o.name) + "?</div>" +
+    "<div class='lb-note'>Dostaneš 10 náhodných otázek, na každou 30 sekund. Svoje kolo odehraješ hned.</div>" +
+    "<button class='btn-primary' onclick='duelCreate(\"" + o.id + "\")'>Vyzvat a spustit</button>" +
+    "<button class='btn-secondary' onclick=\"document.getElementById('duelPickConfirm').innerHTML=''\">Zrušit</button>" +
+    "<div class='error-note' id='duelPickErr'></div></div>";
+  window.scrollTo(0, 0);
+}
+
+async function duelCreate(oppId) {
+  const { data, error } = await sb.rpc("create_duel", { p_opponent: oppId });
+  if (error || !data) {
+    const e = document.getElementById("duelPickErr");
+    if (e) e.textContent = duelErrorText(error);
+    return;
+  }
+  duelBegin(data);
+}
+
+async function renderDuelIncoming() {
+  const body = document.getElementById("duelIncomingBody");
+  body.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const { data, error } = await sb.rpc("get_my_duels");
+  if (error || !data) { body.innerHTML = "<div class='error-note'>Nepodařilo se načíst výzvy.</div>"; return; }
+  const inc = data.incoming || [];
+  if (!inc.length) { body.innerHTML = "<div class='empty-note'>Nikdo tě teď nevyzval.</div>"; return; }
+  body.innerHTML = inc.map((d) =>
+    "<div class='result-box' style='margin-bottom:10px;text-align:left;'>" +
+    "<div style='display:flex;align-items:center;gap:10px;'>" + miniAvatarHtml(d.avatar_url, d.challenger_name) +
+    "<div><div class='name'>" + esc(d.challenger_name) + "</div><div class='meta'>Platí do " + duelFmtDate(d.expires_at) + "</div></div></div>" +
+    "<button class='btn-primary' style='margin-top:10px;' onclick='" + (d.started ? "duelBegin(" + d.id + ")" : "duelIntro(" + d.id + ",\"" + esc(d.challenger_name).replace(/"/g, "") + "\")") + "'>" + (d.started ? "Pokračovat" : "Přijmout") + "</button>" +
+    (d.started ? "" : "<button class='btn-secondary' onclick='duelDecline(" + d.id + ")'>Odmítnout</button>") +
+    "</div>").join("");
+}
+
+async function duelDecline(id) {
+  if (!window.confirm("Opravdu odmítnout tento duel?")) return;
+  const { error } = await sb.rpc("duel_decline", { p_duel: id });
+  if (error) { alert(duelErrorText(error)); return; }
+  renderDuelIncoming();
+}
+
+function duelIntro(id, name) {
+  duelStopTimer();
+  showScreen("duel-play");
+  document.getElementById("duelPlayBody").innerHTML =
+    "<div class='result-box'><div style='font-size:38px;margin-bottom:6px;'>&#9876;&#65039;</div>" +
+    "<div class='msg'>Duel s hráčem " + esc(name) + "</div>" +
+    "<div class='lb-note'>10 otázek · 30 sekund na každou · čas měří server a poběží, i kdybys aplikaci zavřel/a. Neodpovězená otázka je špatně. Správné odpovědi uvidíš, až dohrají oba.</div>" +
+    "<button class='btn-primary' onclick='duelBegin(" + id + ")'>Spustit</button>" +
+    "<button class='btn-secondary' onclick=\"showScreen('duel-incoming')\">Zpět</button>" +
+    "<div class='error-note' id='duelStartErr'></div></div>";
+}
+
+async function duelBegin(id) {
+  showScreen("duel-play");
+  const body = document.getElementById("duelPlayBody");
+  body.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const { data, error } = await sb.rpc("duel_start", { p_duel: id });
+  if (error || !data) {
+    body.innerHTML = "<div class='result-box'><div class='msg'>" + esc(duelErrorText(error)) + "</div>" +
+      "<button class='btn-secondary' onclick=\"showScreen('duel')\">Zpět na duel</button></div>";
+    return;
+  }
+  duelRenderQuestion(data);
+}
+
+function duelRenderQuestion(q) {
+  duelStopTimer();
+  if (q.finished) { duelFinished(q); return; }
+  duelPlay.id = q.duel_id;
+  duelPlay.q = q;
+  duelPlay.locked = false;
+  duelPlay.endsAt = Date.now() + (q.seconds_left || 0) * 1000;
+  let html = "<div class='quiz-question'>";
+  html += "<div class='lb-note' style='text-align:left;margin:0;'>Otázka " + (q.idx + 1) + " z " + q.total + " · soupeř: " + esc(q.opponent_name) + "</div>";
+  html += "<div class='duel-timer'><div class='duel-timer-bar' id='duelTimerBar'></div></div>";
+  html += "<div class='lb-note' style='text-align:right;margin:-6px 0 6px;' id='duelTimerNum'></div>";
+  html += "<p class='q'>" + esc(q.q) + "</p>";
+  (q.options || []).forEach((opt, oi) => {
+    html += "<button class='review-opt' id='duelOpt-" + oi + "' onclick='duelAnswer(" + oi + ")'>" + esc(opt) + "</button>";
+  });
+  html += "<div id='duelFeedback' style='margin-top:6px;font-size:13px;'></div></div>";
+  document.getElementById("duelPlayBody").innerHTML = html;
+  duelTick();
+  duelPlay.timer = setInterval(duelTick, 200);
+}
+
+function duelTick() {
+  const scr = document.getElementById("screen-duel-play");
+  if (!scr || scr.classList.contains("hidden")) { duelStopTimer(); return; }
+  const left = Math.max(0, duelPlay.endsAt - Date.now());
+  const bar = document.getElementById("duelTimerBar");
+  const num = document.getElementById("duelTimerNum");
+  if (bar) { bar.style.width = (left / 30000 * 100) + "%"; bar.classList.toggle("low", left < 8000); }
+  if (num) num.textContent = Math.ceil(left / 1000) + " s";
+  if (left <= 0 && !duelPlay.locked) duelAnswer(null);
+}
+
+async function duelAnswer(choice) {
+  if (duelPlay.locked) return;
+  duelPlay.locked = true;
+  duelStopTimer();
+  document.querySelectorAll(".review-opt").forEach((b) => { b.disabled = true; });
+  if (choice != null) {
+    const el = document.getElementById("duelOpt-" + choice);
+    if (el) el.classList.add("duel-opt-chosen");
+  }
+  const { data, error } = await sb.rpc("duel_answer", { p_duel: duelPlay.id, p_idx: duelPlay.q.idx, p_choice: choice });
+  if (error || !data) {
+    const fb = document.getElementById("duelFeedback");
+    if (fb) fb.innerHTML = "<span style='color:var(--red);'>" + esc(duelErrorText(error)) + "</span> " +
+      "<button class='btn-secondary' onclick=\"showScreen('duel')\">Zpět na duel</button>";
+    return;
+  }
+  duelRenderQuestion(data);
+}
+
+async function duelFinished(res) {
+  const body = document.getElementById("duelPlayBody");
+  if (res.status === "done") { await duelShowResult(res.duel_id, true); return; }
+  body.innerHTML =
+    "<div class='result-box'><div style='font-size:38px;margin-bottom:6px;'>&#9876;&#65039;</div>" +
+    "<div class='msg'>Tvoje kolo je hotové!</div>" +
+    "<div class='lb-note'>Soupeř má 48 hodin na přijetí. Až dohraje, přijde ti notifikace s výsledkem a body.</div>" +
+    "<button class='btn-primary' onclick=\"showScreen('duel')\">Zpět na duel</button></div>";
+}
+
+async function duelShowResult(id, justFinished) {
+  showScreen("duel-play");
+  const body = document.getElementById("duelPlayBody");
+  body.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const { data: r, error } = await sb.rpc("get_duel_result", { p_duel: id });
+  if (error || !r) {
+    body.innerHTML = "<div class='result-box'><div class='msg'>" + esc(duelErrorText(error)) + "</div>" +
+      "<button class='btn-secondary' onclick=\"showScreen('duel')\">Zpět na duel</button></div>";
+    return;
+  }
+  if (justFinished && r.my_points > 0 && user) user.points += r.my_points;
+  const title = r.outcome === "win" ? "Výhra!" : r.outcome === "draw" ? "Remíza" : "Tentokrát prohra";
+  const icon = r.outcome === "win" ? "&#127942;" : r.outcome === "draw" ? "&#129309;" : "&#128170;";
+  const sec = (ms) => (ms / 1000).toFixed(1).replace(".", ",") + " s";
+  let html = "<div class='result-box'><div style='font-size:38px;margin-bottom:6px;'>" + icon + "</div>" +
+    "<div class='msg'>" + title + "</div>" +
+    "<div class='msg'>Ty " + r.my_correct + " / " + r.total + " (" + sec(r.my_ms) + ") · " + esc(r.other_name) + " " + r.other_correct + " / " + r.total + " (" + sec(r.other_ms) + ")</div>" +
+    "<div class='msg'>" + (r.my_points > 0 ? "+" + r.my_points + " b." : "Bez bodů – s tímto soupeřem dnes už body byly.") + "</div>" +
+    "<button class='btn-primary' onclick=\"openDuelPick()\">Vyzvat někoho dalšího</button>" +
+    "<button class='btn-secondary' onclick=\"showScreen('duel')\">Zpět na duel</button></div>";
+  html += "<h2 class='section-title'>Správné odpovědi</h2>";
+  (r.items || []).forEach((it, i) => {
+    const mine = it.my_choice == null ? "bez odpovědi" : it.options[it.my_choice];
+    const ok = it.my_choice === it.correct;
+    html += "<div class='comp-quiz-row'><div><div class='name'>" + (i + 1) + ". " + esc(it.q) + "</div>" +
+      "<div class='meta'>Správně: " + esc(it.options[it.correct]) + "</div>" +
+      "<div class='meta' style='color:" + (ok ? "var(--green)" : "var(--red)") + ";'>Ty: " + esc(mine) + "</div></div></div>";
+  });
+  body.innerHTML = html;
+}
+
 async function awardPracticeBonus(kind, refId, msgElementId, metric) {
   if (!user || user.role !== "student") return;
   try {
@@ -10231,6 +10549,7 @@ function buildBadgeCatalog(b) {
     mk("Procvičování", "practice_quiz10", "&#9989;", "Trenér/ka", "Dokonči celkem 10 kvízů nanečisto.", Math.min(b.practice_quiz_total || 0, 10) + " / 10"),
     mk("Procvičování", "words_known50", "&#128218;", "Slovní expert", "Označ 50 různých slovíček poprvé jako Umím.", Math.min(b.words_known_first_time || 0, 50) + " / 50"),
     mk("Procvičování", "mistakes_mastered20", "&#127919;", "Opravář/ka", "Zvládni správně 20 otázek z Mých slabých míst (dvakrát ve dvou různých dnech).", Math.min(b.mistakes_mastered || 0, 20) + " / 20"),
+    mk("Procvičování", "duels_won5", "&#9876;&#65039;", "Duelista", "Vyhraj 5 duelů s kamarády.", Math.min(b.duels_won || 0, 5) + " / 5"),
     mk("Procvičování", "pexeso_rounds20", "&#127183;", "Pexeso mistr/mistryně", "Dohraj celkem 20 kol pexesa.", Math.min(b.pexeso_rounds_total || 0, 20) + " / 20"),
 
     // ---- Různé ----
