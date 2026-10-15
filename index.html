@@ -1369,15 +1369,20 @@
 
       <!-- PROCVIČOVÁNÍ (rozcestník, oba typy uživatelů) -->
       <div class="screen hidden" id="screen-practice-hub">
-        <button class="practice-hub-btn" id="reviewHubBtn" onclick="showScreen('review')">
-          <span class="icon">&#127919;</span>
-          <span class="title">Moje slabá místa</span>
-          <span class="desc" id="reviewHubDesc">Zopakuj si otázky z kvízů, na které jsi odpověděl/a špatně.</span>
+        <button class="practice-hub-btn" onclick="showScreen('practice-materials')">
+          <span class="icon">&#128196;</span>
+          <span class="title">Materiály</span>
+          <span class="desc">Studijní materiály ke zobrazení a stažení.</span>
         </button>
         <button class="practice-hub-btn" onclick="showScreen('practice-quizzes')">
           <span class="icon">&#9998;</span>
           <span class="title">Kvízy</span>
           <span class="desc">Natrénuj si kvízy nanečisto, kolikrát chceš. Neomezeně, bez bodů a bez čekání.</span>
+        </button>
+        <button class="practice-hub-btn" id="reviewHubBtn" onclick="showScreen('review')">
+          <span class="icon">&#127919;</span>
+          <span class="title">Moje slabá místa</span>
+          <span class="desc" id="reviewHubDesc">Zopakuj si otázky z kvízů, na které jsi odpověděl/a špatně.</span>
         </button>
         <button class="practice-hub-btn" onclick="showScreen('flashcards')">
           <span class="icon">&#128218;</span>
@@ -1398,11 +1403,6 @@
           <span class="icon">&#129001;</span>
           <span class="title">Wordle dne</span>
           <span class="desc">Jedno slovo pro všechny na celý den. Uhodni ho na pokusy podle jeho délky.</span>
-        </button>
-        <button class="practice-hub-btn" onclick="showScreen('practice-materials')">
-          <span class="icon">&#128196;</span>
-          <span class="title">Materiály</span>
-          <span class="desc">Studijní materiály ke zobrazení a stažení.</span>
         </button>
       </div>
 
