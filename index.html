@@ -1385,7 +1385,7 @@
           <span class="title">Kvízy</span>
           <span class="desc">Natrénuj si kvízy nanečisto, kolikrát chceš. Neomezeně, bez bodů a bez čekání.</span>
         </button>
-        <button class="practice-hub-btn hidden" id="duelHubBtn" onclick="showScreen('duel')">
+        <button class="practice-hub-btn hidden" id="duelHubBtn" onclick="duelHubOpen()">
           <span class="icon">&#9876;&#65039;</span>
           <span class="title">Duel</span>
           <span class="desc" id="duelHubDesc">Vyzvi kamaráda na 10 náhodných otázek. Vítěz +5 b, poražený +1 b.</span>
@@ -1438,6 +1438,12 @@
           <span class="desc">Kdo tě vyzval. Po kliknutí na Přijmout se zobrazí úvod a čas poběží až po Spustit.</span>
         </button>
         <div id="duelHomeBody"><div class="empty-note">Načítám...</div></div>
+      </div>
+
+      <!-- DUEL: přehled pro učitele -->
+      <div class="screen hidden" id="screen-duel-admin">
+        <span class="back-link" onclick="showScreen('practice-hub')">&larr; Zpět na procvičování</span>
+        <div id="duelAdminBody"><div class="empty-note">Načítám...</div></div>
       </div>
 
       <div class="screen hidden" id="screen-duel-pick">
@@ -3600,6 +3606,7 @@ function showScreen(name) {
     wordle: ["Wordle dne", "Jedno slovo pro všechny"],
     review: ["Moje slabá místa", "Opakování chyb z kvízů"],
     duel: ["Duel", "Vyzvi kamaráda"],
+    "duel-admin": ["Duely", "Jak studenti soupeří"],
     "duel-pick": ["Duel", "Koho vyzveš?"],
     "duel-incoming": ["Výzvy pro mě", "Kdo tě vyzval"],
     "duel-play": ["Duel", "Kdo bude rychlejší a přesnější"],
@@ -3648,6 +3655,7 @@ function showScreen(name) {
   if (name === "wordle") { startWordleRound(); refreshWordleStats(); }
   if (name === "review") startReviewSession();
   if (name === "duel") renderDuelHome();
+  if (name === "duel-admin") renderDuelAdmin();
   if (name === "duel-incoming") renderDuelIncoming();
   if (name === "practice-hub") { refreshReviewHub(); refreshDuelHub(); }
   if (name === "practice-materials") renderPracticeMaterials();
@@ -7630,12 +7638,69 @@ function duelErrorText(err) {
   return m || "Něco se nepovedlo, zkus to znovu.";
 }
 
+function duelHubOpen() {
+  showScreen(user && user.role === "student" ? "duel" : "duel-admin");
+}
+
+async function renderDuelAdmin() {
+  const body = document.getElementById("duelAdminBody");
+  body.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const { data, error } = await sb.rpc("get_duels_admin");
+  if (error || !data) {
+    body.innerHTML = "<div class='error-note'>Nepodařilo se načíst duely: " + esc((error && error.message) || "") + "</div>";
+    return;
+  }
+  const sm = data.summary || {};
+  let html = "<div class='result-box' style='text-align:left;'>" +
+    "<div class='msg'>Dnes: vyzvaných " + (sm.created_today || 0) + " · dohraných " + (sm.done_today || 0) + "</div>" +
+    "<div class='msg'>Posledních 7 dní: vyzvaných " + (sm.created_7d || 0) + " · dohraných " + (sm.done_7d || 0) + "</div>" +
+    "<div class='msg'>Celkem: " + (sm.total || 0) + " · dohráno " + (sm.done || 0) + " · čeká " + (sm.pending || 0) +
+    " · odmítnuto " + (sm.declined || 0) + " · propadlo " + (sm.expired || 0) + "</div></div>";
+
+  const studs = data.students || [];
+  const active = studs.filter((x) => x.sent > 0 || x.played > 0);
+  const idle = studs.filter((x) => !(x.sent > 0 || x.played > 0));
+  html += "<h2 class='section-title'>Podle studentů</h2>";
+  if (!active.length) html += "<div class='empty-note'>Zatím nikdo nehrál.</div>";
+  active.forEach((x) => {
+    html += "<div class='comp-quiz-row'><div><div class='name'>" + esc(x.name) + (x.rocnik ? " <span class='meta'>" + esc(x.rocnik) + "</span>" : "") + "</div>" +
+      "<div class='meta'>odehráno " + x.played + " · výher " + x.won + " · vyzval/a " + x.sent + "× · byl/a vyzván/a " + x.received + "×" +
+      (x.last_at ? " · naposled " + duelFmtDate(x.last_at) : "") + "</div></div></div>";
+  });
+  if (idle.length) {
+    html += "<p class='lb-note' style='text-align:left;'>Zatím bez duelu (" + idle.length + "): " + idle.map((x) => esc(x.name)).join(", ") + "</p>";
+  }
+
+  const duels = data.duels || [];
+  html += "<h2 class='section-title'>Poslední duely</h2>";
+  if (!duels.length) html += "<div class='empty-note'>Zatím žádné duely.</div>";
+  duels.forEach((d) => {
+    const st = { done: "dohráno", pending: "čeká na soupeře", challenger_turn: "vyzyvatel hraje", declined: "odmítnuto", expired: "propadlo" }[d.status] || d.status;
+    let line = st;
+    if (d.status === "done") {
+      line = d.challenger_correct + " : " + d.opponent_correct + " z " + d.total + " · " +
+        (d.result === "draw" ? "remíza" : "vyhrál/a " + esc(d.winner_name)) +
+        " · body " + (d.challenger_points || 0) + " / " + (d.opponent_points || 0);
+    } else if (d.status === "pending") {
+      line = "čeká na soupeře do " + duelFmtDate(d.expires_at);
+    }
+    html += "<div class='comp-quiz-row'><div><div class='name'>" + esc(d.challenger_name) + " &rarr; " + esc(d.opponent_name) + "</div>" +
+      "<div class='meta'>" + line + " · " + duelFmtDate(d.created_at) + "</div></div></div>";
+  });
+  body.innerHTML = html;
+}
+
 async function refreshDuelHub() {
   const btn = document.getElementById("duelHubBtn");
   if (!btn || !user) return;
+  const el = document.getElementById("duelHubDesc");
+  if (user.role === "mistrova" || user.role === "mistrova_view") {
+    btn.classList.remove("hidden");
+    if (el) el.textContent = "Přehled duelů: kdo koho vyzval, jak dopadly a kdo na nich pracuje.";
+    return;
+  }
   if (user.role !== "student") { btn.classList.add("hidden"); return; }
   btn.classList.remove("hidden");
-  const el = document.getElementById("duelHubDesc");
   try {
     const { data, error } = await sb.rpc("get_my_duels");
     if (error || !data || !el) return;
