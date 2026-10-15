@@ -517,6 +517,12 @@
   .hm-key-correct { background: #e3efe5; border-color: #7fbf8c; color: #2f7a3d; }
   .hm-key-wrong { background: #f8dcdc; border-color: var(--red); color: var(--red); }
 
+  /* Opakování chyb (Procvičování → Moje slabá místa) */
+  .review-opt { display: block; width: 100%; text-align: left; padding: 12px 14px; margin-bottom: 8px; border-radius: 12px; border: 1px solid #e2ded8; background: white; font-size: 14px; font-family: inherit; color: var(--dark); cursor: pointer; }
+  .review-opt:disabled { cursor: default; }
+  .review-opt-correct { background: #e3efe5; border-color: #7fbf8c; color: #2f7a3d; font-weight: 700; }
+  .review-opt-wrong { background: #f8dcdc; border-color: var(--red); color: var(--red); }
+
   /* Wordle dne (procvičování - jedno společné slovo pro všechny na daný den) */
   .wordle-grid { display: flex; flex-direction: column; align-items: center; gap: 5px; margin: 6px 0 16px; }
   .wordle-row { display: flex; gap: 5px; }
@@ -1363,6 +1369,11 @@
 
       <!-- PROCVIČOVÁNÍ (rozcestník, oba typy uživatelů) -->
       <div class="screen hidden" id="screen-practice-hub">
+        <button class="practice-hub-btn" id="reviewHubBtn" onclick="showScreen('review')">
+          <span class="icon">&#127919;</span>
+          <span class="title">Moje slabá místa</span>
+          <span class="desc" id="reviewHubDesc">Zopakuj si otázky z kvízů, na které jsi odpověděl/a špatně.</span>
+        </button>
         <button class="practice-hub-btn" onclick="showScreen('practice-quizzes')">
           <span class="icon">&#9998;</span>
           <span class="title">Kvízy</span>
@@ -1393,6 +1404,13 @@
           <span class="title">Materiály</span>
           <span class="desc">Studijní materiály ke zobrazení a stažení.</span>
         </button>
+      </div>
+
+      <!-- PROCVIČOVÁNÍ: MOJE SLABÁ MÍSTA (opakování chyb z ostrých kvízů) -->
+      <div class="screen hidden" id="screen-review">
+        <span class="back-link" onclick="showScreen('practice-hub')">&larr; Zpět na procvičování</span>
+        <p class="lb-note" style="text-align:center;">Otázky z kvízů, na které jsi odpověděl/a špatně. Otázka zmizí ze seznamu, až ji zvládneš správně dvakrát, ve dvou různých dnech.</p>
+        <div id="reviewBody"><div class="empty-note">Načítám...</div></div>
       </div>
 
       <!-- PROCVIČOVÁNÍ: MATERIÁLY -->
@@ -1647,6 +1665,7 @@
           <div class="quiz-best-value" id="quizBestValue"></div>
           <div class="msg" id="quizRetryMsg"></div>
           <button class="btn-primary" onclick="showScreen('quiz-review')">Potvrdit</button>
+          <button class="btn-secondary hidden" id="quizReviewMistakesBtn" onclick="showScreen('review')">&#127919; Zopakuj si chyby</button>
         </div>
       </div>
 
@@ -2027,6 +2046,9 @@
 
         <div id="compDetailPersonality"></div>
 
+        <h2 class="section-title">Slabá místa</h2>
+        <div id="compDetailMistakes"><div class="empty-note">Načítám...</div></div>
+
         <h2 class="section-title">Rozdělení bodů</h2>
         <div class="comp-stat-grid" id="compDetailPointsCategories" style="grid-template-columns: repeat(2, 1fr);"><div class="empty-note">Načítám...</div></div>
 
@@ -2151,9 +2173,10 @@
           <p class="help-text"><strong>Pexeso:</strong> hledáte dvojice název pojmu + odpovídající obrázek, pokaždé z náhodně vylosovaných 10 dvojic z celého balíku. Appka počítá tahy (kolikrát jste porovnávali dvojici kartiček) – čím míň, tím lepší skóre. Nad kartičkami se vám pořád zobrazuje váš dosavadní rekord (nejméně tahů v dohraném kole), takže rovnou vidíte, na co hrajete a jak se zlepšujete, a po dohrání appka ukáže, jestli jste ho zrovna překonali. Klepnutím kartičku otočíte, dalším klepnutím na tu samou (i tu druhou, právě odkrytou, nebo i libovolnou už spárovanou) ji zvětšíte, ať obrázek pořádně poznáte – zůstane zvětšená, dokud na ni znovu neklepnete. U špatné dvojice se pak obě hned otočí zpátky; u poslední spárované dvojice kola se hned potom appka přepne na obrazovku Hotovo. Nikam ale spěchat nemusíte, ale ani čekat – kdo nepotřebuje tolik času, může rovnou klepnout na další kartičku a špatná dvojice se sama hned otočí zpátky.</p>
           <p class="help-text"><strong>Šibenice:</strong> hádáte gastro pojem písmeno po písmenu – na 8 špatných pokusů, pak je konec (panáček se dokreslí i s botami). Na začátku si vyberete obtížnost: Těžší hádá slovo přesně tak, jak se píše (s háčky a čárkami), Lehčí ho hádá bez diakritiky – obtížnost si můžete pokaždé zvolit znovu. Appka losuje ze všech slovíček ve Slovníku a hlídá, ať vám hned zase nevrátí to samé, co jste právě dostali. Ať kolo dopadne jakkoliv, na konci se vždycky ukáže celé slovo v originální podobě (i s výslovností v závorce, pokud nějakou má) a jeho definice – nejde o to vyhrát, ale procvičit si pravopis a slovní zásobu. Nad panáčkem vidíte i vlastní statistiku – kolik kol ze všech dosavadních se vám povedlo uhodnout.</p>
           <p class="help-text"><strong>Wordle dne:</strong> najdete ho i rovnou na Domů, hned pod slovem dne. Jedno slovo je pro všechny stejné a platí celý den – o půlnoci se vystřídá za jiné. Hádáte celé slovo najednou (ne písmeno po písmenu jako u šibenice): po každém pokusu se písmenka obarví – zeleně je písmeno na správném místě, žlutě je ve slově, ale jinde, šedě ve slově není vůbec. Uznává se jen skutečně existující slovo (české, anglické i francouzské) – gastro pojmy bývají cizí, takže appka slovo neomezuje jen na Slovník. Počet pokusů se řídí délkou slova (nejméně 6, u delších pojmů o něco víc), takže na to máte reálnou šanci i u dlouhých gastro termínů. Když nevíte, jde to i vzdát – tlačítko Vzdávám to rovnou odhalí řešení. Na den máte jen jeden pokus – ať dopadne jakkoliv, appka vám vždycky ukáže celé slovo i jeho definici.</p>
+          <p class="help-text"><strong>Moje slabá místa:</strong> appka si pamatuje otázky, na které jste v ostrých kvízech odpověděli špatně, a nabídne vám je k opakování (série až 10 otázek, pokaždé jinak zamíchané). Otázka zmizí ze seznamu, až ji zvládnete správně dvakrát, ve dvou různých dnech – správná odpověď ještě tentýž den se do toho počítá jen jednou. Špatná odpověď počítadlo vrátí na začátek. Za sérii, ve které odpovíte aspoň na 3 otázky, dostanete jednou denně +1 bod (společně s ostatním procvičováním, do denního stropu 3 bodů).</p>
           <p class="help-text"><strong>Body za procvičování:</strong> za první dokončený kvíz nanečisto, první splněné opakování slovíček, první dohrané kolo pexesa a první dohrané kolo šibenice v daný den dostanete +1 bod – nejvýš 3 body denně dohromady, ať procvičujete jen v jedné sekci nebo ve víc najednou. Je to jen malá odměna navíc, hlavní body pořád nesou ostré kvízy a výzvy.</p>
           <p class="help-text"><strong>Body za Wordle dne:</strong> za dnešní Wordle dostanete +1 bod, i když to nevyjde nebo to vzdáte, a +5 bodů, když slovo uhodnete – tenhle bod navíc se počítá zvlášť, mimo denní strop 3 bodů z ostatního procvičování.</p>
-          <p class="help-text">Za pravidelné procvičování jsou i odznáčky v sekci Úspěchy: Pilná píle (procvičuj 5 různých dnů), Procvičovací týden (denní bonus 7 dní v řadě), Trenér/ka (10 kvízů nanečisto), Slovní expert (50 slovíček poprvé jako Umím) a Pexeso mistr/mistryně (20 kol pexesa).</p>
+          <p class="help-text">Za pravidelné procvičování jsou i odznáčky v sekci Úspěchy: Pilná píle (procvičuj 5 různých dnů), Procvičovací týden (denní bonus 7 dní v řadě), Trenér/ka (10 kvízů nanečisto), Slovní expert (50 slovíček poprvé jako Umím) a Pexeso mistr/mistryně (20 kol pexesa) a Opravář/ka (20 zvládnutých otázek z Mých slabých míst).</p>
         </div>
 
         <div class="help-section">
@@ -3529,6 +3552,7 @@ function showScreen(name) {
     "hangman-difficulty": ["Šibenice", "Vyber si obtížnost"],
     hangman: ["Šibenice", "Hádej gastro pojem"],
     wordle: ["Wordle dne", "Jedno slovo pro všechny"],
+    review: ["Moje slabá místa", "Opakování chyb z kvízů"],
     "practice-materials": ["Materiály", "Studijní materiály ke stažení"],
     "material-upload": ["Nový materiál", "Nahrát studijní materiál"],
     leaderboard: ["Žebříček", "Jak si vedeš"],
@@ -3572,6 +3596,8 @@ function showScreen(name) {
   if (name === "pexeso") { if (!tryResumePexeso()) startPexesoRound(); refreshPexesoBest(); }
   if (name === "hangman") { if (!tryResumeHangman()) startHangmanRound(); refreshHangmanStats(); }
   if (name === "wordle") { startWordleRound(); refreshWordleStats(); }
+  if (name === "review") startReviewSession();
+  if (name === "practice-hub") refreshReviewHub();
   if (name === "practice-materials") renderPracticeMaterials();
   if (name === "faq") renderFaqFeedback();
   if (name === "help") resetAppSearch();
@@ -3750,8 +3776,8 @@ async function openPointsBreakdown(returnTo) {
 // Popisky a pořadí tří druhů dobrovolného Procvičování (viz record_practice_activity) -
 // sdílené mezi studentovou vlastní obrazovkou Body a učitelčiným pohledem na
 // studenta, ať se to nerozjede na dvou místech jinak.
-const PRACTICE_KIND_ORDER = ["flashcards", "pexeso", "hangman", "wordle", "quiz"];
-const PRACTICE_KIND_LABELS = { flashcards: "Slovíčka", pexeso: "Pexeso", hangman: "Šibenice", wordle: "Wordle dne", quiz: "Kvízy" };
+const PRACTICE_KIND_ORDER = ["flashcards", "pexeso", "hangman", "wordle", "quiz", "review"];
+const PRACTICE_KIND_LABELS = { flashcards: "Slovíčka", pexeso: "Pexeso", hangman: "Šibenice", wordle: "Wordle dne", quiz: "Kvízy", review: "Opakování chyb" };
 
 // Sdílené vykreslení rozpadu bodů (souhrn + jednotlivé položky) - stejná
 // šablona pro studentovu vlastní obrazovku "Body" i pro učitelčin detail
@@ -6082,6 +6108,10 @@ async function submitQuiz() {
   bestLabelEl.innerHTML = "";
   bestValueEl.innerHTML = "";
   retryEl.innerHTML = "";
+  // Rovnou nabídne opakování chyb, ale jen po ostrém pokusu studenta s nějakou
+  // chybou (chyby z tréninku a ze zkušebních pokusů se do opakování nezapisují).
+  const reviewBtn = document.getElementById("quizReviewMistakesBtn");
+  if (reviewBtn) reviewBtn.classList.toggle("hidden", !(!result.is_test && user.role === "student" && result.score < result.total));
 
   const bonusAmount = result.perfect_bonus ? Math.max(0, result.earned_points - currentQuiz.points) : 0;
 
@@ -7420,6 +7450,118 @@ function dueFlashWords() {
 // nic nepíše - žádná chybová hláška, ať to nepůsobí jako problém.
 // metric: u pexesa počet tahů daného kola (viz record_practice_activity) -
 // slouží k zobrazení osobního rekordu, s body nesouvisí.
+// ---------- Opakování chyb (Procvičování → Moje slabá místa) ----------
+let reviewQueue = [];
+let reviewPos = 0;
+let reviewRight = 0;
+let reviewMasteredCount = 0;
+let reviewLocked = false;
+let reviewOptionOrder = [];
+
+async function refreshReviewHub() {
+  const el = document.getElementById("reviewHubDesc");
+  if (!el || !user) return;
+  try {
+    const { data, error } = await sb.rpc("get_my_mistake_count");
+    if (error || data == null) return;
+    el.textContent = data > 0
+      ? data + (data === 1 ? " otázka" : data < 5 ? " otázky" : " otázek") + " k zopakování z tvých kvízů."
+      : "Zatím nemáš co opakovat. Otázky se sem dostanou, když v kvízu odpovíš špatně.";
+  } catch (e) {}
+}
+
+async function startReviewSession() {
+  const body = document.getElementById("reviewBody");
+  reviewQueue = [];
+  reviewPos = 0;
+  reviewRight = 0;
+  reviewMasteredCount = 0;
+  reviewLocked = false;
+  body.innerHTML = "<div class='empty-note'>Načítám...</div>";
+  const { data, error } = await sb.rpc("get_review_questions", { p_limit: 10 });
+  if (error) {
+    body.innerHTML = "<div class='error-note'>Nepodařilo se načíst otázky: " + esc(error.message) + "</div>";
+    return;
+  }
+  reviewQueue = data || [];
+  if (!reviewQueue.length) {
+    const { data: cnt } = await sb.rpc("get_my_mistake_count");
+    body.innerHTML = cnt > 0
+      ? "<div class='empty-note'>Na dnešek máš zopakováno. Zbývá ještě " + cnt + " " + (cnt === 1 ? "otázka" : cnt < 5 ? "otázky" : "otázek") + " – zkus to zítra.</div>"
+      : "<div class='empty-note'>Zatím nemáš co opakovat. &#127881;<br>Otázky se sem dostanou, když v kvízu odpovíš špatně.</div>";
+    return;
+  }
+  renderReviewQuestion();
+}
+
+function renderReviewQuestion() {
+  const body = document.getElementById("reviewBody");
+  const item = reviewQueue[reviewPos];
+  reviewLocked = false;
+  reviewOptionOrder = shuffleArray(item.options.map((_, i) => i));
+  let html = "<div class='quiz-question'>";
+  html += "<div class='lb-note' style='text-align:left;margin:0 0 6px;'>Otázka " + (reviewPos + 1) + " z " + reviewQueue.length +
+    (item.streak > 0 ? " · zvládnuto " + item.streak + "× – ještě jednou v jiný den" : "") + "</div>";
+  html += "<p class='q'>" + esc(item.q) + "</p>";
+  reviewOptionOrder.forEach((oi) => {
+    html += "<button class='review-opt' id='revOpt-" + oi + "' onclick='answerReview(" + oi + ")'>" + esc(item.options[oi]) + "</button>";
+  });
+  html += "<div id='reviewFeedback' style='margin-top:6px;font-size:13px;'></div>";
+  html += "</div>";
+  body.innerHTML = html;
+}
+
+async function answerReview(oi) {
+  if (reviewLocked) return;
+  reviewLocked = true;
+  const item = reviewQueue[reviewPos];
+  const { data, error } = await sb.rpc("check_review_answer", { p_quiz_id: item.quiz_id, p_q_index: item.q_index, p_answer: oi });
+  const res = data && data[0] ? data[0] : null;
+  if (error || !res) {
+    reviewLocked = false;
+    const fb = document.getElementById("reviewFeedback");
+    if (fb) fb.innerHTML = "<span style='color:var(--red);'>Něco se nepovedlo, zkus to znovu.</span>";
+    return;
+  }
+  document.querySelectorAll(".review-opt").forEach((b) => { b.disabled = true; });
+  const chosen = document.getElementById("revOpt-" + oi);
+  const right = document.getElementById("revOpt-" + res.correct_index);
+  if (right) right.classList.add("review-opt-correct");
+  if (!res.is_correct && chosen) chosen.classList.add("review-opt-wrong");
+  if (res.is_correct) reviewRight++;
+  if (res.mastered) reviewMasteredCount++;
+  const fb = document.getElementById("reviewFeedback");
+  let msg;
+  if (res.mastered) msg = "&#127881; Správně – tuhle otázku už máš zvládnutou!";
+  else if (res.is_correct) msg = "Správně! Ještě jednou v jiný den a bude zvládnutá.";
+  else msg = "Tohle ještě chce procvičit – správná odpověď je zvýrazněná.";
+  const last = reviewPos >= reviewQueue.length - 1;
+  fb.innerHTML = "<div style='margin-bottom:10px;'>" + msg + "</div>" +
+    "<button class='btn-primary' onclick='nextReview()'>" + (last ? "Dokončit" : "Další") + "</button>";
+}
+
+function nextReview() {
+  reviewPos++;
+  if (reviewPos >= reviewQueue.length) finishReview();
+  else renderReviewQuestion();
+}
+
+async function finishReview() {
+  const body = document.getElementById("reviewBody");
+  const { data: cnt } = await sb.rpc("get_my_mistake_count");
+  body.innerHTML =
+    "<div class='result-box'>" +
+    "<div style='font-size:38px;margin-bottom:6px;'>&#127919;</div>" +
+    "<div class='msg'>Správně " + reviewRight + " z " + reviewQueue.length + "</div>" +
+    (reviewMasteredCount > 0 ? "<div class='msg'>Zvládnuté otázky: " + reviewMasteredCount + "</div>" : "") +
+    "<div class='msg'>" + (cnt > 0 ? "Ještě ti zbývá " + cnt + " " + (cnt === 1 ? "otázka" : cnt < 5 ? "otázky" : "otázek") + " k zopakování." : "Všechno máš zopakované! &#127881;") + "</div>" +
+    "<div class='msg' id='reviewBonusMsg'></div>" +
+    "<button class='btn-primary' onclick=\"startReviewSession()\">Další série</button>" +
+    "<button class='btn-secondary' onclick=\"showScreen('practice-hub')\">Zpět na procvičování</button>" +
+    "</div>";
+  await awardPracticeBonus("review", null, "reviewBonusMsg", null);
+}
+
 async function awardPracticeBonus(kind, refId, msgElementId, metric) {
   if (!user || user.role !== "student") return;
   try {
@@ -9362,14 +9504,16 @@ async function openCompetitorDetail(id) {
   document.getElementById("compDetailPointsCategories").innerHTML = "<div class='empty-note'>Načítám...</div>";
   document.getElementById("compDetailBadges").innerHTML = "";
   document.getElementById("compDetailPersonality").innerHTML = "";
+  document.getElementById("compDetailMistakes").innerHTML = "<div class='empty-note'>Načítám...</div>";
 
-  const [statsRes, quizRes, challengeRes, persRes, practiceRes, authoredRes] = await Promise.all([
+  const [statsRes, quizRes, challengeRes, persRes, practiceRes, authoredRes, mistakesRes] = await Promise.all([
     sb.rpc("get_student_badges_stats", { p_student_id: id }),
     sb.rpc("get_student_quiz_results", { p_student_id: id }),
     sb.rpc("get_student_challenge_results", { p_student_id: id }),
     sb.rpc("get_student_personality", { p_student_id: id }),
     sb.rpc("get_practice_points_breakdown", { p_student_id: id }),
     sb.rpc("get_my_authored_quizzes", { p_student_id: id }),
+    sb.rpc("get_student_mistakes", { p_student_id: id, p_limit: 10 }),
   ]);
 
   if (currentCompetitorId !== id) return; // mezitím otevřela detail jiného studenta
@@ -9387,6 +9531,7 @@ async function openCompetitorDetail(id) {
   };
 
   renderCompetitorPointsCategories(currentCompetitorExportData);
+  renderCompetitorMistakes(mistakesRes);
 
   if (!statsRes.error && statsRes.data && statsRes.data[0]) {
     const b = statsRes.data[0];
@@ -9414,6 +9559,35 @@ async function openCompetitorDetail(id) {
   } else {
     persEl.innerHTML = "<h2 class='section-title'>Test osobnosti</h2><div class='empty-note'>Zatím nevyplnil/a test osobnosti.</div>";
   }
+}
+
+// Slabá místa studenta pro mistrovou: kolik otázek má k zopakování, kolik už
+// zvládl a které otázky mu dělají největší potíže (nejdřív ty s nulovým postupem).
+function renderCompetitorMistakes(res) {
+  const el = document.getElementById("compDetailMistakes");
+  if (!el) return;
+  const rows = (res && !res.error && res.data) ? res.data : [];
+  if (!rows.length) {
+    el.innerHTML = "<div class='empty-note'>Zatím nejsou k dispozici žádná data.</div>";
+    return;
+  }
+  const open = rows[0].open_total || 0;
+  const mastered = rows[0].mastered_total || 0;
+  let html = "<div class='card'><div style='font-size:13.5px;color:var(--text);'>K zopakování: <b>" + open + "</b> · už zvládnuto: <b>" + mastered + "</b></div>";
+  const items = rows.filter((r) => r.quiz_id != null);
+  if (items.length) {
+    html += "<div style='margin-top:10px;font-size:12.5px;color:var(--text-muted);'>Otázky, které mu dělají největší potíže:</div>";
+    items.forEach((r) => {
+      html += "<div style='margin-top:8px;padding-top:8px;border-top:1px solid #E0DCD3;font-size:13px;'>" + esc(r.question_text || "") +
+        "<div style='font-size:11.5px;color:var(--text-muted);margin-top:2px;'>" + esc(r.quiz_title || "") +
+        (r.streak > 0 ? " · zvládnuto " + r.streak + "×" : "") + "</div></div>";
+    });
+    if (open > items.length) html += "<div style='margin-top:8px;font-size:12px;color:var(--text-muted);'>… a dalších " + (open - items.length) + "</div>";
+  } else {
+    html += "<div style='margin-top:6px;font-size:13px;'>Všechno zvládnuto &#127881;</div>";
+  }
+  html += "</div>";
+  el.innerHTML = html;
 }
 
 function renderCompetitorBadges(b) {
@@ -10056,6 +10230,7 @@ function buildBadgeCatalog(b) {
     mk("Procvičování", "practice_streak7", "&#128293;", "Procvičovací týden", "Získej denní bonus za procvičování 7 dní v řadě.", Math.min(b.practice_streak || 0, 7) + " / 7 dnů"),
     mk("Procvičování", "practice_quiz10", "&#9989;", "Trenér/ka", "Dokonči celkem 10 kvízů nanečisto.", Math.min(b.practice_quiz_total || 0, 10) + " / 10"),
     mk("Procvičování", "words_known50", "&#128218;", "Slovní expert", "Označ 50 různých slovíček poprvé jako Umím.", Math.min(b.words_known_first_time || 0, 50) + " / 50"),
+    mk("Procvičování", "mistakes_mastered20", "&#127919;", "Opravář/ka", "Zvládni správně 20 otázek z Mých slabých míst (dvakrát ve dvou různých dnech).", Math.min(b.mistakes_mastered || 0, 20) + " / 20"),
     mk("Procvičování", "pexeso_rounds20", "&#127183;", "Pexeso mistr/mistryně", "Dohraj celkem 20 kol pexesa.", Math.min(b.pexeso_rounds_total || 0, 20) + " / 20"),
 
     // ---- Různé ----
